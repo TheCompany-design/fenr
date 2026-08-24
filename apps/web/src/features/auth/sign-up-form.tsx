@@ -18,6 +18,7 @@ import { signUpSchema } from "@/lib/schemas/auth"
 
 import { FieldError } from "./field-error"
 import { OAuthButtons } from "./oauth-buttons"
+import { PasswordInput } from "./password-input"
 
 /** Map Better Auth error codes to user-facing messages without leaking internals. */
 function signUpErrorMessage(
@@ -42,6 +43,7 @@ export function SignUpForm({ redirectTo }: { redirectTo: string }) {
       name: "",
       email: "",
       password: "",
+      confirmPassword: "",
     },
     validators: {
       onChange: signUpSchema,
@@ -119,14 +121,43 @@ export function SignUpForm({ redirectTo }: { redirectTo: string }) {
           {(field) => (
             <div className="flex flex-col gap-2">
               <Label htmlFor="sign-up-password">Password</Label>
-              <Input
+              <PasswordInput
                 id="sign-up-password"
                 name={field.name}
-                type="password"
                 autoComplete="new-password"
-                placeholder="At least 8 characters"
+                placeholder="8+ chars, upper & lower case, number, symbol"
                 required
                 minLength={8}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(e) => field.handleChange(e.target.value)}
+              />
+              <FieldError field={field} />
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field
+          name="confirmPassword"
+          validators={{
+            // Re-run when the password changes so a later password edit also
+            // re-validates the confirmation.
+            onChangeListenTo: ["password"],
+            onChange: ({ value, fieldApi }) =>
+              value === fieldApi.form.state.values.password
+                ? undefined
+                : "Passwords do not match",
+          }}
+        >
+          {(field) => (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sign-up-confirm-password">Confirm password</Label>
+              <PasswordInput
+                id="sign-up-confirm-password"
+                name={field.name}
+                autoComplete="new-password"
+                placeholder="Repeat your password"
+                required
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}

@@ -18,6 +18,7 @@ import { signInSchema } from "@/lib/schemas/auth"
 
 import { FieldError } from "./field-error"
 import { OAuthButtons } from "./oauth-buttons"
+import { PasswordInput } from "./password-input"
 
 /** Map Better Auth error codes to user-facing messages without leaking internals. */
 function signInErrorMessage(
@@ -98,10 +99,9 @@ export function SignInForm({ redirectTo }: { redirectTo: string }) {
           {(field) => (
             <div className="flex flex-col gap-2">
               <Label htmlFor="sign-in-password">Password</Label>
-              <Input
+              <PasswordInput
                 id="sign-in-password"
                 name={field.name}
-                type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"
                 required

@@ -4,10 +4,16 @@ import type { AnyFieldApi } from "@tanstack/react-form"
 export function FieldError({ field }: { field: AnyFieldApi }) {
   const { isTouched, isValidating, errors } = field.state.meta
   if (!isTouched || isValidating || errors.length === 0) return null
+
+  // Validator results come in three shapes: plain strings from function
+  // validators, { message } objects from Standard Schema issues, and Errors.
+  const first = errors[0]
   const message =
-    errors[0] instanceof Error
-      ? errors[0].message
-      : ((errors[0]?.message as string | undefined) ?? "Invalid value")
+    typeof first === "string"
+      ? first
+      : first instanceof Error
+        ? first.message
+        : ((first?.message as string | undefined) ?? "Invalid value")
   return (
     <p className="text-destructive text-sm" role="alert">
       {message}
