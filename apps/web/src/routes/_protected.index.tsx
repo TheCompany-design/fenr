@@ -77,7 +77,7 @@ function App() {
   const reset = useDemoStore((s) => s.reset)
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-2xl flex-col gap-6 p-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <header className="flex items-center gap-3">
         <HugeiconsIcon icon={RocketIcon} size={28} className="text-primary" />
         <div className="flex-1">
