@@ -18,8 +18,9 @@ import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
 
 function GuardLayout() {
+  const { session } = Route.useRouteContext()
   return (
-    <AppShell>
+    <AppShell user={session.user}>
       <Outlet />
     </AppShell>
   )

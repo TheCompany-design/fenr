@@ -13,6 +13,9 @@ import {
   SidebarTrigger,
 } from "@workspace/ui/components/sidebar"
 
+import { ThemeToggle } from "@/components/shell/theme-toggle"
+import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
+
 import { AppSidebar, useActiveNavId } from "./app-sidebar"
 import { NAV_ITEMS } from "./nav-config"
 
@@ -26,7 +29,13 @@ function PageTitle() {
   )
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: React.ReactNode
+  user: SessionUser
+}) {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -38,6 +47,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             orientation="vertical"
           />
           <PageTitle />
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeToggle />
+            <UserMenu user={user} />
+          </div>
         </header>
         <main className="flex flex-1 flex-col">{children}</main>
       </SidebarInset>
