@@ -1,7 +1,13 @@
+/**
+ * / — authenticated landing page.
+ *
+ * Lives under the _protected guard layout, so a session is guaranteed here;
+ * the session arrives through the router context set by _protected.beforeLoad.
+ */
 import { RocketIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -11,7 +17,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import { toast } from "sonner"
+
 import { DemoForm } from "@/components/demo-form"
+import { signOut } from "@/lib/auth-client"
 import { useDemoStore } from "@/lib/stores/demo-store"
 
 /**
@@ -24,7 +33,7 @@ async function fetchPosts() {
   return res.json() as Promise<Array<{ id: number; title: string }>>
 }
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_protected/")({
   loader: ({ context }) =>
     context.queryClient.ensureQueryData({
       queryKey: ["posts"],
@@ -33,7 +42,30 @@ export const Route = createFileRoute("/")({
   component: App,
 })
 
+function SignOutButton() {
+  const navigate = useNavigate()
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={async () => {
+        const { error } = await signOut()
+        if (error) {
+          toast.error("Sign-out failed", { description: "Please try again." })
+          return
+        }
+        await navigate({ to: "/auth/sign-in" })
+      }}
+    >
+      Sign out
+    </Button>
+  )
+}
+
 function App() {
+  const { session } = Route.useRouteContext()
+  const user = session.user
+
   const { data: posts } = useSuspenseQuery({
     queryKey: ["posts"],
     queryFn: fetchPosts,
@@ -48,12 +80,13 @@ function App() {
     <main className="mx-auto flex min-h-svh w-full max-w-2xl flex-col gap-6 p-6">
       <header className="flex items-center gap-3">
         <HugeiconsIcon icon={RocketIcon} size={28} className="text-primary" />
-        <div>
+        <div className="flex-1">
           <h1 className="font-semibold text-2xl">Fenr</h1>
           <p className="text-muted-foreground text-sm">
-            Bun · Turborepo · TanStack Start · shadcn · Zustand · Query · Form
+            Signed in as <span className="text-foreground">{user.email}</span>
           </p>
         </div>
+        <SignOutButton />
       </header>
 
       <Card>
@@ -93,6 +126,16 @@ function App() {
             </p>
           ))}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Auth stack</CardTitle>
+          <CardDescription>
+            This page is guarded by the _protected layout — sessions live in
+            Postgres via Drizzle (@workspace/database).
+          </CardDescription>
+        </CardHeader>
       </Card>
 
       <DemoForm />

@@ -15,7 +15,10 @@
     "typecheck": "turbo run typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check": "biome check --write . && turbo run typecheck"
+    "check": "biome check --write . && turbo run typecheck",
+    "db:generate": "bun run --cwd packages/database db:generate",
+    "db:migrate": "bun run --cwd packages/database db:migrate",
+    "auth:generate": "bun run --cwd apps/web auth:generate"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",

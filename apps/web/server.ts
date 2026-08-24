@@ -11,6 +11,8 @@
  */
 import path from "node:path"
 
+import { logger } from "./src/lib/logger"
+
 const SERVER_PORT = Number(process.env.PORT ?? 3000)
 const CLIENT_DIRECTORY = "./dist/client"
 const SERVER_ENTRY_POINT = "./dist/server/server.js"
@@ -22,9 +24,7 @@ interface ServerHandler {
   fetch: (request: Request) => Response | Promise<Response>
 }
 
-function log(level: string, message: string) {
-  console.log(`[${level}] ${message}`)
-}
+const startupLogger = logger.child({ mod: "server" })
 
 async function initializeStaticRoutes(): Promise<{
   routes: Record<string, (req: Request) => Response | Promise<Response>>
@@ -66,15 +66,15 @@ async function initializeStaticRoutes(): Promise<{
     }
   }
 
-  log(
-    "INFO",
-    `Preloaded ${(preloaded / 1024 / 1024).toFixed(2)} MB of static assets`,
+  startupLogger.info(
+    { preloadedMb: Number((preloaded / 1024 / 1024).toFixed(2)) },
+    "static assets preloaded",
   )
   return { routes }
 }
 
 async function initializeServer() {
-  log("INFO", "Starting Fenr production server (Bun)")
+  startupLogger.info("starting Fenr production server")
 
   let handler: ServerHandler
   try {
@@ -82,9 +82,9 @@ async function initializeServer() {
       default: ServerHandler
     }
     handler = serverModule.default
-    log("SUCCESS", "TanStack Start application handler initialized")
+    startupLogger.info("TanStack Start application handler initialized")
   } catch (error) {
-    log("ERROR", `Failed to load server handler: ${String(error)}`)
+    startupLogger.error({ err: error }, "failed to load server handler")
     process.exit(1)
   }
 
@@ -99,24 +99,27 @@ async function initializeServer() {
         try {
           return await handler.fetch(req)
         } catch (error) {
-          log("ERROR", `Server handler error: ${String(error)}`)
+          startupLogger.error(
+            { err: error, url: req.url },
+            "server handler error",
+          )
           return new Response("Internal Server Error", { status: 500 })
         }
       },
     },
     error(error) {
-      log(
-        "ERROR",
-        `Uncaught server error: ${error instanceof Error ? error.message : String(error)}`,
+      startupLogger.error(
+        { err: error instanceof Error ? error : String(error) },
+        "uncaught server error",
       )
       return new Response("Internal Server Error", { status: 500 })
     },
   })
 
-  log("SUCCESS", `Server listening on http://localhost:${server.port}`)
+  startupLogger.info({ port: server.port }, "server listening")
 }
 
 initializeServer().catch((error: unknown) => {
-  log("ERROR", `Failed to start server: ${String(error)}`)
+  startupLogger.error({ err: error }, "failed to start server")
   process.exit(1)
 })

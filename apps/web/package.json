@@ -8,7 +8,8 @@
     "build": "bun --bun vite build",
     "preview": "bun --bun vite preview",
     "start": "bun run server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "auth:generate": "bun x @better-auth/cli@latest generate --output ../../packages/database/src/auth-schema.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^1",
@@ -22,9 +23,13 @@
     "@tanstack/react-router-ssr-query": "^1.167.1",
     "@tanstack/react-start": "latest",
     "@tanstack/router-plugin": "latest",
+    "@workspace/database": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "better-auth": "^1.7.1",
+    "pino": "^10.3.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
+    "sonner": "^2.0.8",
     "tailwindcss": "^4",
     "zod": "^4.4.3",
     "zustand": "^5"
