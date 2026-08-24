@@ -113,7 +113,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         </SidebarContent>
       </ScrollArea>
       {/* Footer intentionally empty — team switcher / notifications dropped
-			    per epic decision; slots available for future chrome. */}
+          per epic decision; slots available for future chrome. */}
       <SidebarRail />
     </Sidebar>
   )

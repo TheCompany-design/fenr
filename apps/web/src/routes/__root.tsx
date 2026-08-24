@@ -43,6 +43,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         content: "width=device-width, initial-scale=1",
       },
       {
+        // Initial value assumes light; ThemeSync rewrites it from the
+        // --background token once the dark class is applied.
+        name: "theme-color",
+        content: "#ffffff",
+      },
+      {
         title: "TanStack Start Starter",
       },
     ],
@@ -50,10 +56,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       {
         rel: "stylesheet",
         href: appCss,
-      },
-      {
-        name: "theme-color",
-        content: "#ffffff",
       },
     ],
   }),
