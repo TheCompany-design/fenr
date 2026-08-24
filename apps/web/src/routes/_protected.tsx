@@ -29,8 +29,12 @@ function GuardLayout() {
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async ({ location }) => {
-    const session = await getSession()
-    const sidebarOpen = await getSidebarOpen()
+    // Parallel: both are cheap server reads, so the common (authenticated)
+    // path pays one round of concurrent work instead of two sequential ones.
+    const [session, sidebarOpen] = await Promise.all([
+      getSession(),
+      getSidebarOpen(),
+    ])
     if (!session) {
       throw redirect({
         to: "/auth/sign-in",
