@@ -105,7 +105,9 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
         <SidebarContent>
           <div className="flex flex-col gap-4 px-2 py-4">
             <nav aria-label="Main navigation">
-              <SidebarMenu>
+              {/* gap-1: breathing room between nav items (SidebarMenu's
+                  default gap is 0). */}
+              <SidebarMenu className="gap-1">
                 {NAV_ITEMS.map((item) => (
                   <SidebarMenuItem key={item.id}>
                     <NavItemButton

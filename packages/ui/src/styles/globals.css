@@ -127,4 +127,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Tailwind v4 preflight sets buttons to cursor:default; interactive
+     buttons should signal clickability. Disabled stays default. */
+  button:not(:disabled) {
+    cursor: pointer;
+  }
 }

@@ -16,11 +16,12 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { AppShell } from "@/components/shell/app-shell"
 import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
+import { getSidebarOpen } from "@/lib/ui-prefs"
 
 function GuardLayout() {
-  const { session } = Route.useRouteContext()
+  const { session, sidebarOpen } = Route.useRouteContext()
   return (
-    <AppShell user={session.user}>
+    <AppShell defaultOpen={sidebarOpen} user={session.user}>
       <Outlet />
     </AppShell>
   )
@@ -29,13 +30,14 @@ function GuardLayout() {
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async ({ location }) => {
     const session = await getSession()
+    const sidebarOpen = await getSidebarOpen()
     if (!session) {
       throw redirect({
         to: "/auth/sign-in",
         search: { redirect: safeRedirectPath(location.href) },
       })
     }
-    return { session }
+    return { session, sidebarOpen }
   },
   component: GuardLayout,
 })
