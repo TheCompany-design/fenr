@@ -54,6 +54,11 @@ function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
+/**
+ * Label for a dropdown-menu section. Base UI contract: Menu.GroupLabel must
+ * have a Menu.Group ancestor — wrap this in <DropdownMenuGroup> (together
+ * with the items it labels) or it throws at render time.
+ */
 function DropdownMenuLabel({
   className,
   inset,

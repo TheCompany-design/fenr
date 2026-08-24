@@ -21,6 +21,7 @@ import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -107,14 +108,20 @@ export function UserMenu({ user }: { user: SessionUser }) {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
-        <DropdownMenuLabel>
-          <div className="flex flex-col">
-            <span className="truncate font-medium">
-              {user.name.trim() || user.email}
-            </span>
-            <span className="text-muted-foreground text-xs">{user.email}</span>
-          </div>
-        </DropdownMenuLabel>
+        {/* GroupLabel requires a Group ancestor (Base UI contract) — a bare
+            label inside Content throws at render time. */}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            <div className="flex flex-col">
+              <span className="truncate font-medium">
+                {user.name.trim() || user.email}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                {user.email}
+              </span>
+            </div>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={pending} onClick={handleSignOut}>
           <HugeiconsIcon icon={Logout03Icon} size={16} />
