@@ -70,7 +70,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the pre-hydration theme script applies the
+    // `dark` class to <html> before React hydrates. React 19 dev logs an
+    // attribute mismatch for it (and correctly keeps the server value).
+    // Scoped to this element only — mismatches in children still surface.
+    <html lang="en" suppressHydrationWarning>
       <head>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: pre-hydration theme script must be a blocking inline script; content is a compile-time constant with no user input */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
