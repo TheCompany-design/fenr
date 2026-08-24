@@ -59,17 +59,18 @@ export function UserMenu({ user }: { user: SessionUser }) {
     try {
       const { error } = await signOut()
       if (error) {
-        // Session may be stale or the backend unreachable — either way the
-        // guard re-validates on navigation, so we still leave.
-        toast.error("Couldn't sign out cleanly", {
+        // Soft failure (e.g. transient network error): the session cookie may
+        // still be valid, so navigating to /auth/sign-in would bounce straight
+        // back through the _protected guard. Stay put with an actionable
+        // retry message instead.
+        toast.error("Couldn't sign out", {
           description:
-            "You've been returned to the sign-in page. Try again there.",
+            "We couldn't reach the server. Check your connection and try again.",
         })
-      } else {
-        toast.success("Signed out")
+        setPending(false)
+        return
       }
-      // Drop any cached user-scoped data so nothing leaks across accounts.
-      queryClient.clear()
+      toast.success("Signed out")
     } catch {
       toast.error("Couldn't sign out", {
         description: "Something went wrong. Please try again.",
@@ -78,6 +79,10 @@ export function UserMenu({ user }: { user: SessionUser }) {
       return
     }
     await navigate({ to: "/auth/sign-in" })
+    // Drop cached user-scoped data only after leaving, so still-mounted
+    // protected queries don't suspend/refetch mid-exit and leak across
+    // accounts on the next sign-in.
+    queryClient.clear()
   }
 
   return (

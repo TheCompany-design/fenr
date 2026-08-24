@@ -30,7 +30,11 @@ import { NAV_ITEMS } from "./nav-config"
 
 function Brand() {
   return (
-    <Link className="flex min-w-0 items-center gap-2" to="/">
+    <Link
+      aria-label="Fenr home"
+      className="flex min-w-0 items-center gap-2"
+      to="/"
+    >
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
         <HugeiconsIcon icon={RocketIcon} size={18} />
       </span>

@@ -41,11 +41,13 @@ export const useThemeStore = create<ThemeState>()(
     {
       name: THEME_STORAGE_KEY,
       version: 1,
-      // Corrupt/foreign values fall back to the default ("system").
+      // Old-version payloads are migrated; same-version payloads go through
+      // merge — both paths must guarantee `mode` is always a valid ThemeMode.
       migrate: (persisted) =>
         isThemeMode((persisted as { mode?: unknown })?.mode)
           ? (persisted as ThemeState)
           : { mode: "system" },
+      merge: mergeThemeState,
       ...(typeof window === "undefined"
         ? {}
         : { storage: createJSONStorage(() => window.localStorage) }),

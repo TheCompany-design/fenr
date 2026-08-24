@@ -60,7 +60,7 @@ export function ThemeToggle() {
           <DropdownMenuItem
             key={optionMode}
             onClick={() => setMode(optionMode)}
-            data-active={mode === optionMode}
+            data-active={effectiveMode === optionMode}
           >
             <HugeiconsIcon icon={icon} size={16} />
             {label}
