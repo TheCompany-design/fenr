@@ -22,3 +22,5 @@ todos.json
 
 # agents
 .agents
+# keep the example tracked even though .env* is ignored
+!apps/web/.env.example
