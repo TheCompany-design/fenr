@@ -2,9 +2,10 @@
  * User profile menu — signed-in identity + logout.
  *
  * Defensive by design: missing/empty user fields fall back (name → email →
- * initials). Sign-out failure never traps the user: they still navigate
- * away (the _protected guard re-checks the session on next navigation) and
- * get an actionable Sonner message. Double-invocation guarded via pending.
+ * initials). Sign-out failure never traps the user in a broken state: they
+ * stay put with an actionable retry message (navigating away would be wrong
+ * when the session cookie is still valid — the _protected guard would just
+ * bounce them back). Double-invocation guarded via pending.
  */
 
 import { Logout03Icon } from "@hugeicons/core-free-icons"
@@ -78,11 +79,14 @@ export function UserMenu({ user }: { user: SessionUser }) {
       setPending(false)
       return
     }
-    await navigate({ to: "/auth/sign-in" })
-    // Drop cached user-scoped data only after leaving, so still-mounted
-    // protected queries don't suspend/refetch mid-exit and leak across
-    // accounts on the next sign-in.
-    queryClient.clear()
+    await navigate({ to: "/auth/sign-in" }).finally(() => {
+      // Always drop cached user-scoped data — even if navigation is
+      // interrupted — so nothing survives into a later account's session.
+      // Resetting pending here too guards a stuck disabled menu item when
+      // navigation rejects without unmounting us.
+      queryClient.clear()
+      setPending(false)
+    })
   }
 
   return (
