@@ -15,7 +15,9 @@ export interface NavItem {
   icon: IconSvgElement
   /** Route path. Extend this union as real routes land. */
   to?: "/"
-  /** Placeholder item — rendered but inert until its route exists. */
+  /** Placeholder item — rendered but inert until its route exists.
+   *  Inert by construction: NavItemButton renders no onClick for disabled
+   *  items regardless of `to`, so a future route won't silently activate. */
   disabled?: boolean
 }
 
