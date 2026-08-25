@@ -7,7 +7,7 @@
 import { RocketIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -17,10 +17,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import { toast } from "sonner"
 
 import { DemoForm } from "@/components/demo-form"
-import { signOut } from "@/lib/auth-client"
 import { useDemoStore } from "@/lib/stores/demo-store"
 
 /**
@@ -42,26 +40,6 @@ export const Route = createFileRoute("/_protected/")({
   component: App,
 })
 
-function SignOutButton() {
-  const navigate = useNavigate()
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={async () => {
-        const { error } = await signOut()
-        if (error) {
-          toast.error("Sign-out failed", { description: "Please try again." })
-          return
-        }
-        await navigate({ to: "/auth/sign-in" })
-      }}
-    >
-      Sign out
-    </Button>
-  )
-}
-
 function App() {
   const { session } = Route.useRouteContext()
   const user = session.user
@@ -77,7 +55,7 @@ function App() {
   const reset = useDemoStore((s) => s.reset)
 
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-2xl flex-col gap-6 p-6">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">
       <header className="flex items-center gap-3">
         <HugeiconsIcon icon={RocketIcon} size={28} className="text-primary" />
         <div className="flex-1">
@@ -86,7 +64,6 @@ function App() {
             Signed in as <span className="text-foreground">{user.email}</span>
           </p>
         </div>
-        <SignOutButton />
       </header>
 
       <Card>

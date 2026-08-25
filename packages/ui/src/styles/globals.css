@@ -127,4 +127,11 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Tailwind v4 preflight sets buttons to cursor:default; interactive
+     buttons should signal clickability. Disabled stays default, and so do
+     aria-disabled placeholders (inert — a pointer would imply clickability;
+     their tooltip still works via hover/focus). */
+  button:not(:disabled):not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
 }

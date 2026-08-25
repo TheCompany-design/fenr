@@ -6,20 +6,42 @@
  * destination in the `redirect` search param. Server functions must still
  * authorize themselves via ensureSession() — this UI guard alone is never
  * sufficient (review-framework invariant #7).
+ *
+ * The shell composition lives here too: every authenticated screen renders
+ * inside the AppShell. The session arrives via router context — it is never
+ * refetched by shell chrome.
  */
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
+
+import { AppShell } from "@/components/shell/app-shell"
 import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
+import { getSidebarOpen } from "@/lib/ui-prefs"
+
+function GuardLayout() {
+  const { session, sidebarOpen } = Route.useRouteContext()
+  return (
+    <AppShell defaultOpen={sidebarOpen} user={session.user}>
+      <Outlet />
+    </AppShell>
+  )
+}
 
 export const Route = createFileRoute("/_protected")({
   beforeLoad: async ({ location }) => {
-    const session = await getSession()
+    // Parallel: both are cheap server reads, so the common (authenticated)
+    // path pays one round of concurrent work instead of two sequential ones.
+    const [session, sidebarOpen] = await Promise.all([
+      getSession(),
+      getSidebarOpen(),
+    ])
     if (!session) {
       throw redirect({
         to: "/auth/sign-in",
         search: { redirect: safeRedirectPath(location.href) },
       })
     }
-    return { session }
+    return { session, sidebarOpen }
   },
+  component: GuardLayout,
 })
