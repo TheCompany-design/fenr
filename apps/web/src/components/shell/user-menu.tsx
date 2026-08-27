@@ -123,7 +123,11 @@ export function UserMenu({ user }: { user: SessionUser }) {
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={pending} onClick={handleSignOut}>
+        <DropdownMenuItem
+          variant="destructive"
+          disabled={pending}
+          onClick={handleSignOut}
+        >
           <HugeiconsIcon icon={Logout03Icon} size={16} />
           Sign out
         </DropdownMenuItem>
