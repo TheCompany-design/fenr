@@ -11,6 +11,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@workspace/ui/components/chart"
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- dynamically loaded chunk via React.lazy in dashboard-overview
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 const chartData = [

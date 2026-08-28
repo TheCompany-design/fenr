@@ -12,6 +12,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@workspace/ui/components/chart"
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import -- dynamically loaded chunk via React.lazy in dashboard-overview
 import { Label, type LabelProps, Pie, PieChart } from "recharts"
 
 const chartData = [
