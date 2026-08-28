@@ -53,61 +53,23 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
 import { signOut } from "@/lib/auth-client"
+import {
+  clamp,
+  collapsedClip,
+  initialsOf,
+  type SessionUser,
+  useIsMounted,
+} from "./user-utils"
 
-const emptySubscribe = () => () => {}
-function useIsMounted(): boolean {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false,
-  )
-}
-
-export interface SessionUser {
-  name: string
-  email: string
-  image?: string | null
-  tier?: string
-  usagePercent?: number
-}
+export type { SessionUser }
 
 const VIEWPORT_PADDING = 8
 const MORPH_DURATION = 0.28
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max)
-}
-
-function collapsedClip(
-  origin: { x: number; y: number },
-  size: { width: number; height: number },
-): string {
-  const half = 8
-  const top = clamp(origin.y - half, 0, size.height)
-  const right = clamp(size.width - origin.x - half, 0, size.width)
-  const bottom = clamp(size.height - origin.y - half, 0, size.height)
-  const left = clamp(origin.x - half, 0, size.width)
-  return `inset(${top}px ${right}px ${bottom}px ${left}px round 12px)`
-}
-
-export function initialsOf(user?: SessionUser | null): string {
-  if (!user) return "?"
-  const source = user.name?.trim() || user.email?.trim() || ""
-  if (!source) return "?"
-  const parts = source.split(/\s+/).filter(Boolean)
-  const initials = parts
-    .slice(0, 2)
-    .map((part) => part.charAt(0))
-    .join("")
-    .toUpperCase()
-  return initials || "?"
-}
 
 /** Segmented visual telemetry bar with staggered entrance animation and alert state */
 export function UsageWidget({

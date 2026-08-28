@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test"
 import {
   AnimatedDropdown,
-  initialsOf,
   UsageWidget,
   UserCard,
   UserMenu,
   UserMenuItems,
 } from "./user-menu"
+import { initialsOf } from "./user-utils"
 
 describe("user-menu component & helpers", () => {
   it("initialsOf extracts valid uppercase initials defensively", () => {
