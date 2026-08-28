@@ -6,7 +6,7 @@
  *   functions that must be authorized; a route guard alone is never
  *   sufficient (review-framework invariant #7).
  */
-import { createServerFn } from "@tanstack/react-start"
+import { createMiddleware, createServerFn } from "@tanstack/react-start"
 import { getRequestHeaders } from "@tanstack/react-start/server"
 
 import type { Session } from "./auth"
@@ -53,3 +53,13 @@ export const ensureSession = createServerFn({ method: "GET" }).handler(
     return session
   },
 )
+
+export const authMiddleware = createMiddleware().server(async ({ next }) => {
+  const session = await getSession()
+  if (!session) {
+    throw new UnauthorizedError()
+  }
+  return next({
+    context: { session, user: session.user },
+  })
+})

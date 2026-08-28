@@ -4,8 +4,8 @@
  * Every nested route (including /) requires a valid session: unauthenticated
  * navigation is redirected to /auth/sign-in, preserving the intended
  * destination in the `redirect` search param. Server functions must still
- * authorize themselves via ensureSession() — this UI guard alone is never
- * sufficient (review-framework invariant #7).
+ * authorize themselves via ensureSession() or authMiddleware — this UI guard
+ * alone is never sufficient (review-framework invariant #7).
  *
  * The shell composition lives here too: every authenticated screen renders
  * inside the AppShell. The session arrives via router context — it is never
@@ -27,7 +27,7 @@ function GuardLayout() {
   )
 }
 
-export const Route = createFileRoute("/_protected")({
+export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
     // Parallel: both are cheap server reads, so the common (authenticated)
     // path pays one round of concurrent work instead of two sequential ones.
