@@ -14,9 +14,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
+import { cn } from "@workspace/ui/lib/utils"
 import { useEffect, useState } from "react"
 
-import { type ThemeMode, useThemeStore } from "@/lib/stores/theme-store"
+import { type ThemeMode, useThemeStore } from "@/components/providers"
 
 const OPTIONS: ReadonlyArray<{
   mode: ThemeMode
@@ -28,7 +29,7 @@ const OPTIONS: ReadonlyArray<{
   { mode: "system", label: "System", icon: LaptopIcon },
 ]
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string } = {}) {
   const mode = useThemeStore((s) => s.mode)
   const setMode = useThemeStore((s) => s.setMode)
   // The persisted mode resolves synchronously on the client but the server
@@ -50,6 +51,7 @@ export function ThemeToggle() {
             aria-label={`Theme: ${active.label}. Change theme`}
             size="icon"
             variant="ghost"
+            className={cn("rounded-full", className)}
           />
         }
       >

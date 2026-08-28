@@ -3,10 +3,10 @@
  *
  * Wraps the floating sidebar with the inset content area and a slim top
  * bar (mobile nav trigger + active-section label). Route content arrives
- * via children (the <Outlet /> rendered by the _protected guard layout),
+ * via children (the <Outlet /> rendered by the _app guard layout),
  * so this component stays route-agnostic.
  */
-import { Separator } from "@workspace/ui/components/separator"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,18 +17,7 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
 
-import { AppSidebar, useActiveNavId } from "./app-sidebar"
-import { NAV_ITEMS } from "./nav-config"
-
-function PageTitle() {
-  const activeId = useActiveNavId()
-  const active = NAV_ITEMS.find((item) => item.id === activeId)
-  return (
-    <span className="truncate font-medium text-sm">
-      {active?.title ?? "Fenr"}
-    </span>
-  )
-}
+import { AppSidebar } from "./app-sidebar"
 
 export function AppShell({
   children,
@@ -46,21 +35,29 @@ export function AppShell({
     // adjacent triggers switch tooltips instantly (delay group).
     <TooltipProvider delay={0}>
       <SidebarProvider defaultOpen={defaultOpen}>
-        <AppSidebar />
-        <SidebarInset className="flex min-h-svh flex-col">
-          <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-border border-b bg-background/80 px-3 backdrop-blur">
-            <SidebarTrigger aria-label="Toggle navigation" />
-            <Separator
-              className="data-[orientation=vertical]:h-4"
-              orientation="vertical"
-            />
-            <PageTitle />
-            <div className="ml-auto flex items-center gap-1">
-              <ThemeToggle />
-              <UserMenu user={user} />
-            </div>
-          </header>
-          <main className="flex flex-1 flex-col">{children}</main>
+        <AppSidebar user={user} />
+        <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
+          <ScrollArea className="h-full w-full">
+            <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between pointer-events-none px-4 pt-3 pb-1">
+              {/* Free-standing left items */}
+              <div className="pointer-events-auto flex items-center gap-2">
+                <SidebarTrigger
+                  aria-label="Toggle navigation"
+                  className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                />
+              </div>
+
+              {/* Free-standing right items */}
+              <div className="pointer-events-auto flex items-center gap-2">
+                <ThemeToggle className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground" />
+                <UserMenu
+                  user={user}
+                  className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                />
+              </div>
+            </header>
+            <main className="flex flex-1 flex-col">{children}</main>
+          </ScrollArea>
         </SidebarInset>
       </SidebarProvider>
     </TooltipProvider>
