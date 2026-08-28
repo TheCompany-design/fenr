@@ -29,7 +29,7 @@ import {
   REDUCED_TRANSITION,
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
-import { motion, useReducedMotion } from "motion/react"
+import { m, useReducedMotion } from "motion/react"
 import type { NavItem } from "./nav-config"
 import { NAV_ITEMS } from "./nav-config"
 import type { SessionUser } from "./user-menu"
@@ -52,7 +52,7 @@ function Brand() {
               <HugeiconsIcon icon={RocketIcon} size={18} />
             </div>
           </div>
-          <motion.span
+          <m.span
             initial={false}
             animate={{
               opacity: collapsed ? 0 : 1,
@@ -72,7 +72,7 @@ function Brand() {
             )}
           >
             Fenr
-          </motion.span>
+          </m.span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
@@ -90,7 +90,7 @@ function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
       <div className="relative z-10 flex size-10 shrink-0 items-center justify-center">
         <HugeiconsIcon icon={icon} size={18} />
       </div>
-      <motion.span
+      <m.span
         initial={false}
         animate={{
           opacity: collapsed ? 0 : 1,
@@ -110,7 +110,7 @@ function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
         )}
       >
         {title}
-      </motion.span>
+      </m.span>
     </>
   )
 
