@@ -44,6 +44,7 @@ export class UnauthorizedError extends Error {
   }
 }
 
+// react-doctor-disable-next-line deslop/unused-export -- Public server auth primitive for server functions
 export const ensureSession = createServerFn({ method: "GET" }).handler(
   async (): Promise<Session> => {
     const session = await getSession()
@@ -54,6 +55,7 @@ export const ensureSession = createServerFn({ method: "GET" }).handler(
   },
 )
 
+// react-doctor-disable-next-line deslop/unused-export -- Public server auth middleware for server functions
 export const authMiddleware = createMiddleware().server(async ({ next }) => {
   const session = await getSession()
   if (!session) {
