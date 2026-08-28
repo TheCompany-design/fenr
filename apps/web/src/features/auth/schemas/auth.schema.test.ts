@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { signInSchema, signUpSchema } from "./auth"
+import { signInSchema, signUpSchema } from "./auth.schema"
 
 const strongPassword = "Correct-Horse-42!"
 

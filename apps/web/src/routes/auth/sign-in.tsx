@@ -8,8 +8,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { z } from "zod"
 
-import { AuthHeader, AuthShell } from "@/features/auth/auth-shell"
-import { SignInForm } from "@/features/auth/sign-in-form"
+import { AuthHeader, AuthShell, SignInForm } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
 
