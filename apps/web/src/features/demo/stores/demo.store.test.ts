@@ -26,7 +26,7 @@ const g = globalThis as Record<string, unknown> & { localStorage?: Storage }
 g.window ??= { localStorage: new MemoryStorage() }
 g.localStorage ??= (g.window as { localStorage: Storage }).localStorage
 
-const { useDemoStore } = await import("./demo-store")
+const { useDemoStore } = await import("./demo.store")
 
 import { beforeEach, describe, expect, test } from "bun:test"
 
