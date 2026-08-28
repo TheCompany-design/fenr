@@ -40,7 +40,7 @@ import {
   SPRING_LAYOUT,
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { AnimatePresence, m, useReducedMotion } from "motion/react"
 import {
   cloneElement,
   isValidElement,
@@ -48,15 +48,26 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
 import { signOut } from "@/lib/auth-client"
+
+const emptySubscribe = () => () => {}
+function useIsMounted(): boolean {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  )
+}
 
 export interface SessionUser {
   name: string
@@ -140,7 +151,7 @@ export function UsageWidget({
               const isPeak = isFilled && i === filledBars - 1 && percent >= 85
 
               return (
-                <motion.div
+                <m.div
                   // biome-ignore lint/suspicious/noArrayIndexKey: fixed 10 segment telemetry bars
                   key={i}
                   initial={reduce ? false : { scaleY: 0.3, opacity: 0 }}
@@ -169,7 +180,7 @@ export function UsageWidget({
             })}
           </div>
 
-          <motion.span
+          <m.span
             initial={reduce ? false : { scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={
@@ -196,7 +207,7 @@ export function UsageWidget({
               />
             )}
             {percent}%
-          </motion.span>
+          </m.span>
         </div>
       </div>
 
@@ -259,21 +270,18 @@ export function UserMenuItems({
           description:
             "We couldn't reach the server. Check your connection and try again.",
         })
-        setPending(false)
         return
       }
       toast.success("Signed out")
+      await navigate({ to: "/auth/sign-in" })
+      queryClient.clear()
     } catch {
       toast.error("Couldn't sign out", {
         description: "Something went wrong. Please try again.",
       })
+    } finally {
       setPending(false)
-      return
     }
-    await navigate({ to: "/auth/sign-in" }).finally(() => {
-      queryClient.clear()
-      setPending(false)
-    })
   }, [navigate, pending, queryClient])
 
   const promptSignOut = useCallback(() => {
@@ -289,24 +297,28 @@ export function UserMenuItems({
     })
   }, [confirm, handleSignOut, onClose])
 
+  const onShortcutKeyDown = useEffectEvent((e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+      e.preventDefault()
+      toast.info("Settings", {
+        description: "Global system preferences panel coming soon.",
+      })
+      onClose?.()
+    }
+    if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "l") {
+      e.preventDefault()
+      promptSignOut()
+    }
+  })
+
   // Keyboard shortcut listener for ⌘, (Settings) and ⌘⌥L (Logout)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-        e.preventDefault()
-        toast.info("Settings", {
-          description: "Global system preferences panel coming soon.",
-        })
-        onClose?.()
-      }
-      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "l") {
-        e.preventDefault()
-        promptSignOut()
-      }
+      onShortcutKeyDown(e)
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [promptSignOut, onClose])
+  }, [])
 
   const usagePercent = user?.usagePercent ?? 90
   const userTier = user?.tier ?? "Orbit Pro"
@@ -398,7 +410,7 @@ export function UserMenuItems({
       >
         {/* Animated Glide Pill matching @beui/context-menu mechanics */}
         {isActive ? (
-          <motion.span
+          <m.span
             layoutId={`${menuId}-glider`}
             className={cn(
               "absolute inset-0 -z-10 rounded-xl",
@@ -491,7 +503,7 @@ export function AnimatedDropdown({
   className,
   children,
 }: AnimatedDropdownProps) {
-  const [mounted, setMounted] = useState(false)
+  const mounted = useIsMounted()
   const triggerRef = useRef<HTMLElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState<{ left: number; top: number }>({
@@ -505,10 +517,6 @@ export function AnimatedDropdown({
   })
   const [morphReady, setMorphReady] = useState(false)
   const reduce = useReducedMotion() ?? false
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current || !contentRef.current) return
@@ -708,78 +716,80 @@ export function AnimatedDropdown({
   const clipShown = "inset(0px 0px 0px 0px round 16px)"
   const visualOpen = open && morphReady
 
+  if (!mounted) {
+    return triggerNode
+  }
+
   return (
     <>
       {triggerNode}
-
-      {mounted &&
-        createPortal(
-          <AnimatePresence>
-            {open && (
-              <div
-                data-user-menu-portal=""
-                aria-hidden={!open}
-                style={{
-                  position: "fixed",
-                  left: position.left,
-                  top: position.top,
-                  zIndex: 100,
+      {createPortal(
+        <AnimatePresence>
+          {open && (
+            <div
+              data-user-menu-portal=""
+              aria-hidden={!open}
+              style={{
+                position: "fixed",
+                left: position.left,
+                top: position.top,
+                zIndex: 100,
+              }}
+              className={cn(
+                "pointer-events-auto [filter:drop-shadow(0_18px_28px_rgba(0,0,0,0.22))]",
+              )}
+            >
+              <m.div
+                ref={contentRef}
+                tabIndex={-1}
+                onKeyDown={handleKeyDown}
+                initial={
+                  reduce
+                    ? { opacity: 0 }
+                    : {
+                        opacity: 0,
+                        clipPath: clipHidden,
+                      }
+                }
+                animate={{
+                  opacity: visualOpen ? 1 : 0,
+                  clipPath: reduce || visualOpen ? clipShown : clipHidden,
                 }}
+                exit={
+                  reduce
+                    ? { opacity: 0 }
+                    : {
+                        opacity: 0,
+                        clipPath: clipHidden,
+                        transition: { duration: 0.16, ease: EASE_OUT },
+                      }
+                }
+                transition={
+                  reduce
+                    ? { duration: 0.1, ease: EASE_OUT }
+                    : {
+                        clipPath: {
+                          duration: MORPH_DURATION,
+                          ease: EASE_OUT,
+                        },
+                        opacity: {
+                          duration: MORPH_DURATION,
+                          ease: EASE_OUT,
+                        },
+                      }
+                }
                 className={cn(
-                  "pointer-events-auto [filter:drop-shadow(0_18px_28px_rgba(0,0,0,0.22))]",
+                  "w-72 overflow-hidden rounded-2xl border border-border/80 bg-sidebar/95 p-1.5 shadow-2xl backdrop-blur-md outline-none",
+                  className,
                 )}
               >
-                <motion.div
-                  ref={contentRef}
-                  tabIndex={-1}
-                  onKeyDown={handleKeyDown}
-                  initial={
-                    reduce
-                      ? { opacity: 0 }
-                      : {
-                          opacity: 0,
-                          clipPath: clipHidden,
-                        }
-                  }
-                  animate={{
-                    opacity: visualOpen ? 1 : 0,
-                    clipPath: reduce || visualOpen ? clipShown : clipHidden,
-                  }}
-                  exit={
-                    reduce
-                      ? { opacity: 0 }
-                      : {
-                          opacity: 0,
-                          clipPath: clipHidden,
-                          transition: { duration: 0.16, ease: EASE_OUT },
-                        }
-                  }
-                  transition={
-                    reduce
-                      ? { duration: 0.1, ease: EASE_OUT }
-                      : {
-                          clipPath: {
-                            duration: MORPH_DURATION,
-                            ease: EASE_OUT,
-                          },
-                          opacity: {
-                            duration: MORPH_DURATION,
-                            ease: EASE_OUT,
-                          },
-                        }
-                  }
-                  className={cn(
-                    "w-72 overflow-hidden rounded-2xl border border-border/80 bg-sidebar/95 p-1.5 shadow-2xl backdrop-blur-md outline-none",
-                    className,
-                  )}
-                >
-                  {children(() => onOpenChange(false))}
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
+                {children(() => onOpenChange(false))}
+              </m.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   )
 }
@@ -842,7 +852,7 @@ export function UserCard({
             </div>
 
             {/* User info + flair + trailing settings cog */}
-            <motion.div
+            <m.div
               initial={false}
               animate={{
                 opacity: collapsed ? 0 : 1,
@@ -878,7 +888,7 @@ export function UserCard({
                 )}
                 icon={Settings02Icon}
               />
-            </motion.div>
+            </m.div>
           </TooltipTrigger>
           <TooltipContent
             align="center"
