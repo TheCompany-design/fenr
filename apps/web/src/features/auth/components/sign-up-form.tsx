@@ -14,7 +14,7 @@ import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
-import { signUpSchema } from "@/lib/schemas/auth"
+import { signUpSchema } from "../schemas/auth.schema"
 
 import { FieldError } from "./field-error"
 import { OAuthButtons } from "./oauth-buttons"

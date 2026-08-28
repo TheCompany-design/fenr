@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { demoFormSchema } from "./demo-form"
+import { demoFormSchema } from "./demo-form.schema"
 
 describe("demo form schema (zod)", () => {
   test("accepts a valid payload", () => {

@@ -7,7 +7,8 @@ import {
 import { Toaster } from "@workspace/ui/components/sonner"
 import appCss from "@workspace/ui/globals.css?url"
 
-import { ThemeSync } from "@/components/theme-sync"
+import { ConfirmDialogRoot } from "@/components/feedback"
+import { ThemeSync } from "@/components/providers"
 
 /**
  * Pre-hydration theme script (FOUC prevention).
@@ -84,6 +85,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         {children}
         <ThemeSync />
         <Toaster richColors />
+        <ConfirmDialogRoot />
         <Scripts />
       </body>
     </html>

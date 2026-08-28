@@ -9,11 +9,11 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
-import { demoFormSchema } from "@/lib/schemas/demo-form"
+import { demoFormSchema } from "../schemas/demo-form.schema"
 
 /**
  * Fenr convention: ALL forms use TanStack Form + Zod (Standard Schema).
- * Schemas live in src/lib/schemas and are passed directly as validators.
+ * Schemas are colocated in features/<name>/schemas and passed directly as validators.
  */
 export function DemoForm() {
   const form = useForm({

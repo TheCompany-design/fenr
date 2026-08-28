@@ -35,6 +35,3 @@ if (!parsed.success) {
 }
 
 export const serverEnv = parsed.data
-
-/** True when running on the server (SSR / server functions / prod server). */
-export const isServer = typeof window === "undefined"

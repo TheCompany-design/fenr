@@ -128,10 +128,19 @@
     @apply bg-background text-foreground;
   }
   /* Tailwind v4 preflight sets buttons to cursor:default; interactive
-     buttons should signal clickability. Disabled stays default, and so do
-     aria-disabled placeholders (inert — a pointer would imply clickability;
+     elements should signal clickability. Disabled stays default/not-allowed,
+     and so do aria-disabled placeholders (inert — a pointer would imply clickability;
      their tooltip still works via hover/focus). */
-  button:not(:disabled):not([aria-disabled="true"]) {
+  button:not(:disabled):not([aria-disabled="true"]),
+  [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="menuitemcheckbox"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="menuitemradio"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="option"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="tab"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="switch"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="checkbox"]:not([aria-disabled="true"]):not([data-disabled]),
+  [role="radio"]:not([aria-disabled="true"]):not([data-disabled]) {
     cursor: pointer;
   }
 }

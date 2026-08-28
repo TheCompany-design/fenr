@@ -5,7 +5,7 @@ import {
   mergeThemeState,
   resolveStoredMode,
   THEME_STORAGE_KEY,
-} from "./theme-store"
+} from "./theme.store"
 
 describe("resolveStoredMode", () => {
   test("returns system for null/empty storage", () => {

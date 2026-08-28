@@ -7,7 +7,7 @@
  *
  *   1. the FOUC-prevention inline script in `__root.tsx` (pre-hydration,
  *      reads this same localStorage key directly), and
- *   2. `ThemeSync` (`src/components/theme-sync.tsx`) after hydration.
+ *   2. `ThemeSync` (`src/components/providers/theme-sync.tsx`) after hydration.
  *
  * React never owns the `dark` class as state, so hydration cannot "correct"
  * what the inline script already applied (zero flash of wrong theme).
