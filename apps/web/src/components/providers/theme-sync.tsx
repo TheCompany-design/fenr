@@ -14,7 +14,7 @@
  * class; this component takes over after mount without flashing.
  */
 import { useEffect, useLayoutEffect } from "react"
-import { isDarkApplied, useThemeStore } from "@/lib/stores/theme-store"
+import { isDarkApplied, useThemeStore } from "./theme.store"
 
 /**
  * Layout effect on the client (applies pre-paint), no-op on the server so
