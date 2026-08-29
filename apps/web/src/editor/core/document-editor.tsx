@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react"
 import { Tiptap } from "@tiptap/react"
+import { BubbleMenu } from "../bubble-menu"
 import { useDocumentEditor } from "./use-document-editor"
 import type { DocumentEditorProps } from "./types"
 
@@ -13,6 +14,7 @@ export const EditorSurface = ({ content, className, children, onChange }: Editor
     <div className={className}>
       <Tiptap editor={editor}>
         <Tiptap.Content />
+        <BubbleMenu />
         {children}
       </Tiptap>
     </div>
