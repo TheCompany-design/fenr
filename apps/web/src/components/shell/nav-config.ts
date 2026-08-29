@@ -6,7 +6,7 @@
  * inert) instead of pointing at non-existent routes.
  */
 
-import { Home01Icon, Settings01Icon } from "@hugeicons/core-free-icons"
+import { Home01Icon, Settings01Icon, Doc01Icon } from "@hugeicons/core-free-icons"
 import type { IconSvgElement } from "@hugeicons/react"
 
 export interface NavItem {
@@ -14,7 +14,7 @@ export interface NavItem {
   title: string
   icon: IconSvgElement
   /** Route path. Extend this union as real routes land. */
-  to?: "/"
+  to?: string
   /** Placeholder item — rendered but inert until its route exists.
    *  Inert by construction: NavItemButton renders no onClick for disabled
    *  items regardless of `to`, so a future route won't silently activate. */
@@ -24,4 +24,5 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "home", title: "Home", icon: Home01Icon, to: "/" },
   { id: "settings", title: "Settings", icon: Settings01Icon, disabled: true },
+  { id: "document", title: "Document", icon: Doc01Icon, to: "/document" }
 ]
