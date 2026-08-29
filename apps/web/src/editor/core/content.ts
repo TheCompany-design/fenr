@@ -1,26 +1,26 @@
 export const defaultEditorContent = {
-  "type": "doc",
-  "content": [
+  type: "doc",
+  content: [
     {
-      "type": "heading",
-      "attrs": {
-        "level": 1
+      type: "heading",
+      attrs: {
+        level: 1,
       },
-      "content": [
+      content: [
         {
-          "type": "text",
-          "text": "Project Proposal"
-        }
-      ]
+          type: "text",
+          text: "Project Proposal",
+        },
+      ],
     },
     {
-      "type": "paragraph",
-      "content": [
+      type: "paragraph",
+      content: [
         {
-          "type": "text",
-          "text": "This proposal covers..."
-        }
-      ]
-    }
-  ]
+          type: "text",
+          text: "This proposal covers...",
+        },
+      ],
+    },
+  ],
 }
