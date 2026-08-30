@@ -1,4 +1,3 @@
-// apps/web/src/editor/state/atoms.ts
 import { atom } from "jotai"
 
 export type TextType = "text" | "heading-1" | "heading-2" | "heading-3"

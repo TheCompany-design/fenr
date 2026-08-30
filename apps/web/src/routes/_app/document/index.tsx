@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import type { JSONContent } from "@tiptap/react"
 import { useState } from "react"
 import { defaultEditorContent } from "@/editor/core/content"
-import { EditorSurface } from "@/editor/core/document-editor"
+import { EditorSurface } from "@/editor/core/editor-surface"
 
 export const Route = createFileRoute("/_app/document/")({
   component: RouteComponent,
