@@ -9,7 +9,7 @@ export interface SelectionState {
 export const DEFAULT_SELECTION_STATE: SelectionState = {
   from: 0,
   to: 0,
-  empty: true
+  empty: true,
 }
 
 export const selectionAtom = atom<SelectionState>(DEFAULT_SELECTION_STATE)
