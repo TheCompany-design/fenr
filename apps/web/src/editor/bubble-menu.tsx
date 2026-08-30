@@ -17,31 +17,25 @@ import {
   TextIcon,
   TextItalicIcon,
   TextStrikethroughIcon,
+  Tick02Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { type Editor, useCurrentEditor } from "@tiptap/react"
 import { BubbleMenu as TipTapBubbleMenu } from "@tiptap/react/menus"
+import { AnimatedDropdown } from "@workspace/ui/components/animated-dropdown"
 import { Button } from "@workspace/ui/components/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
 import { Separator } from "@workspace/ui/components/separator"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { SPRING_LAYOUT } from "@workspace/ui/lib/ease"
+import { cn } from "@workspace/ui/lib/utils"
 import { useAtomValue } from "jotai"
+import { motion, useReducedMotion } from "motion/react"
+import { useId, useState } from "react"
 import {
   isAlignCenterAtom,
   isAlignJustifyAtom,
@@ -59,12 +53,208 @@ import {
   textTypeAtom,
 } from "./state/atoms"
 
-const TEXT_TYPES = [
-  { value: "text", label: "Text", icon: TextIcon },
-  { value: "heading-1", label: "Heading 1", icon: Heading01Icon },
-  { value: "heading-2", label: "Heading 2", icon: Heading02Icon },
-  { value: "heading-3", label: "Heading 3", icon: Heading03Icon },
+export const TEXT_TYPES = [
+  { value: "text", label: "Text", icon: TextIcon, shortcut: "⌥⌘0" },
+  {
+    value: "heading-1",
+    label: "Heading 1",
+    icon: Heading01Icon,
+    shortcut: "⌥⌘1",
+  },
+  {
+    value: "heading-2",
+    label: "Heading 2",
+    icon: Heading02Icon,
+    shortcut: "⌥⌘2",
+  },
+  {
+    value: "heading-3",
+    label: "Heading 3",
+    icon: Heading03Icon,
+    shortcut: "⌥⌘3",
+  },
 ] as const
+
+export interface TextTypeMenuItemsProps {
+  currentType: string
+  onSelect: (value: string) => void
+}
+
+/**
+ * Animated text-type selection menu featuring the signature gliding hover pill.
+ * Glides seamlessly across options with spring physics and returns to the active type.
+ */
+export function TextTypeMenuItems({
+  currentType,
+  onSelect,
+}: TextTypeMenuItemsProps) {
+  const [activeId, setActiveId] = useState<string | null>(currentType)
+  const reduce = useReducedMotion() ?? false
+  const menuId = useId()
+
+  return (
+    <div
+      role="menu"
+      aria-label="Text type options"
+      className="flex flex-col gap-0.5 outline-none"
+      onMouseLeave={() => setActiveId(currentType)}
+    >
+      {TEXT_TYPES.map((item) => {
+        const isActive = activeId === item.value
+        const isSelected = currentType === item.value
+
+        return (
+          <button
+            key={item.value}
+            type="button"
+            id={item.value}
+            role="menuitemradio"
+            aria-checked={isSelected}
+            data-menu-item="true"
+            onPointerDown={(e) => {
+              // Crucial for rich text editors: prevent losing selection in editor before click executes
+              e.preventDefault()
+            }}
+            onFocus={() => setActiveId(item.value)}
+            onPointerMove={(e) => {
+              if (e.pointerType !== "touch") {
+                setActiveId(item.value)
+              }
+            }}
+            onClick={() => onSelect(item.value)}
+            className={cn(
+              "group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sm outline-none select-none transition-colors",
+              "text-foreground/90 hover:text-foreground focus:text-foreground",
+              "active:scale-[0.98]",
+            )}
+          >
+            {/* Animated Glide Pill matching user-menu mechanics */}
+            {isActive ? (
+              <motion.span
+                layoutId={`${menuId}-glider`}
+                className="absolute inset-0 -z-10 rounded-xl border border-border/70 bg-accent shadow-xs"
+                transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+              />
+            ) : null}
+
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/50 text-muted-foreground transition-colors group-hover/item:border-border group-hover/item:text-foreground">
+                <HugeiconsIcon icon={item.icon} className="size-3.5" />
+              </span>
+              <span className="text-foreground">{item.label}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <kbd className="rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors group-hover/item:border-border group-hover/item:text-foreground">
+                {item.shortcut}
+              </kbd>
+              {isSelected ? (
+                <HugeiconsIcon
+                  icon={Tick02Icon}
+                  className="size-3.5 text-primary shrink-0"
+                />
+              ) : (
+                <span className="size-3.5 shrink-0" aria-hidden="true" />
+              )}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export interface ToolbarItem {
+  id: string
+  label: string
+  icon: typeof TextBoldIcon
+  pressed?: boolean
+  onClick: () => void
+}
+
+export interface BubbleToolbarGroupProps {
+  ariaLabel: string
+  items: readonly ToolbarItem[]
+}
+
+/**
+ * Animated toolbar group featuring the shared-layout gliding hover pill
+ * with spring physics and tactile press feedback.
+ */
+export function BubbleToolbarGroup({
+  ariaLabel,
+  items,
+}: BubbleToolbarGroupProps) {
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const reduce = useReducedMotion() ?? false
+  const groupId = useId()
+
+  return (
+    <div
+      role="toolbar"
+      aria-label={ariaLabel}
+      className="flex items-center gap-0.5 outline-none"
+      onMouseLeave={() => setHoveredId(null)}
+    >
+      {items.map((item) => {
+        const isHovered = hoveredId === item.id
+
+        return (
+          <Tooltip key={item.id}>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  id={item.id}
+                  aria-label={item.label}
+                  aria-pressed={item.pressed}
+                  onPointerDown={(e) => {
+                    // Prevent stealing focus / clearing editor selection on click
+                    e.preventDefault()
+                  }}
+                  onFocus={() => setHoveredId(item.id)}
+                  onPointerMove={(e) => {
+                    if (e.pointerType !== "touch") {
+                      setHoveredId(item.id)
+                    }
+                  }}
+                  onClick={item.onClick}
+                  className={cn(
+                    "group/btn relative isolate flex size-8 cursor-pointer items-center justify-center rounded-lg text-muted-foreground outline-none select-none transition-colors",
+                    "hover:text-foreground focus-visible:text-foreground",
+                    "active:scale-90",
+                    item.pressed &&
+                      "bg-accent text-accent-foreground font-medium shadow-xs",
+                  )}
+                >
+                  {/* Shared-layout Glide-Pill matching user-menu mechanics */}
+                  {isHovered ? (
+                    <motion.span
+                      layoutId={`${groupId}-hover-pill`}
+                      className={cn(
+                        "absolute inset-0 -z-10 rounded-lg",
+                        item.pressed
+                          ? "border border-border/50 bg-accent/80"
+                          : "border border-border/30 bg-muted/70",
+                      )}
+                      transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+                    />
+                  ) : null}
+
+                  <HugeiconsIcon
+                    icon={item.icon}
+                    className="size-4 shrink-0 transition-transform group-active/btn:scale-95"
+                  />
+                </button>
+              }
+            />
+            <TooltipContent side="top">{item.label}</TooltipContent>
+          </Tooltip>
+        )
+      })}
+    </div>
+  )
+}
 
 export interface BubbleMenuProps {
   editor?: Editor | null
@@ -87,6 +277,7 @@ export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
   const isCodeBlock = useAtomValue(isCodeBlockAtom)
   const isBlockquote = useAtomValue(isBlockquoteAtom)
   const isMath = useAtomValue(isMathAtom)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   if (!editor) return null
 
@@ -123,283 +314,174 @@ export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
   const currentTypeMeta =
     TEXT_TYPES.find((t) => t.value === textType) ?? TEXT_TYPES[0]
 
+  const formattingItems: ToolbarItem[] = [
+    {
+      id: "bold",
+      label: "Bold",
+      icon: TextBoldIcon,
+      pressed: isBold,
+      onClick: () => editor.chain().focus().toggleBold().run(),
+    },
+    {
+      id: "italic",
+      label: "Italic",
+      icon: TextItalicIcon,
+      pressed: isItalic,
+      onClick: () => editor.chain().focus().toggleItalic().run(),
+    },
+    {
+      id: "strike",
+      label: "Strikethrough",
+      icon: TextStrikethroughIcon,
+      pressed: isStrikethrough,
+      onClick: () => editor.chain().focus().toggleStrike().run(),
+    },
+    {
+      id: "bullet-list",
+      label: "Bullet list",
+      icon: LeftToRightListBulletIcon,
+      pressed: isBulletList,
+      onClick: () => editor.chain().focus().toggleBulletList().run(),
+    },
+    {
+      id: "ordered-list",
+      label: "Numbered list",
+      icon: LeftToRightListNumberIcon,
+      pressed: isOrderedList,
+      onClick: () => editor.chain().focus().toggleOrderedList().run(),
+    },
+  ]
+
+  const alignItems: ToolbarItem[] = [
+    {
+      id: "align-left",
+      label: "Align left",
+      icon: TextAlignLeftIcon,
+      pressed: isAlignLeft,
+      onClick: () => editor.chain().focus().setTextAlign("left").run(),
+    },
+    {
+      id: "align-center",
+      label: "Align center",
+      icon: TextAlignCenterIcon,
+      pressed: isAlignCenter,
+      onClick: () => editor.chain().focus().setTextAlign("center").run(),
+    },
+    {
+      id: "align-right",
+      label: "Align right",
+      icon: TextAlignRightIcon,
+      pressed: isAlignRight,
+      onClick: () => editor.chain().focus().setTextAlign("right").run(),
+    },
+    {
+      id: "align-justify",
+      label: "Justify",
+      icon: TextAlignJustifyCenterIcon,
+      pressed: isAlignJustify,
+      onClick: () => editor.chain().focus().setTextAlign("justify").run(),
+    },
+  ]
+
+  const miscItems: ToolbarItem[] = [
+    {
+      id: "code",
+      label: "Code",
+      icon: CodeIcon,
+      pressed: isCode,
+      onClick: () => editor.chain().focus().toggleCode().run(),
+    },
+    {
+      id: "code-block",
+      label: "Code block",
+      icon: SourceCodeIcon,
+      pressed: isCodeBlock,
+      onClick: () => editor.chain().focus().toggleCodeBlock().run(),
+    },
+    {
+      id: "blockquote",
+      label: "Quote",
+      icon: QuoteUpIcon,
+      pressed: isBlockquote,
+      onClick: () => editor.chain().focus().toggleBlockquote().run(),
+    },
+    {
+      id: "math",
+      label: "Math formula",
+      icon: Summation01Icon,
+      pressed: isMath,
+      onClick: handleToggleMath,
+    },
+  ]
+
   return (
     <TipTapBubbleMenu
       editor={editor}
-      className="flex items-center rounded-lg gap-1 border border-border bg-popover p-1 text-popover-foreground shadow-md"
+      className="flex items-center gap-1 rounded-2xl border border-border/80 bg-popover/95 p-1 text-popover-foreground shadow-2xl backdrop-blur-md"
     >
       <TooltipProvider delay={300}>
-        <DropdownMenu>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="flex items-center justify-between gap-2"
-                    >
+        <Tooltip open={dropdownOpen ? false : undefined}>
+          <AnimatedDropdown
+            open={dropdownOpen}
+            onOpenChange={setDropdownOpen}
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="w-52 bg-popover/95"
+            trigger={
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "flex items-center justify-between gap-2 transition-colors",
+                      dropdownOpen && "bg-accent text-accent-foreground",
+                    )}
+                  >
+                    <HugeiconsIcon
+                      icon={currentTypeMeta.icon}
+                      className="size-3"
+                    />
+                    <span className="flex items-center justify-between gap-1">
+                      {currentTypeMeta.label}{" "}
                       <HugeiconsIcon
-                        icon={currentTypeMeta.icon}
-                        className="size-3"
+                        icon={ArrowDown01Icon}
+                        className={cn(
+                          "size-3 transition-transform duration-200",
+                          dropdownOpen && "rotate-180",
+                        )}
                       />
-                      <span className="flex items-center justify-between gap-1">
-                        {currentTypeMeta.label}{" "}
-                        <HugeiconsIcon icon={ArrowDown01Icon} />
-                      </span>
-                    </Button>
-                  }
-                />
-              }
-            />
-            <TooltipContent side="top">Text type</TooltipContent>
-          </Tooltip>
-          <DropdownMenuContent className="w-full">
-            <DropdownMenuGroup>
-              <DropdownMenuRadioGroup
-                value={textType}
-                onValueChange={handleTypeChange}
-              >
-                {TEXT_TYPES.map(({ value, label, icon: Icon }) => (
-                  <DropdownMenuRadioItem key={value} value={value}>
-                    <span className="rounded-sm border p-1">
-                      <HugeiconsIcon icon={Icon} className="size-3" />
                     </span>
-                    <span>{label}</span>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  </Button>
+                }
+              />
+            }
+          >
+            {(onClose) => (
+              <TextTypeMenuItems
+                currentType={textType}
+                onSelect={(value) => {
+                  handleTypeChange(value)
+                  onClose()
+                }}
+              />
+            )}
+          </AnimatedDropdown>
+          <TooltipContent side="top">Text type</TooltipContent>
+        </Tooltip>
 
-        <Separator orientation="vertical" />
+        <Separator orientation="vertical" className="h-5 bg-border/60" />
 
-        {/* Formatting Group */}
-        <ToggleGroup variant="default" size="sm" multiple className="gap-0">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                  pressed={isBold}
-                  aria-label="Bold"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextBoldIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Bold</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                  pressed={isItalic}
-                  aria-label="Italic"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextItalicIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Italic</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                  pressed={isStrikethrough}
-                  aria-label="Strikethrough"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextStrikethroughIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Strikethrough</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().toggleBulletList().run()
-                  }
-                  pressed={isBulletList}
-                  aria-label="Bullet list"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={LeftToRightListBulletIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Bullet list</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().toggleOrderedList().run()
-                  }
-                  pressed={isOrderedList}
-                  aria-label="Numbered list"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={LeftToRightListNumberIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Numbered list</TooltipContent>
-          </Tooltip>
-        </ToggleGroup>
+        <BubbleToolbarGroup ariaLabel="Formatting" items={formattingItems} />
 
-        <Separator orientation="vertical" />
+        <Separator orientation="vertical" className="h-5 bg-border/60" />
 
-        {/* Alignment Group */}
-        <ToggleGroup variant="default" size="sm" className="gap-0">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("left").run()
-                  }
-                  pressed={isAlignLeft}
-                  aria-label="Align left"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextAlignLeftIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Align left</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("center").run()
-                  }
-                  pressed={isAlignCenter}
-                  aria-label="Align center"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextAlignCenterIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Align center</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("right").run()
-                  }
-                  pressed={isAlignRight}
-                  aria-label="Align right"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextAlignRightIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Align right</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().setTextAlign("justify").run()
-                  }
-                  pressed={isAlignJustify}
-                  aria-label="Justify"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={TextAlignJustifyCenterIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Justify</TooltipContent>
-          </Tooltip>
-        </ToggleGroup>
+        <BubbleToolbarGroup ariaLabel="Text alignment" items={alignItems} />
 
-        <Separator orientation="vertical" />
+        <Separator orientation="vertical" className="h-5 bg-border/60" />
 
-        {/* Misc Group: Code, Code block, Quote, Math */}
-        <ToggleGroup variant="default" size="sm" multiple className="gap-0">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() => editor.chain().focus().toggleCode().run()}
-                  pressed={isCode}
-                  aria-label="Code"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={CodeIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Code</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-                  pressed={isCodeBlock}
-                  aria-label="Code block"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={SourceCodeIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Code block</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={() =>
-                    editor.chain().focus().toggleBlockquote().run()
-                  }
-                  pressed={isBlockquote}
-                  aria-label="Quote"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={QuoteUpIcon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Quote</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <ToggleGroupItem
-                  onClick={handleToggleMath}
-                  pressed={isMath}
-                  aria-label="Math"
-                  type="button"
-                >
-                  <HugeiconsIcon icon={Summation01Icon} />
-                </ToggleGroupItem>
-              }
-            />
-            <TooltipContent side="top">Math formula</TooltipContent>
-          </Tooltip>
-        </ToggleGroup>
+        <BubbleToolbarGroup ariaLabel="Insert & style" items={miscItems} />
       </TooltipProvider>
     </TipTapBubbleMenu>
   )
