@@ -1,29 +1,18 @@
-import { Editor, Tiptap } from "@tiptap/react"
-import type { HTMLAttributes, ReactNode } from "react"
-import "katex/dist/katex.min.css"
-import { EditorSyncBridge } from "../state/sync-bridge"
-import { EditorProviderStore } from "../state/editor-store"
+import { type Editor, Tiptap } from "@tiptap/react"
+import type { HTMLAttributes } from "react"
 
-export interface EditorRootProps {
-  children: ReactNode
-}
-
-export const EditorRoot = ({ children }: EditorRootProps) => {
-  return <EditorProviderStore>{children}</EditorProviderStore>
-}
-
-type EditorSurfaceProps = HTMLAttributes<HTMLDivElement> & {
+export interface EditorSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   editor: Editor
 }
 
 export const EditorSurface = ({
   editor,
   className,
+  ...props
 }: EditorSurfaceProps) => {
   return (
-    <div className={className}>
+    <div className={className} {...props}>
       <Tiptap editor={editor}>
-        <EditorSyncBridge />
         <Tiptap.Content />
       </Tiptap>
     </div>
