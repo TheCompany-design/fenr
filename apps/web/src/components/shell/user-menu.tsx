@@ -21,6 +21,10 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  AnimatedDropdown,
+  type AnimatedDropdownProps,
+} from "@workspace/ui/components/animated-dropdown"
+import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -33,43 +37,20 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import {
-  EASE_OUT,
   LABEL_ENTER_TRANSITION,
   LABEL_EXIT_TRANSITION,
   REDUCED_TRANSITION,
   SPRING_LAYOUT,
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
-import { AnimatePresence, m, useReducedMotion } from "motion/react"
-import {
-  cloneElement,
-  isValidElement,
-  type ReactElement,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useEffectEvent,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react"
-import { createPortal } from "react-dom"
+import { m, useReducedMotion } from "motion/react"
+import { useCallback, useEffect, useEffectEvent, useId, useState } from "react"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
 import { signOut } from "@/lib/auth-client"
-import {
-  clamp,
-  collapsedClip,
-  initialsOf,
-  type SessionUser,
-  useIsMounted,
-} from "./user-utils"
+import { initialsOf, type SessionUser } from "./user-utils"
 
 export type { SessionUser }
-
-const VIEWPORT_PADDING = 8
-const MORPH_DURATION = 0.28
 
 /** Segmented visual telemetry bar with staggered entrance animation and alert state */
 export function UsageWidget({
@@ -440,321 +421,7 @@ export function UserMenuItems({
   )
 }
 
-interface AnimatedDropdownProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  trigger: ReactElement
-  side?: "top" | "bottom" | "right" | "left"
-  align?: "start" | "center" | "end"
-  sideOffset?: number
-  className?: string
-  children: (onClose: () => void) => ReactNode
-}
-
-/**
- * High-performance animated dropdown container leveraging @beui/context-menu clip-path morph mechanics.
- * Supports button trigger origin calculation, keyboard navigation, outside-click, and viewport constraints.
- */
-export function AnimatedDropdown({
-  open,
-  onOpenChange,
-  trigger,
-  side = "top",
-  align = "start",
-  sideOffset = 8,
-  className,
-  children,
-}: AnimatedDropdownProps) {
-  const mounted = useIsMounted()
-  const triggerRef = useRef<HTMLElement | null>(null)
-  const contentRef = useRef<HTMLDivElement | null>(null)
-  const [position, setPosition] = useState<{ left: number; top: number }>({
-    left: 0,
-    top: 0,
-  })
-  const [origin, setOrigin] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [size, setSize] = useState<{ width: number; height: number }>({
-    width: 0,
-    height: 0,
-  })
-  const [morphReady, setMorphReady] = useState(false)
-  const reduce = useReducedMotion() ?? false
-
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current || !contentRef.current) return
-    const triggerRect = triggerRef.current.getBoundingClientRect()
-    const contentRect = contentRef.current.getBoundingClientRect()
-
-    let left = triggerRect.left
-    let top = triggerRect.top
-
-    if (side === "top") {
-      top = triggerRect.top - contentRect.height - sideOffset
-      if (align === "start") left = triggerRect.left
-      else if (align === "end") left = triggerRect.right - contentRect.width
-      else left = triggerRect.left + (triggerRect.width - contentRect.width) / 2
-    } else if (side === "bottom") {
-      top = triggerRect.bottom + sideOffset
-      if (align === "start") left = triggerRect.left
-      else if (align === "end") left = triggerRect.right - contentRect.width
-      else left = triggerRect.left + (triggerRect.width - contentRect.width) / 2
-    } else if (side === "right") {
-      left = triggerRect.right + sideOffset
-      if (align === "center") {
-        top = triggerRect.top + (triggerRect.height - contentRect.height) / 2
-      } else if (align === "end") {
-        top = triggerRect.bottom - contentRect.height
-      } else {
-        top = triggerRect.top
-      }
-    } else if (side === "left") {
-      left = triggerRect.left - contentRect.width - sideOffset
-      if (align === "center") {
-        top = triggerRect.top + (triggerRect.height - contentRect.height) / 2
-      } else {
-        top = triggerRect.top
-      }
-    }
-
-    // Viewport bounds clamping
-    const clampedLeft = Math.max(
-      VIEWPORT_PADDING,
-      Math.min(window.innerWidth - contentRect.width - VIEWPORT_PADDING, left),
-    )
-    const clampedTop = Math.max(
-      VIEWPORT_PADDING,
-      Math.min(window.innerHeight - contentRect.height - VIEWPORT_PADDING, top),
-    )
-
-    setPosition({ left: clampedLeft, top: clampedTop })
-    setSize({ width: contentRect.width, height: contentRect.height })
-
-    // Origin inside content relative to trigger center
-    const triggerCenter = {
-      x: triggerRect.left + triggerRect.width / 2,
-      y: triggerRect.top + triggerRect.height / 2,
-    }
-
-    setOrigin({
-      x: clamp(
-        triggerCenter.x - clampedLeft,
-        12,
-        Math.max(12, contentRect.width - 12),
-      ),
-      y: clamp(
-        triggerCenter.y - clampedTop,
-        12,
-        Math.max(12, contentRect.height - 12),
-      ),
-    })
-  }, [side, align, sideOffset])
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setMorphReady(false)
-      return
-    }
-
-    updatePosition()
-    setMorphReady(false)
-
-    if (reduce) {
-      setMorphReady(true)
-      return
-    }
-
-    let openFrame = 0
-    const prepareFrame = requestAnimationFrame(() => {
-      updatePosition()
-      openFrame = requestAnimationFrame(() => setMorphReady(true))
-    })
-
-    return () => {
-      cancelAnimationFrame(prepareFrame)
-      cancelAnimationFrame(openFrame)
-    }
-  }, [open, updatePosition, reduce])
-
-  // Outside click & window change listeners
-  useEffect(() => {
-    if (!open) return
-
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node | null
-      if (!target) return
-      if (
-        contentRef.current?.contains(target) ||
-        triggerRef.current?.contains(target)
-      ) {
-        return
-      }
-      onOpenChange(false)
-    }
-
-    const onWindowChange = () => {
-      onOpenChange(false)
-    }
-
-    window.addEventListener("pointerdown", onPointerDown)
-    window.addEventListener("resize", onWindowChange)
-    window.addEventListener("scroll", onWindowChange, { passive: true })
-
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown)
-      window.removeEventListener("resize", onWindowChange)
-      window.removeEventListener("scroll", onWindowChange)
-    }
-  }, [open, onOpenChange])
-
-  // Keyboard navigation
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      onOpenChange(false)
-      triggerRef.current?.focus()
-      return
-    }
-
-    const items = contentRef.current
-      ? Array.from(
-          contentRef.current.querySelectorAll<HTMLElement>(
-            '[data-menu-item="true"]:not([disabled])',
-          ),
-        )
-      : []
-
-    if (items.length === 0) return
-
-    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault()
-      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
-      items[nextIndex]?.focus()
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault()
-      const prevIndex =
-        currentIndex < 0
-          ? items.length - 1
-          : (currentIndex - 1 + items.length) % items.length
-      items[prevIndex]?.focus()
-    } else if (event.key === "Home") {
-      event.preventDefault()
-      items[0]?.focus()
-    } else if (event.key === "End") {
-      event.preventDefault()
-      items[items.length - 1]?.focus()
-    }
-  }
-
-  const triggerNode = isValidElement(trigger)
-    ? cloneElement(trigger as ReactElement<Record<string, unknown>>, {
-        ref: (node: HTMLElement | null) => {
-          triggerRef.current = node
-          const origRef = (
-            trigger as unknown as { ref?: (n: HTMLElement | null) => void }
-          ).ref
-          if (typeof origRef === "function") {
-            origRef(node)
-          }
-        },
-        onClick: (e: React.MouseEvent<HTMLElement>) => {
-          const origOnClick = (
-            trigger.props as {
-              onClick?: (e: React.MouseEvent<HTMLElement>) => void
-            }
-          ).onClick
-          origOnClick?.(e)
-          if (!e.defaultPrevented) {
-            onOpenChange(!open)
-          }
-        },
-        "aria-haspopup": "menu",
-        "aria-expanded": open,
-      })
-    : trigger
-
-  const clipHidden = collapsedClip(origin, size)
-  const clipShown = "inset(0px 0px 0px 0px round 16px)"
-  const visualOpen = open && morphReady
-
-  if (!mounted) {
-    return triggerNode
-  }
-
-  return (
-    <>
-      {triggerNode}
-      {createPortal(
-        <AnimatePresence>
-          {open && (
-            <div
-              data-user-menu-portal=""
-              aria-hidden={!open}
-              style={{
-                position: "fixed",
-                left: position.left,
-                top: position.top,
-                zIndex: 100,
-              }}
-              className={cn(
-                "pointer-events-auto [filter:drop-shadow(0_18px_28px_rgba(0,0,0,0.22))]",
-              )}
-            >
-              <m.div
-                ref={contentRef}
-                tabIndex={-1}
-                onKeyDown={handleKeyDown}
-                initial={
-                  reduce
-                    ? { opacity: 0 }
-                    : {
-                        opacity: 0,
-                        clipPath: clipHidden,
-                      }
-                }
-                animate={{
-                  opacity: visualOpen ? 1 : 0,
-                  clipPath: reduce || visualOpen ? clipShown : clipHidden,
-                }}
-                exit={
-                  reduce
-                    ? { opacity: 0 }
-                    : {
-                        opacity: 0,
-                        clipPath: clipHidden,
-                        transition: { duration: 0.16, ease: EASE_OUT },
-                      }
-                }
-                transition={
-                  reduce
-                    ? { duration: 0.1, ease: EASE_OUT }
-                    : {
-                        clipPath: {
-                          duration: MORPH_DURATION,
-                          ease: EASE_OUT,
-                        },
-                        opacity: {
-                          duration: MORPH_DURATION,
-                          ease: EASE_OUT,
-                        },
-                      }
-                }
-                className={cn(
-                  "w-72 overflow-hidden rounded-2xl border border-border/80 bg-sidebar/95 p-1.5 shadow-2xl backdrop-blur-md outline-none",
-                  className,
-                )}
-              >
-                {children(() => onOpenChange(false))}
-              </m.div>
-            </div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
-    </>
-  )
-}
+export { AnimatedDropdown, type AnimatedDropdownProps }
 
 /**
  * Detached, animated UserCard for the floating sidebar footer.
@@ -777,14 +444,14 @@ export function UserCard({
   const tierName = user?.tier || "Orbit Pro"
 
   return (
-    <AnimatedDropdown
-      open={open}
-      onOpenChange={setOpen}
-      side={collapsed ? "right" : "top"}
-      align={collapsed ? "center" : "start"}
-      sideOffset={10}
-      trigger={
-        <Tooltip>
+    <Tooltip open={open ? false : undefined}>
+      <AnimatedDropdown
+        open={open}
+        onOpenChange={setOpen}
+        side={collapsed ? "right" : "top"}
+        align={collapsed ? "center" : "start"}
+        sideOffset={10}
+        trigger={
           <TooltipTrigger
             render={
               <button
@@ -852,18 +519,18 @@ export function UserCard({
               />
             </m.div>
           </TooltipTrigger>
-          <TooltipContent
-            align="center"
-            hidden={!collapsed || isMobile}
-            side="right"
-          >
-            {displayName} — {tierName}
-          </TooltipContent>
-        </Tooltip>
-      }
-    >
-      {(onClose) => <UserMenuItems user={user} onClose={onClose} />}
-    </AnimatedDropdown>
+        }
+      >
+        {(onClose) => <UserMenuItems user={user} onClose={onClose} />}
+      </AnimatedDropdown>
+      <TooltipContent
+        align="center"
+        hidden={!collapsed || isMobile}
+        side="right"
+      >
+        {displayName} — {tierName}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
