@@ -29,6 +29,7 @@
     "@workspace/database": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "^1.7.1",
+    "jotai": "^2.20.3",
     "katex": "^0.18.4",
     "motion": "^13.1.1",
     "pino": "^10.3.1",

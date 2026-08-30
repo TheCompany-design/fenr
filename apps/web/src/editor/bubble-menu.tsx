@@ -41,6 +41,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
+import { useAtomValue } from "jotai"
+import { bubbleMenuFormattingAtom } from "./state/atoms"
 
 const TEXT_TYPES = [
   { value: "text", label: "Text", icon: TextIcon },
@@ -68,51 +70,7 @@ const DEFAULT_BUBBLE_MENU_STATE = {
 
 export const BubbleMenu = () => {
   const { editor } = useCurrentEditor()
-
-  const editorState = useEditorState({
-    editor,
-    selector: (ctx) => {
-      if (!ctx.editor) return DEFAULT_BUBBLE_MENU_STATE
-
-      let textType: (typeof TEXT_TYPES)[number]["value"] = "text"
-      if (ctx.editor.isActive("heading", { level: 1 })) {
-        textType = "heading-1"
-      } else if (ctx.editor.isActive("heading", { level: 2 })) {
-        textType = "heading-2"
-      } else if (ctx.editor.isActive("heading", { level: 3 })) {
-        textType = "heading-3"
-      }
-
-      const isAlignCenter =
-        ctx.editor.isActive({ textAlign: "center" }) ?? false
-      const isAlignRight = ctx.editor.isActive({ textAlign: "right" }) ?? false
-      const isAlignJustify =
-        ctx.editor.isActive({ textAlign: "justify" }) ?? false
-      const isAlignLeft =
-        (ctx.editor.isActive({ textAlign: "left" }) ?? false) ||
-        (!isAlignCenter && !isAlignRight && !isAlignJustify)
-
-      return {
-        isBold: ctx.editor.isActive("bold") ?? false,
-        isItalic: ctx.editor.isActive("italic") ?? false,
-        isStrikethrough: ctx.editor.isActive("strike") ?? false,
-        isBulletList: ctx.editor.isActive("bulletList") ?? false,
-        isOrderedList: ctx.editor.isActive("orderedList") ?? false,
-        textType,
-        isAlignLeft,
-        isAlignCenter,
-        isAlignRight,
-        isAlignJustify,
-        isCode: ctx.editor.isActive("code") ?? false,
-        isCodeBlock: ctx.editor.isActive("codeBlock") ?? false,
-        isBlockquote: ctx.editor.isActive("blockquote") ?? false,
-        isMath:
-          (ctx.editor.isActive("inlineMath") ||
-            ctx.editor.isActive("blockMath")) ??
-          false,
-      }
-    },
-  })
+  const formatting = useAtomValue(bubbleMenuFormattingAtom);
 
   if (!editor) return null
 
@@ -131,7 +89,7 @@ export const BubbleMenu = () => {
     isCodeBlock,
     isBlockquote,
     isMath,
-  } = editorState ?? DEFAULT_BUBBLE_MENU_STATE
+  } = formatting
 
   const handleTypeChange = (value: string) => {
     const chain = editor.chain().focus()
@@ -178,12 +136,19 @@ export const BubbleMenu = () => {
               render={
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="ghost" size="sm" className="flex items-center justify-between gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center justify-between gap-2"
+                    >
                       <HugeiconsIcon
                         icon={currentTypeMeta.icon}
                         className="size-3"
                       />
-                      <span className="flex items-center justify-between gap-1">{currentTypeMeta.label} <HugeiconsIcon icon={ArrowDown01Icon} /></span>
+                      <span className="flex items-center justify-between gap-1">
+                        {currentTypeMeta.label}{" "}
+                        <HugeiconsIcon icon={ArrowDown01Icon} />
+                      </span>
                     </Button>
                   }
                 />
