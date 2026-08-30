@@ -1,14 +1,24 @@
 import { describe, expect, it } from "bun:test"
 import type { Editor } from "@tiptap/react"
-import { DEFAULT_BUBBLE_MENU_FORMATTING } from "./atoms"
-import { areStatesEqual, deriveFormattingSnapshot } from "./sync-bridge"
+import { DEFAULT_FORMATTING_STATE, DEFAULT_SELECTION_STATE } from "./atoms"
+import {
+  areFormattingStatesEqual,
+  areSelectionStatesEqual,
+  areStatesEqual,
+  deriveFormattingSnapshot,
+  deriveSelectionSnapshot,
+} from "./sync-bridge"
 
 const createMockEditor = (
   activeMap: Record<string, boolean> = {},
   destroyed = false,
+  selection = { from: 0, to: 0, empty: true },
 ): Editor => {
   return {
     isDestroyed: destroyed,
+    state: {
+      selection,
+    },
     isActive: (name: unknown, attrs?: Record<string, unknown>) => {
       if (typeof name === "string") {
         if (attrs && "level" in attrs) {
@@ -28,13 +38,13 @@ const createMockEditor = (
 describe("deriveFormattingSnapshot", () => {
   it("returns default formatting when editor is null", () => {
     const snapshot = deriveFormattingSnapshot(null)
-    expect(snapshot).toEqual(DEFAULT_BUBBLE_MENU_FORMATTING)
+    expect(snapshot).toEqual(DEFAULT_FORMATTING_STATE)
   })
 
   it("returns default formatting when editor is destroyed", () => {
     const mock = createMockEditor({ bold: true }, true)
     const snapshot = deriveFormattingSnapshot(mock)
-    expect(snapshot).toEqual(DEFAULT_BUBBLE_MENU_FORMATTING)
+    expect(snapshot).toEqual(DEFAULT_FORMATTING_STATE)
   })
 
   it("detects active marks like bold, italic, and strike", () => {
@@ -103,16 +113,47 @@ describe("deriveFormattingSnapshot", () => {
   })
 })
 
-describe("areStatesEqual", () => {
-  it("returns true for identical states", () => {
-    const stateA = { ...DEFAULT_BUBBLE_MENU_FORMATTING }
-    const stateB = { ...DEFAULT_BUBBLE_MENU_FORMATTING }
-    expect(areStatesEqual(stateA, stateB)).toBe(true)
+describe("deriveSelectionSnapshot", () => {
+  it("returns default selection when editor is null or destroyed", () => {
+    expect(deriveSelectionSnapshot(null)).toEqual(DEFAULT_SELECTION_STATE)
+    const destroyed = createMockEditor({}, true)
+    expect(deriveSelectionSnapshot(destroyed)).toEqual(DEFAULT_SELECTION_STATE)
   })
 
-  it("returns false when any property differs", () => {
-    const stateA = { ...DEFAULT_BUBBLE_MENU_FORMATTING }
-    const stateB = { ...DEFAULT_BUBBLE_MENU_FORMATTING, isBold: true }
+  it("extracts selection ranges correctly", () => {
+    const mock = createMockEditor({}, false, { from: 5, to: 12, empty: false })
+    const snapshot = deriveSelectionSnapshot(mock)
+    expect(snapshot).toEqual({ from: 5, to: 12, empty: false })
+  })
+})
+
+describe("areStatesEqual and areSelectionStatesEqual", () => {
+  it("returns true for identical formatting states", () => {
+    const stateA = { ...DEFAULT_FORMATTING_STATE }
+    const stateB = { ...DEFAULT_FORMATTING_STATE }
+    expect(areStatesEqual(stateA, stateB)).toBe(true)
+    expect(areFormattingStatesEqual(stateA, stateB)).toBe(true)
+  })
+
+  it("returns false when any formatting property differs", () => {
+    const stateA = { ...DEFAULT_FORMATTING_STATE }
+    const stateB = { ...DEFAULT_FORMATTING_STATE, isBold: true }
     expect(areStatesEqual(stateA, stateB)).toBe(false)
+  })
+
+  it("compares selection states accurately", () => {
+    expect(
+      areSelectionStatesEqual(
+        { from: 1, to: 4, empty: false },
+        { from: 1, to: 4, empty: false },
+      ),
+    ).toBe(true)
+
+    expect(
+      areSelectionStatesEqual(
+        { from: 1, to: 4, empty: false },
+        { from: 1, to: 5, empty: false },
+      ),
+    ).toBe(false)
   })
 })
