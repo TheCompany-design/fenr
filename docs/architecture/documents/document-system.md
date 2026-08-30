@@ -48,8 +48,8 @@ The editor architecture is built around five strict design principles:
 ┌──────────────────┐  ┌──────────────────┐  ┌────────────────────────────┐
 │ EditorSyncBridge │  │   EditorChrome   │  │       DocumentCanvas       │
 │ - Tiptap Event   │  │   (BubbleMenu,   │  │ - Physical Page Metaphor   │
-│   Listeners      │  │   SlashMenu,     │  │ - Width, MinHeight, Padding│
-│ - Shallow Gating │  │   BlockToolbar)  │  │ - Paper Shadow & Border    │
+│   Listeners      │  │   DragHandle,    │  │ - Width, MinHeight, Padding│
+│ - Shallow Gating │  │   SlashMenu)     │  │ - Gutter Chrome Container  │
 │ - Jotai Writes   │  │ - Fine-grained   │  └─────────────┬──────────────┘
 └───────┬──────────┘  │   Atom Consumers │                │
         │             └──────────────────┘                ▼
@@ -59,9 +59,9 @@ The editor architecture is built around five strict design principles:
 │            Scoped Jotai Store           │  │ - <Tiptap.Content />      │
 │  - Primitive `formattingAtom`           │  └─────────────┬─────────────┘
 │  - Primitive `selectionAtom`            │                │
-│  - Selectors: `isBoldAtom`, etc.        │                ▼
-└─────────────────────────────────────────┘  ┌───────────────────────────┐
-                                             │   Tiptap / ProseMirror    │
+│  - Primitive `dragHandleAtom`           │                ▼
+│  - Selectors: `isBoldAtom`, etc.        │  ┌───────────────────────────┐
+└─────────────────────────────────────────┘  │   Tiptap / ProseMirror    │
                                              │ - Document Model (Node)   │
                                              │ - Selection (Text/Node)   │
                                              │ - Step / Transactions     │
@@ -280,17 +280,28 @@ export function DocumentEditor({
     onChange,
   })
 
+  const canvasRef = useRef<HTMLElement | null>(null)
+  useDragHandleSync(editor, canvasRef)
+
   if (!editor) return null
+
+  const capabilities =
+    definition.capabilities ?? defaultDocumentDefinition.capabilities ?? {}
+  const showDragHandle =
+    capabilities.dragHandle !== false &&
+    (definition.editor?.editable ?? editable)
 
   return (
     <div className={cn("relative w-full", className)}>
       <EditorSyncBridge editor={editor} />
       <BubbleMenu editor={editor} />
       <DocumentCanvas
+        ref={canvasRef}
         width={definition.canvas?.width}
         minHeight={definition.canvas?.minHeight}
         padding={definition.canvas?.padding}
       >
+        {showDragHandle ? <DragHandle editor={editor} /> : null}
         <EditorSurface editor={editor} />
       </DocumentCanvas>
     </div>
@@ -301,6 +312,7 @@ export function DocumentEditor({
 #### Key Architecture Separation:
 - **Synchronization is NOT a surface concern**: Moving `EditorSyncBridge` out of `EditorSurface` and into `DocumentEditor` establishes clean separation. The surface is solely responsible for DOM nodes; the orchestrator binds synchronization and chrome to the editor engine.
 - **Pass-through Geometry**: The canvas geometry (`width`, `minHeight`, `padding`) is read directly from `definition.canvas`, allowing arbitrary layout templates without modifying CSS classes.
+- **Gutter Chrome Orchestration**: The `DocumentEditor` binds `useDragHandleSync` to `DocumentCanvas` via a ref, mounting `<DragHandle />` directly into the canvas's 72px gutter when `capabilities.dragHandle !== false`.
 
 ---
 
@@ -468,6 +480,25 @@ File: [`apps/web/src/editor/bubble-menu.tsx`](file:///home/muchiri/dev/bag/ateli
 
 ---
 
+### 4.9. `DragHandle` Chrome & Block Manipulation
+
+Files:
+- [`apps/web/src/editor/drag-handle/drag-handle.tsx`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/drag-handle.tsx)
+- [`apps/web/src/editor/drag-handle/target-resolver.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/target-resolver.ts)
+- [`apps/web/src/editor/drag-handle/drag-drop-handlers.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/drag-drop-handlers.ts)
+- Detailed Specification: [`docs/architecture/documents/drag-handle-architecture.md`](./drag-handle-architecture.md)
+
+`DragHandle` provides the primary physical affordance for block-level manipulation in the canvas gutter:
+
+- **Single Floating Virtual Anchor ($O(1)$ DOM footprint)**: Rather than mounting a NodeView or gutter element per block, exactly one floating handle element is rendered and repositioned via virtual coordinate clamping (`resolveDragTarget`).
+- **Gutter Chrome Layout**: Rendered within `DocumentCanvas`'s 72px margin. The left handle sits at `left: 16px` (`[+]` Quick Add and `[⋮⋮]` Grip Handle) and the delete button sits at `right: 16px` (round trash button aligned with the active row).
+- **ProseMirror <-> HTML5 Drag & Drop Handshake**:
+  - `dragstart` selects the block with `NodeSelection`, populates `dataTransfer` (`text/html`, `text/plain`), and sets `view.dragging = { slice, move: true }`.
+  - ProseMirror's drop point calculator handles native reordering and atomic deletion/insertion.
+- **Row Stability & Equality Gating**: Active block retention prevents the handle from disappearing when the user moves the mouse horizontally across the block toward the delete button. Atom updates are equality-gated (`areDragHandleStatesEqual`) to prevent wasteful React renders.
+
+---
+
 ## 5. Extensibility: Defining New Document Types
 
 Adding a new document type requires **zero modifications** to the core editor engine or bridge. Simply declare a definition and pass it to `DocumentEditor`:
@@ -489,6 +520,7 @@ export const invoiceDefinition = defineDocument({
   capabilities: {
     mathematics: false, // Invoices do not require LaTeX formulas
     tables: true,
+    dragHandle: true,
   },
   editor: {
     extensions: [
@@ -511,6 +543,7 @@ export const proposalDefinition = defineDocument({
     mathematics: true,
     images: true,
     embeds: true,
+    dragHandle: true,
   },
 })
 ```
@@ -527,6 +560,10 @@ export const proposalDefinition = defineDocument({
 | **`EditorStore`** | Cross-document state leakage in multi-editor views | `useRef` guarantees unique `createStore()` instances per `EditorRoot`. |
 | **`DocumentCanvas`** | Invalid / missing numeric styles | Safe fallbacks (`816px`, `1056px`) and explicit unit conversion (`${val}px`). |
 | **`BubbleMenu`** | Floating menu positioned before editor mounts | Safe early return `if (!editor) return null` positioned after all hook declarations. |
+| **`DragHandle`** | Null or destroyed editor instance | `if (!editor \|\| editor.isDestroyed) return` in all handlers and hooks. |
+| **`DragTargetResolver`** | Pointer outside content or hovering in margins | Clamps X coordinate to content boundary; returns `null` when out of bounds. |
+| **`DragHandleState`** | Rapid pointer movements over text | Equality gating prevents redundant Jotai writes; row stability preserves handle across row travel. |
+| **`DragDropHandlers`** | Drag interrupted or canceled without drop | `handleBlockDragEnd` unconditionally resets `view.dragging = null`. |
 
 ---
 
@@ -543,6 +580,14 @@ The document architecture is verified by comprehensive automated tests run via `
    - Tests `areStatesEqual` and `areSelectionStatesEqual` predicates.
 3. **Document Definition Contract Test** ([`apps/web/src/editor/core/document-definition.test.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/core/document-definition.test.ts)):
    - Tests defaults and custom overrides for `DocumentDefinition`.
+4. **Drag Handle Target Resolver Test** ([`apps/web/src/editor/drag-handle/target-resolver.test.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/target-resolver.test.ts)):
+   - Tests coordinate clamping, margin hit testing, and depth traversal for paragraphs and list items.
+5. **Drag Handle State & Sync Test** ([`apps/web/src/editor/drag-handle/drag-handle-state.test.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/drag-handle-state.test.ts)):
+   - Verifies Jotai state initialization, selectors, equality gating, and cleanup.
+6. **Drag and Drop Handlers Test** ([`apps/web/src/editor/drag-handle/drag-drop-handlers.test.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/drag-drop-handlers.test.ts)):
+   - Verifies `NodeSelection`, dataTransfer serialization, and `view.dragging` slice management.
+7. **Drag Handle Component Test** ([`apps/web/src/editor/drag-handle/drag-handle.test.ts`](file:///home/muchiri/dev/bag/atelier/fenr/apps/web/src/editor/drag-handle/drag-handle.test.ts)):
+   - Tests export contracts, delete range computations, and safe null editor handling.
 
 All tests can be executed at the root of the monorepo:
 ```sh
