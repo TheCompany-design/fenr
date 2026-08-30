@@ -18,6 +18,7 @@ export interface EditorCapabilities {
   tables?: boolean
   images?: boolean
   embeds?: boolean
+  dragHandle?: boolean
 }
 
 export interface EditorConfig {
@@ -54,10 +55,12 @@ export const defaultDocumentDefinition = defineDocument({
     tables: true,
     images: true,
     embeds: true,
+    dragHandle: true,
   },
 })
 
 export interface DocumentCanvasProps extends HTMLAttributes<HTMLElement> {
+  ref?: React.Ref<HTMLElement | null>
   width?: number
   minHeight?: number
   padding?: {
