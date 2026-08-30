@@ -19,7 +19,7 @@ import {
   TextStrikethroughIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useCurrentEditor } from "@tiptap/react"
+import { type Editor, useCurrentEditor } from "@tiptap/react"
 import { BubbleMenu as TipTapBubbleMenu } from "@tiptap/react/menus"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -42,7 +42,22 @@ import {
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { useAtomValue } from "jotai"
-import { bubbleMenuFormattingAtom } from "./state/atoms"
+import {
+  isAlignCenterAtom,
+  isAlignJustifyAtom,
+  isAlignLeftAtom,
+  isAlignRightAtom,
+  isBlockquoteAtom,
+  isBoldAtom,
+  isBulletListAtom,
+  isCodeAtom,
+  isCodeBlockAtom,
+  isItalicAtom,
+  isMathAtom,
+  isOrderedListAtom,
+  isStrikethroughAtom,
+  textTypeAtom,
+} from "./state/atoms"
 
 const TEXT_TYPES = [
   { value: "text", label: "Text", icon: TextIcon },
@@ -51,28 +66,29 @@ const TEXT_TYPES = [
   { value: "heading-3", label: "Heading 3", icon: Heading03Icon },
 ] as const
 
-export const BubbleMenu = () => {
-  const { editor } = useCurrentEditor()
-  const formatting = useAtomValue(bubbleMenuFormattingAtom)
+export interface BubbleMenuProps {
+  editor?: Editor | null
+}
+
+export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
+  const { editor: currentEditor } = useCurrentEditor()
+  const editor = propEditor ?? currentEditor
+  const isBold = useAtomValue(isBoldAtom)
+  const isItalic = useAtomValue(isItalicAtom)
+  const isStrikethrough = useAtomValue(isStrikethroughAtom)
+  const isBulletList = useAtomValue(isBulletListAtom)
+  const isOrderedList = useAtomValue(isOrderedListAtom)
+  const textType = useAtomValue(textTypeAtom)
+  const isAlignLeft = useAtomValue(isAlignLeftAtom)
+  const isAlignCenter = useAtomValue(isAlignCenterAtom)
+  const isAlignRight = useAtomValue(isAlignRightAtom)
+  const isAlignJustify = useAtomValue(isAlignJustifyAtom)
+  const isCode = useAtomValue(isCodeAtom)
+  const isCodeBlock = useAtomValue(isCodeBlockAtom)
+  const isBlockquote = useAtomValue(isBlockquoteAtom)
+  const isMath = useAtomValue(isMathAtom)
 
   if (!editor) return null
-
-  const {
-    isBold,
-    isItalic,
-    isStrikethrough,
-    isBulletList,
-    isOrderedList,
-    textType,
-    isAlignLeft,
-    isAlignCenter,
-    isAlignRight,
-    isAlignJustify,
-    isCode,
-    isCodeBlock,
-    isBlockquote,
-    isMath,
-  } = formatting
 
   const handleTypeChange = (value: string) => {
     const chain = editor.chain().focus()
