@@ -1,12 +1,15 @@
 import { Tiptap } from "@tiptap/react"
-import type { HTMLAttributes } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 import "katex/dist/katex.min.css"
 import { BubbleMenu } from "../bubble-menu"
+import { EditorProviderStore } from "../state/editor-store"
+import { EditorSyncBridge } from "../state/sync-bridge"
 import type { DocumentEditorProps } from "./types"
 import { useDocumentEditor } from "./use-document-editor"
-import { EditorProviderStore } from "../state/editor-store"
 
-export type EditorRootProps = HTMLAttributes<HTMLElement>
+export interface EditorRootProps {
+  children: ReactNode
+}
 
 export const EditorRoot = ({ children }: EditorRootProps) => {
   return <EditorProviderStore>{children}</EditorProviderStore>
@@ -28,6 +31,7 @@ export const EditorSurface = ({
     <EditorRoot>
       <div className={className}>
         <Tiptap editor={editor}>
+          <EditorSyncBridge />
           <Tiptap.Content />
           <BubbleMenu />
           {children}

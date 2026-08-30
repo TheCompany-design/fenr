@@ -19,7 +19,7 @@ import {
   TextStrikethroughIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useCurrentEditor, useEditorState } from "@tiptap/react"
+import { useCurrentEditor } from "@tiptap/react"
 import { BubbleMenu as TipTapBubbleMenu } from "@tiptap/react/menus"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -51,26 +51,9 @@ const TEXT_TYPES = [
   { value: "heading-3", label: "Heading 3", icon: Heading03Icon },
 ] as const
 
-const DEFAULT_BUBBLE_MENU_STATE = {
-  isBold: false,
-  isItalic: false,
-  isStrikethrough: false,
-  isBulletList: false,
-  isOrderedList: false,
-  textType: "text" as (typeof TEXT_TYPES)[number]["value"],
-  isAlignLeft: true,
-  isAlignCenter: false,
-  isAlignRight: false,
-  isAlignJustify: false,
-  isCode: false,
-  isCodeBlock: false,
-  isBlockquote: false,
-  isMath: false,
-}
-
 export const BubbleMenu = () => {
   const { editor } = useCurrentEditor()
-  const formatting = useAtomValue(bubbleMenuFormattingAtom);
+  const formatting = useAtomValue(bubbleMenuFormattingAtom)
 
   if (!editor) return null
 

@@ -1,16 +1,18 @@
-import type { Editor } from "@tiptap/react"
+import { type Editor, useCurrentEditor } from "@tiptap/react"
 import { useEffect } from "react"
 import {
   type BubbleMenuFormattingState,
-  DEFAULT_BUBBLE_MENU_FORMATTING,
   bubbleMenuFormattingAtom,
+  DEFAULT_BUBBLE_MENU_FORMATTING,
 } from "./atoms"
 import { useEditorStore } from "./editor-store"
 
 /**
  * Pure function: extracts formatting metadata from the current editor state.
  */
-export function deriveFormattingSnapshot(editor: Editor | null): BubbleMenuFormattingState {
+export function deriveFormattingSnapshot(
+  editor: Editor | null,
+): BubbleMenuFormattingState {
   if (!editor || editor.isDestroyed) {
     return DEFAULT_BUBBLE_MENU_FORMATTING
   }
@@ -53,7 +55,7 @@ export function deriveFormattingSnapshot(editor: Editor | null): BubbleMenuForma
 /**
  * Shallow comparison helper to prevent redundant atom updates.
  */
-function areStatesEqual(
+export function areStatesEqual(
   a: BubbleMenuFormattingState,
   b: BubbleMenuFormattingState,
 ): boolean {
@@ -76,14 +78,19 @@ function areStatesEqual(
 }
 
 export interface EditorSyncBridgeProps {
-  editor: Editor | null
+  editor?: Editor | null
 }
 
 /**
  * Invisible bridge component mounted within the editor hierarchy.
  * Synchronizes Tiptap transactions directly into the instance's Jotai store.
+ * Resolves the editor from props if supplied, otherwise falls back to Tiptap Context.
  */
-export const EditorSyncBridge = ({ editor }: EditorSyncBridgeProps) => {
+export const EditorSyncBridge = ({
+  editor: propEditor,
+}: EditorSyncBridgeProps = {}) => {
+  const { editor: contextEditor } = useCurrentEditor()
+  const editor = propEditor ?? contextEditor ?? null
   const store = useEditorStore()
 
   useEffect(() => {
