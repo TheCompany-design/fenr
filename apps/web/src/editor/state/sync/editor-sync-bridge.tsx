@@ -159,9 +159,7 @@ export const EditorSyncBridge = ({
       if (transaction.selectionSet) {
         syncSelection()
       }
-      if (transaction.docChanged || transaction.selectionSet) {
-        syncFormatting()
-      }
+      syncFormatting()
     }
 
     editor.on("selectionUpdate", handleSelectionUpdate)
