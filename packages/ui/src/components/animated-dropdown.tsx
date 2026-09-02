@@ -209,7 +209,12 @@ export function AnimatedDropdown({
       const target = event.target as Node | null
       if (!target) return
       const triggerEl = triggerRef?.current ?? internalTriggerRef.current
-      if (contentRef.current?.contains(target) || triggerEl?.contains(target)) {
+      if (
+        contentRef.current?.contains(target) ||
+        triggerEl?.contains(target) ||
+        (target instanceof Element &&
+          target.closest("[data-animated-dropdown-subcontent]"))
+      ) {
         return
       }
       onOpenChange(false)

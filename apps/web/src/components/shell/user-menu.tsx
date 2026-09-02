@@ -1,21 +1,30 @@
 /**
- * User profile menu & floating sidebar card — signed-in identity, usage telemetry, and actions.
+ * User profile menu & floating sidebar card — signed-in identity and actions.
  *
  * Enhanced with @beui/context-menu animation mechanics:
  * - Origin-based clip-morph toggle animation expanding smoothly from the trigger avatar.
  * - Shared layout hover pill gliding seamlessly across menu items with spring physics.
+ * - Dedicated floating theme flyout with matching glide pill physics.
  * - Defensive design: robust fallbacks, full keyboard navigation, and reduced-motion compliance.
  */
 
 import {
   Alert02Icon,
+  ArrowRight01Icon,
+  CreditCardIcon,
   DashboardSpeed01Icon,
   HelpCircleIcon,
-  Invoice01Icon,
+  LaptopIcon,
   Logout03Icon,
+  Moon02Icon,
+  Notification02Icon,
+  Search01Icon,
   Settings02Icon,
+  SlidersHorizontalIcon,
+  Sun03Icon,
+  Tick02Icon,
+  UserAdd01Icon,
   UserIcon,
-  Wrench01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useQueryClient } from "@tanstack/react-query"
@@ -31,6 +40,7 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { useSidebar } from "@workspace/ui/components/sidebar"
+import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
   TooltipContent,
@@ -43,16 +53,65 @@ import {
   SPRING_LAYOUT,
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
-import { m, useReducedMotion } from "motion/react"
-import { useCallback, useEffect, useEffectEvent, useId, useState } from "react"
+import { AnimatePresence, m, useReducedMotion } from "motion/react"
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react"
+import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
+import { type ThemeMode, useThemeStore } from "@/components/providers"
 import { signOut } from "@/lib/auth-client"
 import { initialsOf, type SessionUser } from "./user-utils"
 
 export type { SessionUser }
 
-/** Segmented visual telemetry bar with staggered entrance animation and alert state */
+/**
+ * Clean profile identity header card inspired by the reference design.
+ * Features avatar, full name, email, and Pro tier badge.
+ */
+export function UserProfileHeader({ user }: { user?: SessionUser | null }) {
+  const displayName =
+    user?.name?.trim() || user?.email?.split("@")[0] || "Andrew Garfield"
+  const displayEmail = user?.email || "andrew@atlas.com"
+  const initials = initialsOf(user)
+  const tier = user?.tier?.includes("Pro") ? "Pro" : user?.tier || "Pro"
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/40 p-2.5 transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/60">
+      <div className="flex min-w-0 items-center gap-3">
+        <Avatar className="size-10 shrink-0 rounded-full border border-sidebar-border/80 bg-muted/60 shadow-xs">
+          {user?.image ? (
+            <AvatarImage alt={displayName} src={user.image} />
+          ) : null}
+          <AvatarFallback className="font-semibold text-muted-foreground text-sm">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-semibold text-foreground text-sm tracking-tight">
+            {displayName}
+          </span>
+          <span className="truncate text-muted-foreground text-xs">
+            {displayEmail}
+          </span>
+        </div>
+      </div>
+
+      <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 font-medium text-[11px] text-blue-600 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-400">
+        {tier}
+      </span>
+    </div>
+  )
+}
+
+/** Segmented visual telemetry bar preserved for backward compatibility */
 export function UsageWidget({
   percent = 90,
   tier = "Fenr Pro",
@@ -80,7 +139,6 @@ export function UsageWidget({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Staggered animated segmented indicator */}
           <div
             aria-label={`Usage: ${percent}%`}
             aria-valuemax={100}
@@ -177,16 +235,17 @@ export function UsageWidget({
   )
 }
 
-interface MenuItemData {
-  id: string
+const THEME_OPTIONS: ReadonlyArray<{
+  mode: ThemeMode
   label: string
-  icon: typeof UserIcon
-  shortcut?: string
-  tone?: "default" | "destructive"
-  onClick: () => void
-}
+  icon: typeof LaptopIcon
+}> = [
+  { mode: "system", label: "System", icon: LaptopIcon },
+  { mode: "light", label: "Light", icon: Sun03Icon },
+  { mode: "dark", label: "Dark", icon: Moon02Icon },
+]
 
-/** Reusable profile menu items with gliding hover pill, shortcuts and sign-out logic */
+/** Reusable profile menu items with gliding hover pill, theme submenu, shortcuts and sign-out logic */
 export function UserMenuItems({
   user,
   onClose,
@@ -196,10 +255,28 @@ export function UserMenuItems({
 }) {
   const [pending, setPending] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [activeThemeId, setActiveThemeId] = useState<string | null>(null)
+  const [isThemeSubmenuOpen, setIsThemeSubmenuOpen] = useState(false)
+  const [submenuCoords, setSubmenuCoords] = useState<{
+    left: number
+    top: number
+  } | null>(null)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+
+  const themeRowRef = useRef<HTMLButtonElement | null>(null)
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const mode = useThemeStore((s) => s.mode)
+  const setMode = useThemeStore((s) => s.setMode)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const effectiveMode = mounted ? mode : "system"
+
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const reduce = useReducedMotion() ?? false
   const menuId = useId()
+  const themeMenuId = useId()
 
   const confirm = useConfirm()
 
@@ -240,11 +317,59 @@ export function UserMenuItems({
     })
   }, [confirm, handleSignOut, onClose])
 
+  const updateSubmenuPosition = useCallback(() => {
+    const el = themeRowRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const submenuWidth = 176
+    const spaceRight = window.innerWidth - rect.right
+    const left =
+      spaceRight >= submenuWidth + 12
+        ? rect.right + 6
+        : Math.max(8, rect.left - submenuWidth - 6)
+    const top = Math.max(8, Math.min(window.innerHeight - 150, rect.top - 6))
+    setSubmenuCoords({ left, top })
+  }, [])
+
+  const openThemeSubmenu = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    updateSubmenuPosition()
+    setActiveThemeId(effectiveMode)
+    setIsThemeSubmenuOpen(true)
+  }, [updateSubmenuPosition, effectiveMode])
+
+  const scheduleCloseThemeSubmenu = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+    }
+    closeTimerRef.current = setTimeout(() => {
+      setIsThemeSubmenuOpen(false)
+    }, 200)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current)
+      }
+    }
+  }, [])
+
   const onShortcutKeyDown = useEffectEvent((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === ",") {
       e.preventDefault()
-      toast.info("Settings", {
-        description: "Global system preferences panel coming soon.",
+      toast.info("Preferences", {
+        description: "System preferences and appearance.",
+      })
+      onClose?.()
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault()
+      toast.info("Command menu", {
+        description: "Press ⌘K anytime to open the command palette.",
       })
       onClose?.()
     }
@@ -254,7 +379,6 @@ export function UserMenuItems({
     }
   })
 
-  // Keyboard shortcut listener for ⌘, (Settings) and ⌘⌥L (Logout)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       onShortcutKeyDown(e)
@@ -263,160 +387,527 @@ export function UserMenuItems({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
 
-  const usagePercent = user?.usagePercent ?? 90
-  const userTier = user?.tier ?? "Orbit Pro"
-
-  const navItems: MenuItemData[] = [
-    {
-      id: "profile",
-      icon: UserIcon,
-      label: "Profile",
-      onClick: () => {
-        toast.info("Profile", {
-          description: `Signed in as ${user?.name || user?.email || "User"}.`,
-        })
-      },
-    },
-    {
-      id: "billing",
-      icon: Invoice01Icon,
-      label: "Billing",
-      onClick: () => {
-        toast.info("Billing", {
-          description: "Manage subscription tiers and payment methods.",
-        })
-      },
-    },
-    {
-      id: "settings",
-      icon: Wrench01Icon,
-      label: "Settings",
-      shortcut: "⌘,",
-      onClick: () => {
-        toast.info("Settings", {
-          description: "System preferences and appearance.",
-        })
-      },
-    },
-    {
-      id: "support",
-      icon: HelpCircleIcon,
-      label: "Support",
-      onClick: () => {
-        toast.info("Support", {
-          description: "Documentation and customer support desk.",
-        })
-      },
-    },
-  ]
-
-  const logoutItem: MenuItemData = {
-    id: "logout",
-    icon: Logout03Icon,
-    label: "Logout",
-    shortcut: "⌘⌥L",
-    tone: "destructive",
-    onClick: promptSignOut,
-  }
-
-  const renderItem = (item: MenuItemData) => {
-    const isActive = activeId === item.id
-    const isDestructive = item.tone === "destructive"
-
-    return (
-      <button
-        key={item.id}
-        type="button"
-        id={item.id}
-        role="menuitem"
-        data-menu-item="true"
-        disabled={isDestructive && pending}
-        onFocus={() => setActiveId(item.id)}
-        onPointerMove={(e) => {
-          if (e.pointerType !== "touch") {
-            setActiveId(item.id)
-          }
-        }}
-        onClick={() => {
-          item.onClick()
-          if (!isDestructive) {
-            onClose?.()
-          }
-        }}
-        className={cn(
-          "group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sm outline-none select-none transition-colors",
-          isDestructive
-            ? "text-destructive hover:text-destructive focus:text-destructive"
-            : "text-sidebar-foreground/80 hover:text-sidebar-foreground focus:text-sidebar-foreground",
-          "active:scale-[0.98]",
-        )}
-      >
-        {/* Animated Glide Pill matching @beui/context-menu mechanics */}
-        {isActive ? (
-          <m.span
-            layoutId={`${menuId}-glider`}
-            className={cn(
-              "absolute inset-0 -z-10 rounded-xl",
-              isDestructive
-                ? "border border-destructive/20 bg-destructive/10"
-                : "border border-sidebar-border/70 bg-sidebar-accent shadow-xs",
-            )}
-            transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-          />
-        ) : null}
-
-        <div className="flex items-center gap-2.5">
-          <HugeiconsIcon
-            className={cn(
-              "size-4 shrink-0 transition-colors",
-              isDestructive
-                ? "text-destructive"
-                : "text-muted-foreground group-hover/item:text-foreground",
-            )}
-            icon={item.icon}
-            size={16}
-          />
-          <span
-            className={isDestructive ? "text-destructive" : "text-foreground"}
-          >
-            {item.label}
-          </span>
-        </div>
-
-        {item.shortcut && (
-          <kbd
-            className={cn(
-              "rounded-md px-1.5 py-0.5 font-mono text-[10px] transition-colors",
-              isDestructive
-                ? "border border-destructive/30 bg-destructive/10 text-destructive"
-                : "border border-border/80 bg-muted/60 text-muted-foreground group-hover/item:border-border group-hover/item:text-foreground",
-            )}
-          >
-            {item.shortcut}
-          </kbd>
-        )}
-      </button>
-    )
-  }
-
   return (
     <div
       role="menu"
       aria-label="User menu"
       className="flex flex-col outline-none"
-      onMouseLeave={() => setActiveId(null)}
+      onMouseLeave={() => {
+        setActiveId(null)
+        scheduleCloseThemeSubmenu()
+      }}
     >
+      {/* Top Profile Header replacing old usage stats */}
       <div className="p-1">
-        <UsageWidget percent={usagePercent} tier={userTier} />
+        <UserProfileHeader user={user} />
       </div>
 
       <hr className="my-1.5 h-px border-0 bg-border/60" />
 
-      <div className="flex flex-col gap-1">{navItems.map(renderItem)}</div>
+      {/* Main Section 1: Profile, Preferences, Billing */}
+      <div className="flex flex-col gap-0.5">
+        {/* Your profile */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("profile")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("profile")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Your profile", {
+              description: `Signed in as ${user?.name || user?.email || "User"}.`,
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "profile" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={UserIcon}
+              size={16}
+            />
+            <span className="text-foreground">Your profile</span>
+          </div>
+        </button>
+
+        {/* Preferences */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("preferences")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("preferences")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Preferences", {
+              description: "System preferences and appearance.",
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "preferences" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={SlidersHorizontalIcon}
+              size={16}
+            />
+            <span className="text-foreground">Preferences</span>
+          </div>
+          <kbd className="rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors group-hover/item:border-border group-hover/item:text-foreground">
+            ⌘,
+          </kbd>
+        </button>
+
+        {/* Plan & billing */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("billing")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("billing")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Plan & billing", {
+              description: "Manage subscription tiers and payment methods.",
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "billing" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={CreditCardIcon}
+              size={16}
+            />
+            <span className="text-foreground">Plan & billing</span>
+          </div>
+        </button>
+
+        {/* Theme with interactive flyout submenu */}
+        <button
+          ref={themeRowRef}
+          type="button"
+          role="menuitem"
+          aria-haspopup="menu"
+          aria-expanded={isThemeSubmenuOpen}
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("theme")
+            openThemeSubmenu()
+          }}
+          onPointerEnter={() => {
+            setActiveId("theme")
+            openThemeSubmenu()
+          }}
+          onPointerLeave={scheduleCloseThemeSubmenu}
+          onClick={() => {
+            if (isThemeSubmenuOpen) {
+              setIsThemeSubmenuOpen(false)
+            } else {
+              openThemeSubmenu()
+            }
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {(activeId === "theme" || isThemeSubmenuOpen) && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={LaptopIcon}
+              size={16}
+            />
+            <span className="text-foreground">Theme</span>
+          </div>
+
+          <div className="flex items-center gap-1 text-muted-foreground text-xs">
+            <span className="capitalize">{effectiveMode}</span>
+            <HugeiconsIcon
+              className="size-3.5 transition-transform duration-200 group-hover/item:translate-x-0.5"
+              icon={ArrowRight01Icon}
+              size={14}
+            />
+          </div>
+        </button>
+
+        {/* Notifications with Switch Toggle */}
+        <div
+          role="menuitem"
+          tabIndex={0}
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("notifications")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === " " || e.key === "Enter") {
+              e.preventDefault()
+              const next = !notificationsEnabled
+              setNotificationsEnabled(next)
+              toast.info(
+                next ? "Notifications enabled" : "Notifications muted",
+                {
+                  description: next
+                    ? "You will receive system alerts and telemetry updates."
+                    : "Activity updates have been paused.",
+                },
+              )
+            }
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("notifications")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground"
+        >
+          {activeId === "notifications" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={Notification02Icon}
+              size={16}
+            />
+            <span className="text-foreground">Notifications</span>
+          </div>
+
+          <Switch
+            checked={notificationsEnabled}
+            onCheckedChange={(checked) => {
+              setNotificationsEnabled(checked)
+              toast.info(
+                checked ? "Notifications enabled" : "Notifications muted",
+                {
+                  description: checked
+                    ? "You will receive system alerts and telemetry updates."
+                    : "Activity updates have been paused.",
+                },
+              )
+            }}
+            aria-label="Toggle notifications"
+          />
+        </div>
+
+        {/* Command menu */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("command")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("command")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Command menu", {
+              description: "Press ⌘K anytime to open the command palette.",
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "command" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={Search01Icon}
+              size={16}
+            />
+            <span className="text-foreground">Command menu</span>
+          </div>
+          <kbd className="rounded-md border border-border/80 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground transition-colors group-hover/item:border-border group-hover/item:text-foreground">
+            ⌘K
+          </kbd>
+        </button>
+      </div>
 
       <hr className="my-1.5 h-px border-0 bg-border/60" />
 
-      <div>{renderItem(logoutItem)}</div>
+      {/* Main Section 2: Invite teammates, Help & support */}
+      <div className="flex flex-col gap-0.5">
+        {/* Invite teammates */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("invite")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("invite")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Invite teammates", {
+              description: "Collaboration invitations coming soon.",
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "invite" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={UserAdd01Icon}
+              size={16}
+            />
+            <span className="text-foreground">Invite teammates</span>
+          </div>
+        </button>
+
+        {/* Help & support */}
+        <button
+          type="button"
+          role="menuitem"
+          data-menu-item="true"
+          onFocus={() => {
+            setActiveId("support")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("support")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={() => {
+            toast.info("Help & support", {
+              description: "Documentation and customer support desk.",
+            })
+            onClose?.()
+          }}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
+        >
+          {activeId === "support" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/item:text-foreground"
+              icon={HelpCircleIcon}
+              size={16}
+            />
+            <span className="text-foreground">Help & support</span>
+          </div>
+        </button>
+      </div>
+
+      <hr className="my-1.5 h-px border-0 bg-border/60" />
+
+      {/* Logout */}
+      <div>
+        <button
+          type="button"
+          id="logout"
+          role="menuitem"
+          data-menu-item="true"
+          disabled={pending}
+          onFocus={() => {
+            setActiveId("logout")
+            setIsThemeSubmenuOpen(false)
+          }}
+          onPointerMove={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("logout")
+              setIsThemeSubmenuOpen(false)
+            }
+          }}
+          onClick={promptSignOut}
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-destructive text-sm outline-none select-none transition-colors hover:text-destructive focus:text-destructive active:scale-[0.98]"
+        >
+          {activeId === "logout" && (
+            <m.span
+              layoutId={`${menuId}-glider`}
+              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-destructive/20 bg-destructive/10"
+              transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+            />
+          )}
+          <div className="flex items-center gap-2.5">
+            <HugeiconsIcon
+              className="size-4 shrink-0 text-destructive"
+              icon={Logout03Icon}
+              size={16}
+            />
+            <span className="text-destructive">Logout</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Floating Theme Submenu rendered via Portal with data-animated-dropdown-subcontent */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {isThemeSubmenuOpen && submenuCoords && (
+              <div
+                data-animated-dropdown-subcontent=""
+                style={{
+                  position: "fixed",
+                  left: submenuCoords.left,
+                  top: submenuCoords.top,
+                  zIndex: 120,
+                }}
+                className="pointer-events-auto [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.18))] before:absolute before:-inset-2 before:content-[''] before:-z-10"
+                onPointerEnter={openThemeSubmenu}
+                onPointerLeave={scheduleCloseThemeSubmenu}
+              >
+                <m.div
+                  initial={
+                    reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
+                  }
+                  animate={{ opacity: 1, scale: 1, x: 0 }}
+                  exit={
+                    reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
+                  }
+                  transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+                  className="flex w-44 flex-col gap-0.5 rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-md outline-none"
+                  onMouseLeave={() => setActiveThemeId(null)}
+                >
+                  {THEME_OPTIONS.map(
+                    ({ icon: OptionIcon, label, mode: optionMode }) => {
+                      const isSelected = effectiveMode === optionMode
+                      const isHovered = activeThemeId === optionMode
+
+                      return (
+                        <button
+                          key={optionMode}
+                          type="button"
+                          role="menuitem"
+                          onFocus={() => setActiveThemeId(optionMode)}
+                          onPointerMove={(e) => {
+                            if (e.pointerType !== "touch") {
+                              setActiveThemeId(optionMode)
+                            }
+                          }}
+                          onPointerDown={(e) => {
+                            e.stopPropagation()
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setMode(optionMode)
+                          }}
+                          className="group/theme-item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-foreground text-sm outline-none select-none transition-colors active:scale-[0.98]"
+                        >
+                          {isHovered && (
+                            <m.span
+                              layoutId={`${themeMenuId}-glider`}
+                              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+                              transition={
+                                reduce ? { duration: 0 } : SPRING_LAYOUT
+                              }
+                            />
+                          )}
+
+                          <div className="flex items-center gap-2.5">
+                            <HugeiconsIcon
+                              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/theme-item:text-foreground"
+                              icon={OptionIcon}
+                              size={16}
+                            />
+                            <span>{label}</span>
+                          </div>
+
+                          {isSelected && (
+                            <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs dark:bg-blue-500">
+                              <HugeiconsIcon
+                                icon={Tick02Icon}
+                                size={10}
+                                strokeWidth={3}
+                              />
+                            </span>
+                          )}
+                        </button>
+                      )
+                    },
+                  )}
+                </m.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -440,7 +931,7 @@ export function UserCard({
   const [open, setOpen] = useState(false)
 
   const displayName =
-    user?.name?.trim() || user?.email?.split("@")[0] || "jamie"
+    user?.name?.trim() || user?.email?.split("@")[0] || "Andrew Garfield"
   const tierName = user?.tier || "Orbit Pro"
 
   return (
