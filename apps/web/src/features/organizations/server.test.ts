@@ -649,7 +649,8 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         fakeQueryClient as unknown as QueryClient,
         "org-test",
       )
-      expect(invalidatedKeys.length).toBe(4)
+      expect(invalidatedKeys.length).toBe(5)
+      expect(invalidatedKeys).toContainEqual(["organizations"])
       expect(invalidatedKeys).toContainEqual(["organizations", "list"])
       expect(invalidatedKeys).toContainEqual(["organizations", "active"])
       expect(invalidatedKeys).toContainEqual([

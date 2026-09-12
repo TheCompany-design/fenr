@@ -95,6 +95,7 @@ export async function invalidateOrganizationQueries(
   organizationId?: string,
 ) {
   await Promise.all([
+    queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
     queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
     queryClient.invalidateQueries({ queryKey: organizationKeys.active() }),
     organizationId

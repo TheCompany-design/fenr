@@ -49,6 +49,10 @@ export async function resolveUserActiveOrganization(
     db
       .select({ organizationId: schema.member.organizationId })
       .from(schema.member)
+      .innerJoin(
+        schema.organization,
+        eq(schema.member.organizationId, schema.organization.id),
+      )
       .where(eq(schema.member.userId, userId)),
     db
       .select({ organizationId: schema.userActiveOrganization.organizationId })

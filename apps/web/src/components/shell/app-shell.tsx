@@ -16,6 +16,7 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
+import type { ActiveOrganization } from "@/features/organizations"
 
 import { AppSidebar } from "./app-sidebar"
 
@@ -23,11 +24,13 @@ export function AppShell({
   children,
   user,
   defaultOpen = true,
+  activeOrganization,
 }: {
   children: React.ReactNode
   user: SessionUser
   /** Initial sidebar state, restored from the sidebar_state cookie on SSR. */
   defaultOpen?: boolean
+  activeOrganization?: ActiveOrganization | null
 }) {
   return (
     // delay={0}: Base UI tooltips default to a 600ms open delay — nav
@@ -36,7 +39,7 @@ export function AppShell({
     <LazyMotion features={domAnimation}>
       <TooltipProvider delay={0}>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar user={user} />
+          <AppSidebar user={user} activeOrganization={activeOrganization} />
           <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
             <ScrollArea className="h-full w-full">
               <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between pointer-events-none px-4 pt-3 pb-1">

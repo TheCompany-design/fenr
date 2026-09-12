@@ -10,13 +10,23 @@
  */
 
 import { createServerFn } from "@tanstack/react-start"
-import { and, count, db, desc, eq, inArray, schema } from "@workspace/database"
+import {
+  and,
+  count,
+  db,
+  desc,
+  eq,
+  inArray,
+  lte,
+  schema,
+} from "@workspace/database"
 
 import { serverEnv } from "@/lib/env"
 import { moduleLogger } from "@/lib/logger"
 import { maskEmail, sendOrganizationInvitationEmail } from "@/lib/mail"
 import {
   clearActiveOrganizationPreference,
+  isValidUuid,
   resolveUserActiveOrganization,
   setActiveOrganizationPreference,
 } from "@/lib/organizations/resolver"
@@ -181,7 +191,15 @@ export async function getActiveOrganization(
   userId: string,
   currentSessionActiveOrgId?: string | null,
 ) {
-  let activeOrgId = currentSessionActiveOrgId
+  if (!isValidUuid(userId)) {
+    return null
+  }
+
+  let activeOrgId =
+    currentSessionActiveOrgId && isValidUuid(currentSessionActiveOrgId)
+      ? currentSessionActiveOrgId
+      : null
+
   if (!activeOrgId) {
     const resolved = await resolveUserActiveOrganization(userId)
     if (resolved.organizationId) {
@@ -233,7 +251,10 @@ export async function getActiveOrganization(
       await clearActiveOrganizationPreference(userId, currentSessionActiveOrgId)
 
       const resolved = await resolveUserActiveOrganization(userId)
-      if (resolved.organizationId) {
+      if (
+        resolved.organizationId &&
+        resolved.organizationId !== currentSessionActiveOrgId
+      ) {
         return getActiveOrganization(userId, resolved.organizationId)
       }
       return null
@@ -254,6 +275,79 @@ export async function getActiveOrganization(
     joinedAt: membership.joinedAt,
     memberCount: Number(memberCountResult?.count ?? 1),
   }
+}
+
+export type ActiveOrganization = NonNullable<
+  Awaited<ReturnType<typeof getActiveOrganization>>
+>
+
+export type AppOrganizationAccess =
+  | {
+      status: "authorized"
+      activeOrganization: ActiveOrganization
+    }
+  | {
+      status: "no_organizations"
+    }
+  | {
+      status: "choose_organization"
+      count: number
+    }
+
+/**
+ * Resolve organization access for the authenticated app route guard.
+ *
+ * Invariants:
+ * 1. If an active organization is already selected and valid for this user/session,
+ *    returns { status: "authorized", activeOrganization }.
+ * 2. If no valid active organization is selected:
+ *    - If user belongs to 0 organizations: returns { status: "no_organizations" }.
+ *    - If user belongs to 1 organization: auto-selected by getActiveOrganization, returns { status: "authorized", activeOrganization }.
+ *    - If user belongs to >1 organizations with no preference: returns { status: "choose_organization", count }.
+ */
+export async function resolveAppOrganizationAccess(
+  userId: string,
+  currentSessionActiveOrgId?: string | null,
+): Promise<AppOrganizationAccess> {
+  const activeOrganization = await getActiveOrganization(
+    userId,
+    currentSessionActiveOrgId,
+  )
+
+  if (activeOrganization) {
+    return {
+      status: "authorized",
+      activeOrganization,
+    }
+  }
+
+  const resolution = await resolveUserActiveOrganization(userId)
+
+  if (resolution.status === "no_organizations") {
+    return { status: "no_organizations" }
+  }
+
+  if (resolution.status === "multiple_organizations_no_preference") {
+    return {
+      status: "choose_organization",
+      count: resolution.count,
+    }
+  }
+
+  if (resolution.organizationId) {
+    const fallbackActive = await getActiveOrganization(
+      userId,
+      resolution.organizationId,
+    )
+    if (fallbackActive) {
+      return {
+        status: "authorized",
+        activeOrganization: fallbackActive,
+      }
+    }
+  }
+
+  return { status: "no_organizations" }
 }
 
 /**
@@ -378,16 +472,22 @@ export async function setActiveOrganization(
     )
   }
 
-  await setActiveOrganizationPreference(userId, targetOrgId)
+  const now = new Date()
+  await setActiveOrganizationPreference(userId, targetOrgId, now)
 
   if (sessionId) {
     await db
       .update(schema.session)
       .set({
         activeOrganizationId: targetOrgId,
-        updatedAt: new Date(),
+        updatedAt: now,
       })
-      .where(eq(schema.session.id, sessionId))
+      .where(
+        and(
+          eq(schema.session.id, sessionId),
+          lte(schema.session.updatedAt, now),
+        ),
+      )
   }
 
   log.info(
@@ -930,6 +1030,16 @@ export const getActiveOrganizationFn = createServerFn({
 }).handler(async () => {
   const session = await ensureSession()
   return getActiveOrganization(
+    session.user.id,
+    session.session.activeOrganizationId,
+  )
+})
+
+export const resolveAppOrganizationAccessFn = createServerFn({
+  method: "GET",
+}).handler(async (): Promise<AppOrganizationAccess> => {
+  const session = await ensureSession()
+  return resolveAppOrganizationAccess(
     session.user.id,
     session.session.activeOrganizationId,
   )

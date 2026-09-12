@@ -30,6 +30,7 @@ import {
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
 import { m, useReducedMotion } from "motion/react"
+import type { ActiveOrganization } from "@/features/organizations"
 import type { NavItem } from "./nav-config"
 import { NAV_ITEMS } from "./nav-config"
 import type { SessionUser } from "./user-menu"
@@ -153,9 +154,14 @@ export function useActiveNavId(): string | null {
 
 export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   user?: SessionUser | null
+  activeOrganization?: ActiveOrganization | null
 }
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+export function AppSidebar({
+  user,
+  activeOrganization,
+  ...props
+}: AppSidebarProps) {
   const activeId = useActiveNavId()
 
   return (
