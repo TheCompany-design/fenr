@@ -15,7 +15,6 @@ import {
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
-import { ThemeToggle } from "@/components/shell/theme-toggle"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
 
 import { AppSidebar } from "./app-sidebar"
@@ -51,7 +50,6 @@ export function AppShell({
 
                 {/* Free-standing right items */}
                 <div className="pointer-events-auto flex items-center gap-2">
-                  <ThemeToggle className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground" />
                   <UserMenu
                     user={user}
                     className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"

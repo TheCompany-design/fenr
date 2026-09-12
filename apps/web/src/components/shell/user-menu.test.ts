@@ -5,6 +5,7 @@ import {
   UserCard,
   UserMenu,
   UserMenuItems,
+  UserProfileHeader,
 } from "./user-menu"
 import { initialsOf } from "./user-utils"
 
@@ -23,10 +24,11 @@ describe("user-menu component & helpers", () => {
     expect(initialsOf(undefined)).toBe("?")
   })
 
-  it("exports all expected components and widgets", () => {
+  it("exports all expected components and widgets including UserProfileHeader", () => {
     expect(UserCard).toBeDefined()
     expect(UserMenu).toBeDefined()
     expect(UserMenuItems).toBeDefined()
+    expect(UserProfileHeader).toBeDefined()
     expect(UsageWidget).toBeDefined()
     expect(AnimatedDropdown).toBeDefined()
   })

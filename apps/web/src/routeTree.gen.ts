@@ -13,6 +13,7 @@ import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
+import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const AppRouteRoute = AppRouteRouteImport.update({
@@ -34,6 +35,11 @@ const AuthSignUpRoute = AuthSignUpRouteImport.update({
   path: '/auth/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
+  id: '/document/',
+  path: '/document/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -45,12 +51,14 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/document/': typeof AppDocumentIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/document': typeof AppDocumentIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,12 +67,14 @@ export interface FileRoutesById {
   '/auth/sign-up': typeof AuthSignUpRoute
   '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_app/document/': typeof AppDocumentIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth/sign-in' | '/auth/sign-up' | '/api/auth/$'
+  fullPaths:
+    '/' | '/auth/sign-in' | '/auth/sign-up' | '/api/auth/$' | '/document/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth/sign-in' | '/auth/sign-up' | '/' | '/api/auth/$'
+  to: '/auth/sign-in' | '/auth/sign-up' | '/' | '/api/auth/$' | '/document'
   id:
     | '__root__'
     | '/_app'
@@ -72,6 +82,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/_app/'
     | '/api/auth/$'
+    | '/_app/document/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -111,6 +122,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/document/': {
+      id: '/_app/document/'
+      path: '/document'
+      fullPath: '/document/'
+      preLoaderRoute: typeof AppDocumentIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -123,10 +141,12 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
+  AppDocumentIndexRoute: typeof AppDocumentIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppDocumentIndexRoute: AppDocumentIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
