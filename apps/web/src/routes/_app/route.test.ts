@@ -33,6 +33,7 @@ mock.module("@/features/organizations", () => ({
   setActiveOrganizationFn: async () => ({ success: true }),
   organizationListQueryOptions: () => ({ queryKey: ["organizations", "list"] }),
   invalidateOrganizationQueries: async () => {},
+  OrganizationSwitcher: () => null,
 }))
 
 // Import routes after mock.module so they use the mocked session and server functions

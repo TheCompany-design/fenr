@@ -16,7 +16,10 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
-import type { ActiveOrganization } from "@/features/organizations"
+import {
+  type ActiveOrganization,
+  OrganizationSwitcher,
+} from "@/features/organizations"
 
 import { AppSidebar } from "./app-sidebar"
 
@@ -48,6 +51,9 @@ export function AppShell({
                   <SidebarTrigger
                     aria-label="Toggle navigation"
                     className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                  />
+                  <OrganizationSwitcher
+                    activeOrganization={activeOrganization}
                   />
                 </div>
 
