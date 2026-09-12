@@ -1,14 +1,13 @@
 /**
- * /auth/sign-up — public route.
+ * /auth/sign-up — public route for passwordless registration.
  *
- * Signed-in visitors bounce back to the app; the `redirect` search param is
- * validated against open-redirects before use.
+ * In email-only authentication, entering an email automatically creates
+ * and verifies the account upon link click.
  */
-
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { z } from "zod"
 
-import { AuthHeader, AuthShell, SignUpForm } from "@/features/auth"
+import { AuthHeader, AuthShell, MagicLinkForm } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
 
@@ -18,10 +17,10 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/auth/sign-up")({
   validateSearch: (search) => searchSchema.parse(search),
-  beforeLoad: async () => {
+  beforeLoad: async ({ search }) => {
     const session = await getSession()
     if (session) {
-      throw redirect({ to: "/" })
+      throw redirect({ href: safeRedirectPath(search.redirect) })
     }
   },
   component: SignUpPage,
@@ -34,19 +33,19 @@ function SignUpPage() {
   return (
     <AuthShell tagline="Create your account and start with a clean, focused canvas.">
       <AuthHeader
-        title="Create your account"
-        description="It takes less than a minute."
+        title="Get started with Fenr"
+        description="Enter your email to receive a passwordless sign-in link."
       />
-      <SignUpForm redirectTo={redirectTo} />
+      <MagicLinkForm redirectTo={redirectTo} />
       <footer className="mt-8 text-muted-foreground text-sm">
         Already have an account?{" "}
-        <Route.Link
+        <Link
           to="/auth/sign-in"
           search={{ redirect: redirectTo }}
           className="text-foreground underline-offset-4 hover:underline"
         >
           Sign in
-        </Route.Link>
+        </Link>
       </footer>
     </AuthShell>
   )
