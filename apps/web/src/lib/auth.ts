@@ -28,10 +28,12 @@ export const auth = betterAuth({
     schema,
   }),
 
-  // Let the adapter fetch user+session in a single SQL join.
+  // Let the adapter fetch user+session in a single SQL join, and delegate
+  // ID generation to native Postgres 18 uuidv7().
   advanced: {
     database: {
       joins: true,
+      generateId: false,
     },
   },
 
