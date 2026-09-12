@@ -1,0 +1,156 @@
+import { z } from "zod"
+
+export const ORGANIZATION_ROLES = ["owner", "admin", "member"] as const
+export const organizationRoleSchema = z.enum(ORGANIZATION_ROLES)
+export type OrganizationRole = z.infer<typeof organizationRoleSchema>
+
+export const RESERVED_SLUGS = [
+  "admin",
+  "api",
+  "app",
+  "auth",
+  "billing",
+  "dashboard",
+  "document",
+  "documents",
+  "help",
+  "invitations",
+  "invite",
+  "login",
+  "new",
+  "null",
+  "onboarding",
+  "organization",
+  "organizations",
+  "settings",
+  "signin",
+  "signup",
+  "support",
+  "undefined",
+  "user",
+  "users",
+] as const
+
+export const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/**
+ * Normalizes an arbitrary input string into a URL-friendly slug:
+ * - Converts to lowercase
+ * - Replaces non-alphanumeric characters with hyphens
+ * - Collapses repeated hyphens into a single hyphen
+ * - Trims leading and trailing hyphens
+ */
+export function normalizeSlug(raw: string): string {
+  if (!raw || typeof raw !== "string") return ""
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
+export function isReservedSlug(slug: string): boolean {
+  return RESERVED_SLUGS.includes(slug as (typeof RESERVED_SLUGS)[number])
+}
+
+export function isValidSlugFormat(slug: string): boolean {
+  if (!slug || slug.length < 3 || slug.length > 48) return false
+  return SLUG_REGEX.test(slug)
+}
+
+export const slugSchema = z
+  .string()
+  .trim()
+  .transform((val) => normalizeSlug(val))
+  .pipe(
+    z
+      .string()
+      .min(3, "Slug must be at least 3 characters")
+      .max(48, "Slug must be at most 48 characters")
+      .refine(isValidSlugFormat, {
+        message:
+          "Slug must contain only lowercase letters, numbers, and hyphens",
+      })
+      .refine((val) => !isReservedSlug(val), {
+        message: "This slug is reserved and cannot be used",
+      }),
+  )
+
+export const organizationNameSchema = z
+  .string()
+  .trim()
+  .min(2, "Organization name must be at least 2 characters")
+  .max(80, "Organization name must be at most 80 characters")
+
+export const createOrganizationSchema = z.object({
+  name: organizationNameSchema,
+  slug: slugSchema,
+  logo: z.string().url("Invalid logo URL").nullable().optional(),
+})
+
+export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>
+
+export const checkSlugSchema = z.object({
+  slug: z.string().trim().min(1, "Slug is required"),
+})
+
+export type CheckSlugInput = z.infer<typeof checkSlugSchema>
+
+export const setActiveOrganizationSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+})
+
+export type SetActiveOrganizationInput = z.infer<
+  typeof setActiveOrganizationSchema
+>
+
+export const getOrganizationMembersSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+})
+
+export type GetOrganizationMembersInput = z.infer<
+  typeof getOrganizationMembersSchema
+>
+
+export const getOrganizationInvitationsSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+})
+
+export type GetOrganizationInvitationsInput = z.infer<
+  typeof getOrganizationInvitationsSchema
+>
+
+export const inviteMemberSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address")
+    .max(255, "Email must be at most 255 characters")
+    .transform((val) => val.toLowerCase()),
+  role: organizationRoleSchema.default("member"),
+})
+
+export type InviteMemberInput = z.infer<typeof inviteMemberSchema>
+
+export const cancelInvitationSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+  invitationId: z.string().uuid("Invalid invitation ID"),
+})
+
+export type CancelInvitationInput = z.infer<typeof cancelInvitationSchema>
+
+export const updateMemberRoleSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+  memberId: z.string().uuid("Invalid member ID"),
+  role: organizationRoleSchema,
+})
+
+export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
+
+export const removeMemberSchema = z.object({
+  organizationId: z.string().uuid("Invalid organization ID"),
+  memberId: z.string().uuid("Invalid member ID"),
+})
+
+export type RemoveMemberInput = z.infer<typeof removeMemberSchema>
