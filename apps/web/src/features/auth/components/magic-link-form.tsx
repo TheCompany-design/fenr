@@ -13,8 +13,11 @@ import { Label } from "@workspace/ui/components/label"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
+import { moduleLogger } from "@/lib/logger"
 import { magicLinkSchema } from "../schemas/auth.schema"
 import { FieldError } from "./field-error"
+
+const log = moduleLogger("auth")
 
 export interface MagicLinkFormProps {
   redirectTo: string
@@ -45,10 +48,12 @@ export function MagicLinkForm({
         })
 
         if (result.error) {
+          log.error(
+            { err: result.error, email },
+            "Authentication service returned error sending magic link",
+          )
           toast.error("Could not send magic link", {
-            description:
-              result.error.message ||
-              "Please verify your email address and try again.",
+            description: "Please verify your email address and try again.",
           })
           return
         }
@@ -57,7 +62,8 @@ export function MagicLinkForm({
           description: "Check your inbox to sign in.",
         })
         success = true
-      } catch (_error) {
+      } catch (err) {
+        log.error({ err, email }, "Unexpected error sending magic link")
         toast.error("Network error", {
           description:
             "Unable to reach the authentication service. Please check your connection and try again.",

@@ -24,7 +24,10 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
+import { moduleLogger } from "@/lib/logger"
 import { AuthErrorBanner } from "./auth-error-banner"
+
+const log = moduleLogger("auth")
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -105,8 +108,12 @@ export function CheckEmailCard({
       if (!isMountedRef.current) return
 
       if (result.error) {
+        log.error(
+          { err: result.error, email: trimmedEmail },
+          "Failed to resend magic link",
+        )
         toast.error("Failed to resend magic link", {
-          description: result.error.message || "Please try again shortly.",
+          description: "Please try again shortly.",
         })
         return
       }
@@ -116,7 +123,11 @@ export function CheckEmailCard({
       toast.success("Magic link resent", {
         description: "A fresh sign-in link has been sent to your email.",
       })
-    } catch (_error) {
+    } catch (err) {
+      log.error(
+        { err, email: trimmedEmail },
+        "Network error occurred while resending magic link",
+      )
       if (!isMountedRef.current) return
       toast.error("Network error", {
         description:
@@ -144,16 +155,30 @@ export function CheckEmailCard({
       </div>
 
       <div className="mt-5 font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
-        Magic link sent
+        {errorReason && resendCount === 0
+          ? "Link expired or invalid"
+          : "Magic link sent"}
       </div>
       <h1 className="mt-2 font-heading text-3xl leading-tight">
-        Check your inbox.
+        {errorReason && resendCount === 0
+          ? "Request a new link."
+          : "Check your inbox."}
       </h1>
       <p className="mt-2 max-w-md text-muted-foreground text-sm leading-relaxed">
-        We sent a sign-in link to{" "}
-        <span className="font-medium text-foreground">{email}</span>. Click it
-        to continue — the link expires in{" "}
-        <span className="text-foreground">10 minutes</span>.
+        {errorReason && resendCount === 0 ? (
+          <>
+            Your previous sign-in link is no longer valid. Request a fresh link
+            for <span className="font-medium text-foreground">{email}</span> to
+            continue.
+          </>
+        ) : (
+          <>
+            We sent a sign-in link to{" "}
+            <span className="font-medium text-foreground">{email}</span>. Click
+            it to continue — the link expires in{" "}
+            <span className="text-foreground">10 minutes</span>.
+          </>
+        )}
       </p>
 
       <div className="mt-7 flex flex-col gap-2.5">

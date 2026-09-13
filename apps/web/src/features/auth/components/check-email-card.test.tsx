@@ -57,6 +57,11 @@ describe("Auth UI Components", () => {
       )
       // When error is present, cooldown is 0 so button is immediately "Resend link"
       expect(html).toContain("Resend link")
+      // Recovery copy rather than "Magic link sent" / "Check your inbox."
+      expect(html).toContain("Link expired or invalid")
+      expect(html).toContain("Request a new link.")
+      expect(html).toContain("Your previous sign-in link is no longer valid")
+      expect(html).not.toContain("Magic link sent")
     })
 
     it("renders 'Use a different email' TanStack Router Link with redirect destination", async () => {
