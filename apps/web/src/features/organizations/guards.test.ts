@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test"
 import { and, db, eq, inArray, schema } from "@workspace/database"
 
-import { resolveAppOrganizationAccess } from "./server"
+import { resolveAppOrganizationAccess } from "./operations"
 
 describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
   const createdUserIds: string[] = []

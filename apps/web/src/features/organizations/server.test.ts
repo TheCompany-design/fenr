@@ -4,12 +4,6 @@ import { and, db, eq, schema } from "@workspace/database"
 
 import { closeMailTransport, setMailTransport } from "@/lib/mail"
 import {
-  invalidateOrganizationQueries,
-  invitationDetailsQueryOptions,
-  organizationKeys,
-  slugAvailabilityQueryOptions,
-} from "./queries"
-import {
   acceptInvitation,
   ConflictError,
   cancelInvitation,
@@ -26,7 +20,13 @@ import {
   removeMember,
   setActiveOrganization,
   updateMemberRole,
-} from "./server"
+} from "./operations"
+import {
+  invalidateOrganizationQueries,
+  invitationDetailsQueryOptions,
+  organizationKeys,
+  slugAvailabilityQueryOptions,
+} from "./queries"
 
 describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
   let testUserA: typeof schema.user.$inferSelect
