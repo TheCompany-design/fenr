@@ -412,7 +412,12 @@ export async function createOrganization(
           activeOrganizationId: createdOrg.id,
           updatedAt: new Date(),
         })
-        .where(eq(schema.session.id, sessionId))
+        .where(
+          and(
+            eq(schema.session.id, sessionId),
+            eq(schema.session.userId, userId),
+          ),
+        )
     } catch (err) {
       log.warn(
         { err, sessionId, orgId: createdOrg.id },
@@ -469,6 +474,7 @@ export async function setActiveOrganization(
       .where(
         and(
           eq(schema.session.id, sessionId),
+          eq(schema.session.userId, userId),
           lte(schema.session.updatedAt, now),
         ),
       )
@@ -906,7 +912,10 @@ export async function acceptInvitation(
 
     // 2. Strict email trust boundary & email verification
     const [userRecord] = await tx
-      .select({ emailVerified: schema.user.emailVerified })
+      .select({
+        email: schema.user.email,
+        emailVerified: schema.user.emailVerified,
+      })
       .from(schema.user)
       .where(eq(schema.user.id, userId))
       .limit(1)
@@ -918,7 +927,7 @@ export async function acceptInvitation(
     }
 
     if (
-      userEmail.trim().toLowerCase() !==
+      userRecord.email.trim().toLowerCase() !==
       invitationRecord.email.trim().toLowerCase()
     ) {
       throw new ForbiddenError(
@@ -947,7 +956,12 @@ export async function acceptInvitation(
               activeOrganizationId: invitationRecord.organizationId,
               updatedAt: new Date(),
             })
-            .where(eq(schema.session.id, sessionId))
+            .where(
+              and(
+                eq(schema.session.id, sessionId),
+                eq(schema.session.userId, userId),
+              ),
+            )
         }
         return {
           success: true,
@@ -960,6 +974,10 @@ export async function acceptInvitation(
 
     if (invitationRecord.status === "canceled") {
       throw new ConflictError("This invitation has been canceled")
+    }
+
+    if (invitationRecord.status !== "pending") {
+      throw new ConflictError("This invitation is no longer pending")
     }
 
     if (invitationRecord.expiresAt < new Date()) {
@@ -1006,7 +1024,12 @@ export async function acceptInvitation(
           activeOrganizationId: invitationRecord.organizationId,
           updatedAt: new Date(),
         })
-        .where(eq(schema.session.id, sessionId))
+        .where(
+          and(
+            eq(schema.session.id, sessionId),
+            eq(schema.session.userId, userId),
+          ),
+        )
     }
 
     log.info(

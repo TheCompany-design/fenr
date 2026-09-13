@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "bun:test"
 import { and, db, eq, inArray, schema } from "@workspace/database"
 
 import { resolveAppOrganizationAccess } from "./operations"
@@ -202,6 +202,15 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
   })
 
   describe("Revoked / Invalid Preference Fallbacks", () => {
+    beforeEach(async () => {
+      await db
+        .delete(schema.userActiveOrganization)
+        .where(eq(schema.userActiveOrganization.userId, userRevokedPref.id))
+      await db
+        .delete(schema.member)
+        .where(eq(schema.member.userId, userRevokedPref.id))
+    })
+
     it("falls back to single remaining membership when preference is revoked", async () => {
       // Setup userRevokedPref in orgAlpha and orgBeta, preference pointing to orgAlpha
       await db.insert(schema.member).values([
@@ -258,10 +267,15 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
     })
 
     it("falls back to choose_organization when revoked and >1 memberships remain", async () => {
-      // Add userRevokedPref to orgAlpha and orgGamma so they have orgBeta + orgGamma (2 memberships)
+      // Add userRevokedPref to orgAlpha, orgBeta, and orgGamma so they have 3 memberships
       await db.insert(schema.member).values([
         {
           organizationId: orgAlpha.id,
+          userId: userRevokedPref.id,
+          role: "member",
+        },
+        {
+          organizationId: orgBeta.id,
           userId: userRevokedPref.id,
           role: "member",
         },
@@ -272,20 +286,11 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
         },
       ])
       // Set preference to orgAlpha
-      await db
-        .insert(schema.userActiveOrganization)
-        .values({
-          userId: userRevokedPref.id,
-          organizationId: orgAlpha.id,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: schema.userActiveOrganization.userId,
-          set: {
-            organizationId: orgAlpha.id,
-            updatedAt: new Date(),
-          },
-        })
+      await db.insert(schema.userActiveOrganization).values({
+        userId: userRevokedPref.id,
+        organizationId: orgAlpha.id,
+        updatedAt: new Date(),
+      })
 
       // Revoke orgAlpha membership
       await db
@@ -307,10 +312,27 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
     })
 
     it("falls back to no_organizations when revoked and 0 memberships remain", async () => {
-      // Remove remaining memberships for userRevokedPref
+      // Add userRevokedPref only to orgAlpha
+      await db.insert(schema.member).values({
+        organizationId: orgAlpha.id,
+        userId: userRevokedPref.id,
+        role: "member",
+      })
+      await db.insert(schema.userActiveOrganization).values({
+        userId: userRevokedPref.id,
+        organizationId: orgAlpha.id,
+        updatedAt: new Date(),
+      })
+
+      // Revoke the sole membership in orgAlpha
       await db
         .delete(schema.member)
-        .where(eq(schema.member.userId, userRevokedPref.id))
+        .where(
+          and(
+            eq(schema.member.userId, userRevokedPref.id),
+            eq(schema.member.organizationId, orgAlpha.id),
+          ),
+        )
 
       const access = await resolveAppOrganizationAccess(userRevokedPref.id)
       expect(access.status).toBe("no_organizations")
