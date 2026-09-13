@@ -40,8 +40,11 @@ import {
   organizationListQueryOptions,
   setActiveOrganizationFn,
 } from "@/features/organizations"
+import { moduleLogger } from "@/lib/logger"
 import { safeAppRedirectPath, safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
+
+const log = moduleLogger("choose-organization")
 
 const chooseOrganizationSearchSchema = z.object({
   redirect: z.string().optional(),
@@ -101,7 +104,12 @@ function ChooseOrganizationRoute() {
     try {
       await setActiveOrganizationFn({ data: { organizationId } })
       await invalidateOrganizationQueries(queryClient, organizationId)
-      await router.invalidate()
+      void router.invalidate().catch((err) => {
+        log.warn(
+          { err, organizationId },
+          "Failed to invalidate router after setting active organization",
+        )
+      })
 
       if (!isMountedRef.current) return
 
@@ -109,12 +117,9 @@ function ChooseOrganizationRoute() {
       await navigate({ href: target })
     } catch (err) {
       if (!isMountedRef.current) return
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to switch active organization"
+      log.error({ err, organizationId }, "Failed to select active organization")
       toast.error("Failed to select organization", {
-        description: message,
+        description: "Could not switch active organization. Please try again.",
       })
     } finally {
       isSelectingRef.current = false
@@ -237,7 +242,15 @@ function ChooseOrganizationRoute() {
             <Button
               variant="outline"
               className="w-full justify-center gap-2"
-              render={<Link to="/onboarding" search={{ step: "naming" }} />}
+              disabled={selectingId !== null}
+              nativeButton={false}
+              render={
+                <Link
+                  to="/onboarding"
+                  search={{ step: "naming" }}
+                  disabled={selectingId !== null}
+                />
+              }
             >
               <HugeiconsIcon icon={Add01Icon} size={16} />
               Create new organization
