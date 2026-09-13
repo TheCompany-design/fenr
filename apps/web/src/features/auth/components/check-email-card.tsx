@@ -13,7 +13,6 @@
  * - Single-page router navigation via TanStack Router <Link>
  */
 import {
-  AlertCircleIcon,
   ArrowLeft01Icon,
   CheckmarkCircle02Icon,
   Mail01Icon,
@@ -25,6 +24,7 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
+import { AuthErrorBanner } from "./auth-error-banner"
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -137,25 +137,7 @@ export function CheckEmailCard({
   return (
     <div className="w-full max-w-lg">
       {/* Error recovery notice if previous magic link was expired or invalid */}
-      {errorReason && (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="mb-6 flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-destructive text-sm"
-        >
-          <HugeiconsIcon
-            icon={AlertCircleIcon}
-            className="mt-0.5 size-5 shrink-0"
-          />
-          <div>
-            <p className="font-semibold">Sign-in link expired or invalid</p>
-            <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
-              The sign-in link you clicked has expired or was already used.
-              Click the button below to receive a new link.
-            </p>
-          </div>
-        </div>
-      )}
+      {errorReason ? <AuthErrorBanner error={errorReason} /> : null}
 
       <div className="inline-flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
         <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5" />

@@ -79,6 +79,7 @@ export function MagicLinkForm({
 
   return (
     <form
+      action="javascript:void(0);"
       className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault()
