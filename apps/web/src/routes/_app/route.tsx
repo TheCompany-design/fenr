@@ -50,10 +50,13 @@ export const Route = createFileRoute("/_app")({
     let access: Awaited<ReturnType<typeof resolveAppOrganizationAccessFn>>
     try {
       access = await resolveAppOrganizationAccessFn()
-    } catch {
+    } catch (_error) {
       throw redirect({
         to: "/auth/sign-in",
-        search: { redirect: safeRedirectPath(location.href) },
+        search: {
+          redirect: safeRedirectPath(location.href),
+          error: "access_resolution_failed",
+        },
       })
     }
 

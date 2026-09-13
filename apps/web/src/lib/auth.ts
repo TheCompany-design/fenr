@@ -28,6 +28,7 @@ const authLogger = moduleLogger("auth")
 export const auth = betterAuth({
   baseURL: serverEnv.BETTER_AUTH_URL,
   secret: serverEnv.BETTER_AUTH_SECRET,
+  trustedOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"],
 
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -44,8 +45,7 @@ export const auth = betterAuth({
   },
 
   emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
+    enabled: false,
   },
 
   databaseHooks: {

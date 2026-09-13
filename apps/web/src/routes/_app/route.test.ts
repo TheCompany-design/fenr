@@ -29,9 +29,14 @@ mock.module("@/lib/ui-prefs", () => ({
 
 const actualOrgs = await import("@/features/organizations")
 
+let currentAccessError: Error | null = null
+
 mock.module("@/features/organizations", () => ({
   ...actualOrgs,
-  resolveAppOrganizationAccessFn: async () => currentAccessResult,
+  resolveAppOrganizationAccessFn: async () => {
+    if (currentAccessError) throw currentAccessError
+    return currentAccessResult
+  },
   listOrganizationsFn: async () => currentOrganizationsList,
   setActiveOrganizationFn: async () => ({ success: true }),
 }))
@@ -166,6 +171,33 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
       })
       expect(context.sidebarOpen).toBe(true)
       expect(context.activeOrganization).toEqual(mockActiveOrg)
+    })
+
+    it("redirects to /auth/sign-in with error=access_resolution_failed when resolveAppOrganizationAccessFn throws", async () => {
+      currentSession = {
+        session: { id: "sess-error" },
+        user: { id: "user-error", email: "error@example.com" },
+      }
+      currentAccessError = new Error("Database network failure")
+
+      let thrown: unknown = null
+      try {
+        const beforeLoad = AppRoute.options
+          .beforeLoad as unknown as BeforeLoadCaller
+        await beforeLoad({ location: { href: "/documents/456" } })
+      } catch (e) {
+        thrown = e
+      } finally {
+        currentAccessError = null
+      }
+
+      expect(isRedirect(thrown)).toBe(true)
+      const details = getRedirectDetails(thrown)
+      expect(details?.to).toBe("/auth/sign-in")
+      expect(details?.search).toEqual({
+        redirect: "/documents/456",
+        error: "access_resolution_failed",
+      })
     })
   })
 
