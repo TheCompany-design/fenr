@@ -19,7 +19,10 @@ import * as React from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { moduleLogger } from "@/lib/logger"
 import type { OrganizationRole } from "../schemas"
+
+const log = moduleLogger("organizations")
 
 export interface QueuedInvite {
   id: string
@@ -59,11 +62,18 @@ export function InviteMembersForm({
   allowedRoles = ["member", "admin"],
 }: InviteMembersFormProps) {
   const [emailInput, setEmailInput] = React.useState("")
-  const [selectedRole, setSelectedRole] =
-    React.useState<OrganizationRole>("member")
+  const [selectedRole, setSelectedRole] = React.useState<OrganizationRole>(
+    allowedRoles[0] ?? "member",
+  )
   const [invites, setInvites] = React.useState<QueuedInvite[]>([])
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [inputError, setInputError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (allowedRoles.length > 0 && !allowedRoles.includes(selectedRole)) {
+      setSelectedRole(allowedRoles[0])
+    }
+  }, [allowedRoles, selectedRole])
 
   const handleAddInvite = () => {
     setInputError(null)
@@ -108,12 +118,37 @@ export function InviteMembersForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // If input is non-empty, try adding it first
-    if (emailInput.trim()) {
-      handleAddInvite()
+    if (isSubmitting) return
+
+    let currentInvites = invites
+    const trimmed = emailInput.trim()
+    if (trimmed) {
+      const parsed = singleEmailSchema.safeParse(trimmed)
+      if (!parsed.success) {
+        setInputError(
+          parsed.error.issues[0]?.message ?? "Invalid email address",
+        )
+        return
+      }
+      const email = parsed.data
+      const isDuplicate = invites.some((i) => i.email === email)
+      if (isDuplicate) {
+        setInputError("This email has already been added to the list")
+        return
+      }
+      const newInvite: QueuedInvite = {
+        id: crypto.randomUUID(),
+        email,
+        role: selectedRole,
+        status: "pending",
+      }
+      currentInvites = [...invites, newInvite]
+      setInvites(currentInvites)
+      setEmailInput("")
+      setInputError(null)
     }
 
-    const pendingInvites = invites.filter((i) => i.status !== "success")
+    const pendingInvites = currentInvites.filter((i) => i.status !== "success")
     if (pendingInvites.length === 0) {
       toast.info("No invitations to send", {
         description: "Add one or more email addresses first.",
@@ -122,20 +157,20 @@ export function InviteMembersForm({
     }
 
     setIsSubmitting(true)
-    setInvites((prev) =>
-      prev.map((i) =>
+    setInvites(
+      currentInvites.map((i) =>
         i.status !== "success"
           ? { ...i, status: "sending", error: undefined }
           : i,
       ),
     )
 
-    try {
-      const payload = pendingInvites.map((i) => ({
-        email: i.email,
-        role: i.role,
-      }))
+    const payload = pendingInvites.map((i) => ({
+      email: i.email,
+      role: i.role,
+    }))
 
+    try {
       const results = await onInvite(payload)
 
       setInvites((prev) =>
@@ -143,7 +178,11 @@ export function InviteMembersForm({
           const res = results.find(
             (r) => r.email.toLowerCase() === item.email.toLowerCase(),
           )
-          if (!res) return item
+          if (!res) {
+            return item.status === "sending"
+              ? { ...item, status: "error", error: "No response received" }
+              : item
+          }
           return {
             ...item,
             status: res.success ? "success" : "error",
@@ -153,9 +192,9 @@ export function InviteMembersForm({
       )
 
       const successCount = results.filter((r) => r.success).length
-      const failureCount = results.filter((r) => !r.success).length
+      const failureCount = payload.length - successCount
 
-      if (failureCount === 0) {
+      if (failureCount === 0 && successCount > 0) {
         toast.success(
           successCount === 1
             ? "Invitation sent"
@@ -175,8 +214,8 @@ export function InviteMembersForm({
         })
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to send invitations"
+      log.error({ err, count: payload.length }, "Failed to send invitations")
+      const message = "Could not send invitations. Please try again."
       toast.error("Invitation error", { description: message })
       setInvites((prev) =>
         prev.map((i) =>
@@ -191,6 +230,7 @@ export function InviteMembersForm({
   }
 
   const handleRetryFailed = async (invite: QueuedInvite) => {
+    if (isSubmitting) return
     setIsSubmitting(true)
     setInvites((prev) =>
       prev.map((i) =>
@@ -226,13 +266,15 @@ export function InviteMembersForm({
         )
       }
     } catch (err) {
+      log.error({ err, inviteId: invite.id }, "Failed to retry invitation")
+      const message = "Failed to send"
       setInvites((prev) =>
         prev.map((i) =>
           i.id === invite.id
             ? {
                 ...i,
                 status: "error",
-                error: err instanceof Error ? err.message : "Failed to send",
+                error: message,
               }
             : i,
         ),
@@ -424,13 +466,25 @@ export function InviteMembersForm({
 
         <div className="flex items-center gap-2">
           {allSuccessful ? (
-            <Button type="button" onClick={onComplete} className="min-w-28">
-              Continue
+            <Button
+              type="button"
+              onClick={() => {
+                if (onComplete) {
+                  onComplete()
+                } else {
+                  setInvites([])
+                }
+              }}
+              className="min-w-28"
+            >
+              {onComplete ? "Continue" : "Done"}
             </Button>
           ) : (
             <Button
               type="submit"
-              disabled={invites.length === 0 || isSubmitting}
+              disabled={
+                (invites.length === 0 && !emailInput.trim()) || isSubmitting
+              }
               className="min-w-28"
             >
               {isSubmitting ? (

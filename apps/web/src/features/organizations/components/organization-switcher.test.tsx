@@ -6,11 +6,26 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router"
-import { createElement } from "react"
+import { GlobalWindow } from "happy-dom"
+import { act, createElement } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import { organizationKeys } from "../queries"
 import { OrganizationSwitcher } from "./organization-switcher"
+
+// Setup DOM globals for interactive dropdown tests
+const win = new GlobalWindow({ url: "http://localhost:3000" })
+Object.assign(globalThis, {
+  window: win,
+  document: win.document,
+  navigator: win.navigator,
+  HTMLElement: win.HTMLElement,
+  customElements: win.customElements,
+  scrollTo: () => {},
+  requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
+  cancelAnimationFrame: (id: number) => clearTimeout(id),
+})
 
 function createTestRouter(component: () => React.ReactNode) {
   const rootRoute = createRootRoute({ component })
@@ -82,7 +97,7 @@ describe("OrganizationSwitcher (Atom 8)", () => {
     expect(html).toContain("?")
   })
 
-  it("renders organization list, role badges, and active indicators when preloaded", async () => {
+  it("renders organization list, role badges, and active indicators when opened", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -110,9 +125,16 @@ describe("OrganizationSwitcher (Atom 8)", () => {
 
     queryClient.setQueryData(organizationKeys.lists(), testOrgs)
 
-    const html = await renderWithProviders(
-      () =>
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    const router = createTestRouter(() =>
+      createElement(
+        QueryClientProvider,
+        { client: queryClient },
         createElement(OrganizationSwitcher, {
+          defaultOpen: true,
           activeOrganization: {
             organization: {
               id: "org-1",
@@ -126,9 +148,26 @@ describe("OrganizationSwitcher (Atom 8)", () => {
             memberCount: 3,
           },
         }),
-      queryClient,
+      ),
     )
 
-    expect(html).toContain("Acme Corp")
+    await router.load()
+
+    await act(async () => {
+      root.render(createElement(RouterProvider, { router }))
+    })
+
+    // Allow effects and portal mounting to process
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const bodyHtml = document.body.innerHTML
+    expect(bodyHtml).toContain("Beta Labs")
+    expect(bodyHtml).toContain("owner")
+    expect(bodyHtml).toContain("member")
+    expect(bodyHtml).toContain("fenr.app/beta-labs")
+    expect(bodyHtml).toContain("Organizations")
+
+    root.unmount()
+    container.remove()
   })
 })

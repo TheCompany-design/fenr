@@ -12,6 +12,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "@tanstack/react-router"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -43,6 +44,7 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { useConfirmStore } from "@/components/feedback/confirm.store"
+import { moduleLogger } from "@/lib/logger"
 import {
   invalidateOrganizationQueries,
   organizationInvitationsQueryOptions,
@@ -54,6 +56,8 @@ import {
   removeMemberFn,
   updateMemberRoleFn,
 } from "../server"
+
+const log = moduleLogger("organizations")
 
 export interface OrganizationMembersProps {
   organizationId: string
@@ -68,6 +72,7 @@ export function OrganizationMembers({
   currentUserRole,
   className,
 }: OrganizationMembersProps) {
+  const router = useRouter({ warn: false })
   const queryClient = useQueryClient()
   const openConfirm = useConfirmStore((state) => state.openConfirm)
 
@@ -84,15 +89,31 @@ export function OrganizationMembers({
 
   const members = membersData?.members ?? []
 
-  const { data: invitations = [], isLoading: isLoadingInvitations } = useQuery({
+  const {
+    data: invitations = [],
+    isLoading: isLoadingInvitations,
+    error: invitationsError,
+  } = useQuery({
     ...organizationInvitationsQueryOptions(organizationId),
     enabled: isOwnerOrAdmin,
   })
 
-  // Track pending action per member/invitation id for spinners
-  const [actionLoadingId, setActionLoadingId] = React.useState<string | null>(
-    null,
+  // Track pending actions per member/invitation id for spinners independently
+  const [loadingActionIds, setLoadingActionIds] = React.useState<Set<string>>(
+    () => new Set(),
   )
+
+  const addLoadingId = React.useCallback((id: string) => {
+    setLoadingActionIds((prev) => new Set(prev).add(id))
+  }, [])
+
+  const removeLoadingId = React.useCallback((id: string) => {
+    setLoadingActionIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
   // Count active owners
   const ownerCount = React.useMemo(
@@ -104,7 +125,7 @@ export function OrganizationMembers({
     memberId: string,
     newRole: OrganizationRole,
   ) => {
-    setActionLoadingId(memberId)
+    addLoadingId(memberId)
     try {
       await updateMemberRoleFn({
         data: {
@@ -115,13 +136,17 @@ export function OrganizationMembers({
       })
       toast.success("Member role updated")
       await invalidateOrganizationQueries(queryClient, organizationId)
+      await router.invalidate()
     } catch (err) {
+      log.error(
+        { err, memberId, newRole, organizationId },
+        "Failed to update member role",
+      )
       toast.error("Failed to update role", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred",
+        description: "Could not update member role. Please try again.",
       })
     } finally {
-      setActionLoadingId(null)
+      removeLoadingId(memberId)
     }
   }
 
@@ -141,7 +166,7 @@ export function OrganizationMembers({
 
     if (!confirmed) return
 
-    setActionLoadingId(memberId)
+    addLoadingId(memberId)
     try {
       await removeMemberFn({
         data: {
@@ -151,13 +176,17 @@ export function OrganizationMembers({
       })
       toast.success(isSelf ? "You left the organization" : "Member removed")
       await invalidateOrganizationQueries(queryClient, organizationId)
+      if (isSelf) {
+        await router.navigate({ to: "/", replace: true })
+        await router.invalidate()
+      }
     } catch (err) {
+      log.error({ err, memberId, organizationId }, "Failed to remove member")
       toast.error("Failed to remove member", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred",
+        description: "Could not remove member. Please try again.",
       })
     } finally {
-      setActionLoadingId(null)
+      removeLoadingId(memberId)
     }
   }
 
@@ -174,7 +203,7 @@ export function OrganizationMembers({
 
     if (!confirmed) return
 
-    setActionLoadingId(invitationId)
+    addLoadingId(invitationId)
     try {
       await cancelInvitationFn({
         data: {
@@ -185,12 +214,15 @@ export function OrganizationMembers({
       toast.success("Invitation revoked")
       await invalidateOrganizationQueries(queryClient, organizationId)
     } catch (err) {
+      log.error(
+        { err, invitationId, organizationId },
+        "Failed to cancel invitation",
+      )
       toast.error("Failed to cancel invitation", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred",
+        description: "Could not revoke invitation. Please try again.",
       })
     } finally {
-      setActionLoadingId(null)
+      removeLoadingId(invitationId)
     }
   }
 
@@ -248,7 +280,7 @@ export function OrganizationMembers({
                   const isCurrentUser = member.userId === currentUserId
                   const isMemberOwner = member.role === "owner"
                   const isSoleOwner = isMemberOwner && ownerCount <= 1
-                  const isBusy = actionLoadingId === member.id
+                  const isBusy = loadingActionIds.has(member.id)
 
                   // Can current user manage this member?
                   // Owners can manage anyone (except sole owner demotion/removal).
@@ -270,7 +302,9 @@ export function OrganizationMembers({
                                 className="size-full rounded-full object-cover"
                               />
                             ) : (
-                              member.user.name.charAt(0).toUpperCase()
+                              (
+                                Array.from(member.user.name || "?")[0] ?? "?"
+                              ).toUpperCase()
                             )}
                           </div>
                           <div className="flex flex-col min-w-0">
@@ -356,55 +390,58 @@ export function OrganizationMembers({
                               />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuGroup>
-                                <DropdownMenuLabel>
-                                  Change Role
-                                </DropdownMenuLabel>
-                                {isOwner && (
-                                  <DropdownMenuItem
-                                    disabled={member.role === "owner"}
-                                    onClick={() =>
-                                      handleUpdateRole(member.id, "owner")
-                                    }
-                                  >
-                                    <HugeiconsIcon icon={CrownIcon} size={14} />
-                                    Make Owner
-                                  </DropdownMenuItem>
-                                )}
-                                {(isOwner || currentUserRole === "admin") && (
-                                  <DropdownMenuItem
-                                    disabled={
-                                      member.role === "admin" ||
-                                      (isSoleOwner && member.role === "owner")
-                                    }
-                                    onClick={() =>
-                                      handleUpdateRole(member.id, "admin")
-                                    }
-                                  >
-                                    <HugeiconsIcon
-                                      icon={Shield01Icon}
-                                      size={14}
-                                    />
-                                    Make Admin
-                                  </DropdownMenuItem>
-                                )}
-                                {(isOwner || currentUserRole === "admin") && (
-                                  <DropdownMenuItem
-                                    disabled={
-                                      member.role === "member" ||
-                                      (isSoleOwner && member.role === "owner")
-                                    }
-                                    onClick={() =>
-                                      handleUpdateRole(member.id, "member")
-                                    }
-                                  >
-                                    <HugeiconsIcon icon={UserIcon} size={14} />
-                                    Make Member
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuGroup>
-
-                              <DropdownMenuSeparator />
+                              {isOwner && (
+                                <>
+                                  <DropdownMenuGroup>
+                                    <DropdownMenuLabel>
+                                      Change Role
+                                    </DropdownMenuLabel>
+                                    <DropdownMenuItem
+                                      disabled={member.role === "owner"}
+                                      onClick={() =>
+                                        handleUpdateRole(member.id, "owner")
+                                      }
+                                    >
+                                      <HugeiconsIcon
+                                        icon={CrownIcon}
+                                        size={14}
+                                      />
+                                      Make Owner
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      disabled={
+                                        member.role === "admin" ||
+                                        (isSoleOwner && member.role === "owner")
+                                      }
+                                      onClick={() =>
+                                        handleUpdateRole(member.id, "admin")
+                                      }
+                                    >
+                                      <HugeiconsIcon
+                                        icon={Shield01Icon}
+                                        size={14}
+                                      />
+                                      Make Admin
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      disabled={
+                                        member.role === "member" ||
+                                        (isSoleOwner && member.role === "owner")
+                                      }
+                                      onClick={() =>
+                                        handleUpdateRole(member.id, "member")
+                                      }
+                                    >
+                                      <HugeiconsIcon
+                                        icon={UserIcon}
+                                        size={14}
+                                      />
+                                      Make Member
+                                    </DropdownMenuItem>
+                                  </DropdownMenuGroup>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
 
                               <DropdownMenuGroup>
                                 {isSoleOwner ? (
@@ -484,6 +521,10 @@ export function OrganizationMembers({
             <div className="py-6 text-center text-sm text-muted-foreground">
               Loading invitations…
             </div>
+          ) : invitationsError ? (
+            <div className="rounded-lg border border-destructive/30 p-6 text-center text-sm text-destructive">
+              Failed to load pending invitations.
+            </div>
           ) : invitations.length === 0 ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
               No pending invitations.
@@ -504,7 +545,7 @@ export function OrganizationMembers({
                   </TableHeader>
                   <TableBody>
                     {invitations.map((inv) => {
-                      const isBusy = actionLoadingId === inv.id
+                      const isBusy = loadingActionIds.has(inv.id)
                       return (
                         <TableRow key={inv.id}>
                           <TableCell className="font-mono text-xs">

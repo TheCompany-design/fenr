@@ -7,10 +7,13 @@ import {
 import * as React from "react"
 import { toast } from "sonner"
 
+import { moduleLogger } from "@/lib/logger"
 import { invalidateOrganizationQueries } from "../queries"
 import type { CreateOrganizationInput } from "../schemas"
 import { createOrganizationFn } from "../server"
 import { OrganizationForm } from "./organization-form"
+
+const log = moduleLogger("organizations")
 
 export interface CreateOrganizationDialogProps {
   open: boolean
@@ -29,22 +32,35 @@ export function CreateOrganizationDialog({
 
   const handleSubmit = async (values: CreateOrganizationInput) => {
     setIsSubmitting(true)
+    let createdOrg: { id: string; name: string; slug: string }
     try {
-      const createdOrg = await createOrganizationFn({ data: values })
-      toast.success("Organization created", {
-        description: `Switched to ${createdOrg.name}.`,
+      createdOrg = await createOrganizationFn({ data: values })
+    } catch (err) {
+      log.error(
+        { err, name: values.name, slug: values.slug },
+        "Failed to create organization",
+      )
+      toast.error("Failed to create organization", {
+        description: "The organization could not be created. Please try again.",
       })
+      setIsSubmitting(false)
+      return
+    }
 
+    toast.success("Organization created", {
+      description: `Switched to ${createdOrg.name}.`,
+    })
+    onOpenChange(false)
+    onSuccess?.(createdOrg)
+
+    try {
       await invalidateOrganizationQueries(queryClient, createdOrg.id)
       await router.invalidate()
-
-      onOpenChange(false)
-      onSuccess?.(createdOrg)
-    } catch (err) {
-      toast.error("Failed to create organization", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred.",
-      })
+    } catch (refreshErr) {
+      log.warn(
+        { err: refreshErr, orgId: createdOrg.id },
+        "Failed to refresh queries after organization creation",
+      )
     } finally {
       setIsSubmitting(false)
     }

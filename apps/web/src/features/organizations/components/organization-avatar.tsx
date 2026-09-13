@@ -24,12 +24,13 @@ export function OrganizationAvatar({
   size = "md",
   className,
 }: OrganizationAvatarProps) {
-  const [imageFailed, setImageFailed] = React.useState(false)
+  const [failedLogo, setFailedLogo] = React.useState<string | null>(null)
 
   const displayName = name?.trim() || slug?.trim() || "Organization"
-  const initial = (name?.trim() || slug?.trim() || "?").charAt(0).toUpperCase()
+  const rawInitial = name?.trim() || slug?.trim() || "?"
+  const initial = (Array.from(rawInitial)[0] ?? "?").toUpperCase()
 
-  const hasImage = Boolean(logo) && !imageFailed
+  const hasImage = Boolean(logo) && failedLogo !== logo
 
   return (
     <div
@@ -47,7 +48,7 @@ export function OrganizationAvatar({
           src={logo ?? undefined}
           alt={displayName}
           className="size-full object-cover"
-          onError={() => setImageFailed(true)}
+          onError={() => setFailedLogo(logo ?? null)}
         />
       ) : (
         <span aria-hidden="true">{initial}</span>

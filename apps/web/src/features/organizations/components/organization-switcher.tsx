@@ -17,6 +17,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
 
+import { moduleLogger } from "@/lib/logger"
 import {
   invalidateOrganizationQueries,
   organizationListQueryOptions,
@@ -26,24 +27,41 @@ import { setActiveOrganizationFn } from "../server"
 import { CreateOrganizationDialog } from "./create-organization-dialog"
 import { OrganizationAvatar } from "./organization-avatar"
 
+const log = moduleLogger("organizations")
+
 export interface OrganizationSwitcherProps {
   activeOrganization?: ActiveOrganization | null
   className?: string
+  defaultOpen?: boolean
 }
 
 export function OrganizationSwitcher({
   activeOrganization,
   className,
+  defaultOpen = false,
 }: OrganizationSwitcherProps) {
   const queryClient = useQueryClient()
   const router = useRouter()
-  const [isOpen, setIsOpen] = React.useState(false)
+  const [isOpen, setIsOpen] = React.useState(defaultOpen)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   const [switchingId, setSwitchingId] = React.useState<string | null>(null)
 
-  const { data: organizations = [], isLoading } = useQuery(
-    organizationListQueryOptions(),
-  )
+  const {
+    data: organizations = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery(organizationListQueryOptions())
+
+  React.useEffect(() => {
+    if (isError) {
+      log.error({ err: error }, "Failed to load organizations")
+      toast.error("Failed to load organizations", {
+        description: "Could not retrieve your organization list.",
+      })
+    }
+  }, [isError, error])
 
   const activeId = activeOrganization?.organization.id
   const displayName =
@@ -63,9 +81,9 @@ export function OrganizationSwitcher({
       await router.invalidate()
       setIsOpen(false)
     } catch (err) {
+      log.error({ err, orgId, orgName }, "Failed to switch organization")
       toast.error("Failed to switch organization", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred.",
+        description: "Could not switch organization. Please try again.",
       })
     } finally {
       setSwitchingId(null)
@@ -134,6 +152,21 @@ export function OrganizationSwitcher({
                     className="animate-spin"
                   />
                   Loading organizations…
+                </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center justify-center py-4 px-2 text-center text-xs gap-2">
+                  <span className="text-destructive font-medium">
+                    Failed to load organizations
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => void refetch()}
+                  >
+                    Retry
+                  </Button>
                 </div>
               ) : organizations.length === 0 ? (
                 <div className="py-4 text-center text-xs text-muted-foreground">
@@ -212,6 +245,7 @@ export function OrganizationSwitcher({
                 variant="ghost"
                 size="sm"
                 className="w-full justify-start text-xs font-normal gap-2 h-8"
+                disabled={Boolean(switchingId)}
                 onClick={() => {
                   onClose()
                   setIsCreateOpen(true)

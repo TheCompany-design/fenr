@@ -30,7 +30,7 @@ describe("Organization Domain Components (Atom 7)", () => {
       )
       expect(html).toContain('role="img"')
       expect(html).toContain('aria-label="Acme Corp"')
-      expect(html).toContain("A")
+      expect(html).toContain('<span aria-hidden="true">A</span>')
     })
 
     it("falls back to slug initial when name is missing", () => {
@@ -38,13 +38,13 @@ describe("Organization Domain Components (Atom 7)", () => {
         createElement(OrganizationAvatar, { slug: "fenr-labs" }),
       )
       expect(html).toContain('aria-label="fenr-labs"')
-      expect(html).toContain("F")
+      expect(html).toContain('<span aria-hidden="true">F</span>')
     })
 
     it("falls back to ? when neither name nor slug is provided", () => {
       const html = renderToStaticMarkup(createElement(OrganizationAvatar, {}))
       expect(html).toContain('aria-label="Organization"')
-      expect(html).toContain("?")
+      expect(html).toContain('<span aria-hidden="true">?</span>')
     })
 
     it("renders image tag when logo is provided", () => {

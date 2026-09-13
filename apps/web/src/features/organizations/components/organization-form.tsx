@@ -81,6 +81,13 @@ export function OrganizationForm({
     },
     onSubmit: async ({ value }) => {
       const normalized = normalizeSlug(value.slug)
+      if (normalized !== debouncedSlug || isCheckingSlug) {
+        toast.error("Please wait", {
+          description: "Checking slug availability...",
+        })
+        return
+      }
+
       if (isReservedSlug(normalized)) {
         toast.error("Reserved slug", {
           description: "This URL slug is reserved and cannot be used.",
@@ -103,16 +110,19 @@ export function OrganizationForm({
     },
   })
 
+  const isDebouncing = normalizeSlug(currentSlug) !== debouncedSlug
+
   // Derive slug availability status
   let slugStatusBadge: React.ReactNode = null
   const isAvailable =
+    !isDebouncing &&
     availabilityData?.available === true &&
     !isCheckingSlug &&
     isSlugFormatValid &&
     !isSlugReserved
 
   if (currentSlug.length > 0) {
-    if (isCheckingSlug) {
+    if (isCheckingSlug || isDebouncing) {
       slugStatusBadge = (
         <span
           role="status"
@@ -262,7 +272,8 @@ export function OrganizationForm({
               !isSlugFormatValid ||
               isSlugReserved ||
               availabilityData?.available === false ||
-              isCheckingSlug)
+              isCheckingSlug ||
+              isDebouncing)
 
           return (
             <div className="flex items-center justify-end gap-3 pt-2">
