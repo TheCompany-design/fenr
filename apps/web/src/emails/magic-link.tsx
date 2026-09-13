@@ -52,7 +52,7 @@ export function MagicLinkEmail({
               </Button>
             </Section>
             <Text style={emailStyles.paragraph}>
-              {`This link will expire in ${expiresInMinutes} minutes and can only be used once.`}
+              {`This link will expire in ${expiresInMinutes} ${expiresInMinutes === 1 ? "minute" : "minutes"} and can only be used once.`}
             </Text>
             <Hr style={emailStyles.hr} />
             <Text style={emailStyles.fallbackNotice}>

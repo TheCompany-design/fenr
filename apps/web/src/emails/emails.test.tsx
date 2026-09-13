@@ -44,6 +44,19 @@ describe("React Email Templates", () => {
       expect(html).toContain("15 minutes")
       expect(html).toContain(url)
     })
+
+    it("renders singular 'minute' when expiresInMinutes is 1", async () => {
+      const url = "https://fenr.app/auth/verify?token=magic-token-singular"
+      const html = await render(
+        createElement(MagicLinkEmail, {
+          url,
+          expiresInMinutes: 1,
+        }),
+      )
+
+      expect(html).toContain("1 minute")
+      expect(html).not.toContain("1 minutes")
+    })
   })
 
   describe("OrganizationInvitationEmail", () => {

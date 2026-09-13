@@ -42,7 +42,7 @@ export function AppShell({
     <LazyMotion features={domAnimation}>
       <TooltipProvider delay={0}>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar user={user} activeOrganization={activeOrganization} />
+          <AppSidebar />
           <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
             <ScrollArea className="h-full w-full">
               <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between pointer-events-none px-4 pt-3 pb-1">
