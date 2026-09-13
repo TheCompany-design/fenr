@@ -10,6 +10,7 @@
 import {
   ArrowRight01Icon,
   CheckmarkCircle01Icon,
+  Loading03Icon,
   Logout03Icon,
   RocketIcon,
 } from "@hugeicons/core-free-icons"
@@ -42,6 +43,7 @@ import {
 } from "@/features/organizations"
 import {
   invalidateOrganizationQueries,
+  organizationKeys,
   organizationListQueryOptions,
 } from "@/features/organizations/queries"
 import type {
@@ -53,7 +55,10 @@ import {
   inviteMemberFn,
 } from "@/features/organizations/server"
 import { signOut } from "@/lib/auth-client"
+import { moduleLogger } from "@/lib/logger"
 import { getSession } from "@/lib/session"
+
+const log = moduleLogger("onboarding")
 
 export const onboardingSearchSchema = z.object({
   step: z
@@ -61,7 +66,7 @@ export const onboardingSearchSchema = z.object({
     .optional()
     .default("naming")
     .catch("naming"),
-  orgId: z.string().uuid().optional(),
+  orgId: z.string().uuid().optional().catch(undefined),
 })
 
 export type OnboardingSearch = z.infer<typeof onboardingSearchSchema>
@@ -89,11 +94,18 @@ export const Route = createFileRoute("/onboarding")({
         })
       }
 
-      // Verify user actually belongs to this organization
-      const memberships = await context.queryClient.ensureQueryData(
+      // Verify user actually belongs to this organization.
+      // If ensureQueryData returns stale cache, fallback to fresh network fetch before redirecting.
+      let memberships = await context.queryClient.ensureQueryData(
         organizationListQueryOptions(),
       )
-      const hasMembership = memberships.some((m) => m.id === search.orgId)
+      let hasMembership = memberships.some((m) => m.id === search.orgId)
+      if (!hasMembership) {
+        memberships = await context.queryClient.fetchQuery(
+          organizationListQueryOptions(),
+        )
+        hasMembership = memberships.some((m) => m.id === search.orgId)
+      }
 
       if (!hasMembership) {
         throw redirect({
@@ -104,6 +116,11 @@ export const Route = createFileRoute("/onboarding")({
     }
 
     return { session }
+  },
+  loader: async ({ context }) => {
+    await context.queryClient
+      .ensureQueryData(organizationListQueryOptions())
+      .catch(() => undefined)
   },
   component: OnboardingPage,
 })
@@ -122,6 +139,12 @@ function OnboardingPage() {
   const queryClient = useQueryClient()
 
   const [isSigningOut, setIsSigningOut] = React.useState(false)
+  const isSigningOutRef = React.useRef(false)
+  const [isCreating, setIsCreating] = React.useState(false)
+  const isCreatingRef = React.useRef(false)
+  const [isEntering, setIsEntering] = React.useState(false)
+  const isEnteringRef = React.useRef(false)
+
   const [createdOrg, setCreatedOrg] = React.useState<{
     id: string
     name: string
@@ -134,7 +157,9 @@ function OnboardingPage() {
 
   // Find target organization if orgId is in search params
   const currentOrg = React.useMemo(() => {
-    if (createdOrg) return createdOrg
+    if (createdOrg && (!search.orgId || createdOrg.id === search.orgId)) {
+      return createdOrg
+    }
     if (search.orgId) {
       const found = organizations.find((o) => o.id === search.orgId)
       if (found) {
@@ -149,36 +174,77 @@ function OnboardingPage() {
   }, [createdOrg, search.orgId, organizations])
 
   const handleSignOut = async () => {
+    if (isSigningOutRef.current) return
+    isSigningOutRef.current = true
     setIsSigningOut(true)
     try {
       await signOut()
       queryClient.clear()
       await navigate({ to: "/auth/sign-in" })
-    } catch {
+    } catch (err) {
+      log.error({ err }, "Sign out failed")
       toast.error("Couldn't sign out", { description: "Please try again." })
     } finally {
+      isSigningOutRef.current = false
       setIsSigningOut(false)
     }
   }
 
   // Step 1: Create Organization Submit
   const handleCreateOrganization = async (values: CreateOrganizationInput) => {
-    try {
-      const org = await createOrganizationFn({ data: values })
-      setCreatedOrg(org)
-      toast.success("Workspace created", {
-        description: `Welcome to ${org.name}!`,
-      })
+    if (isCreatingRef.current || createdOrg) return
+    isCreatingRef.current = true
+    setIsCreating(true)
 
+    let org: { id: string; name: string; slug: string }
+    try {
+      org = await createOrganizationFn({ data: values })
+    } catch (err) {
+      log.error(
+        { err, name: values.name, slug: values.slug },
+        "Failed to create workspace",
+      )
+      toast.error("Could not create workspace", {
+        description: "The workspace could not be created. Please try again.",
+      })
+      isCreatingRef.current = false
+      setIsCreating(false)
+      return
+    }
+
+    setCreatedOrg(org)
+    queryClient.setQueryData(
+      organizationKeys.lists(),
+      (old: Array<{ id: string; name: string; slug: string }> = []) => [
+        ...old,
+        org,
+      ],
+    )
+    toast.success("Workspace created", {
+      description: `Welcome to ${org.name}!`,
+    })
+
+    try {
       await invalidateOrganizationQueries(queryClient, org.id)
       await navigate({
         search: { step: "invites", orgId: org.id },
       })
-    } catch (err) {
-      toast.error("Could not create workspace", {
-        description:
-          err instanceof Error ? err.message : "An unexpected error occurred.",
-      })
+    } catch (postCreateErr) {
+      log.error(
+        { err: postCreateErr, orgId: org.id },
+        "Error during post-creation invalidation or navigation",
+      )
+      try {
+        await navigate({
+          search: { step: "invites", orgId: org.id },
+        })
+      } catch {
+        toast.info(
+          "Workspace created, but could not advance automatically. Please refresh.",
+        )
+      }
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -191,11 +257,8 @@ function OnboardingPage() {
       throw new Error("Organization ID is missing")
     }
 
-    const results: Array<{ email: string; success: boolean; error?: string }> =
-      []
-
-    for (const invite of invites) {
-      try {
+    const settledResults = await Promise.allSettled(
+      invites.map(async (invite) => {
         await inviteMemberFn({
           data: {
             organizationId: orgId,
@@ -203,16 +266,29 @@ function OnboardingPage() {
             role: invite.role,
           },
         })
-        results.push({ email: invite.email, success: true })
-      } catch (err) {
-        results.push({
+        return invite.email
+      }),
+    )
+
+    const results: Array<{ email: string; success: boolean; error?: string }> =
+      settledResults.map((settled, index) => {
+        const invite = invites[index]
+        if (settled.status === "fulfilled") {
+          return { email: invite.email, success: true }
+        }
+        log.warn(
+          { email: invite.email, err: settled.reason },
+          "Failed to send onboarding invite",
+        )
+        return {
           email: invite.email,
           success: false,
           error:
-            err instanceof Error ? err.message : "Failed to deliver invitation",
-        })
-      }
-    }
+            settled.reason instanceof Error
+              ? settled.reason.message
+              : "Failed to deliver invitation",
+        }
+      })
 
     const successful = results.filter((r) => r.success).length
     if (successful > 0) {
@@ -239,9 +315,21 @@ function OnboardingPage() {
 
   // Step 3: Enter Application
   const handleEnterApp = async () => {
-    await invalidateOrganizationQueries(queryClient)
-    await router.invalidate()
-    await navigate({ to: "/" })
+    if (isEnteringRef.current) return
+    isEnteringRef.current = true
+    setIsEntering(true)
+    try {
+      await invalidateOrganizationQueries(queryClient)
+      await router.invalidate()
+      await navigate({ to: "/" })
+    } catch (err) {
+      log.error({ err }, "Navigation to workspace failed")
+      toast.error("Navigation failed", {
+        description: "Please reload the page or navigate to your workspace.",
+      })
+      isEnteringRef.current = false
+      setIsEntering(false)
+    }
   }
 
   const currentStep = search.step ?? "naming"
@@ -308,7 +396,7 @@ function OnboardingPage() {
                       <HugeiconsIcon
                         icon={CheckmarkCircle01Icon}
                         size={12}
-                        className="text-emerald-600 dark:text-emerald-400"
+                        className="text-primary"
                       />
                     )}
                   </div>
@@ -337,6 +425,7 @@ function OnboardingPage() {
               <CardContent className="pt-2">
                 <OrganizationForm
                   onSubmit={handleCreateOrganization}
+                  isSubmitting={isCreating}
                   submitLabel="Continue to Teammates"
                 />
               </CardContent>
@@ -434,14 +523,28 @@ function OnboardingPage() {
                 <Button
                   size="lg"
                   onClick={handleEnterApp}
+                  disabled={isEntering}
                   className="w-full text-sm font-medium"
                 >
-                  Launch Workspace
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    size={16}
-                    className="ml-2"
-                  />
+                  {isEntering ? (
+                    <>
+                      <HugeiconsIcon
+                        icon={Loading03Icon}
+                        size={16}
+                        className="mr-2 animate-spin"
+                      />
+                      Launching Workspace...
+                    </>
+                  ) : (
+                    <>
+                      Launch Workspace
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        size={16}
+                        className="ml-2"
+                      />
+                    </>
+                  )}
                 </Button>
               </CardContent>
             </>

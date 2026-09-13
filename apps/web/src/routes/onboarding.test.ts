@@ -1,6 +1,5 @@
 import { describe, expect, it, mock } from "bun:test"
 import { isRedirect } from "@tanstack/react-router"
-import { onboardingSearchSchema } from "./onboarding"
 
 let currentSession: {
   session: { id: string }
@@ -11,10 +10,16 @@ let currentOrganizations: Array<{ id: string; name: string; slug: string }> = []
 
 mock.module("@/lib/session", () => ({
   getSession: async () => currentSession,
+  ensureSession: async () => {
+    if (!currentSession) throw new Error("Unauthorized")
+    return currentSession
+  },
 }))
 
 // Import Route after mock.module
-const { Route: OnboardingRoute } = await import("./onboarding")
+const { onboardingSearchSchema, Route: OnboardingRoute } = await import(
+  "./onboarding"
+)
 
 type BeforeLoadCaller = (opts: {
   location: { href: string; pathname?: string }
@@ -22,6 +27,9 @@ type BeforeLoadCaller = (opts: {
   context: {
     queryClient: {
       ensureQueryData: () => Promise<
+        Array<{ id: string; name: string; slug: string }>
+      >
+      fetchQuery?: () => Promise<
         Array<{ id: string; name: string; slug: string }>
       >
     }
@@ -57,10 +65,12 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
     })
 
     it("defaults to naming step when omitted or empty", () => {
-      expect(onboardingSearchSchema.parse({})).toEqual({
-        step: "naming",
+      const expectedSearch = {
+        step: "naming" as const,
         orgId: undefined,
-      })
+      }
+      expect(onboardingSearchSchema.parse({})).toEqual(expectedSearch)
+      expect(onboardingSearchSchema.parse({ step: "" })).toEqual(expectedSearch)
     })
 
     it("falls back to naming when invalid step string is supplied", () => {
@@ -83,13 +93,33 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
       })
     })
 
-    it("rejects non-UUID orgId values", () => {
-      expect(() =>
+    it("catches invalid UUID orgId values to undefined", () => {
+      expect(
         onboardingSearchSchema.parse({
           step: "invites",
           orgId: "not-a-uuid",
         }),
-      ).toThrow()
+      ).toEqual({
+        step: "invites",
+        orgId: undefined,
+      })
+      expect(
+        onboardingSearchSchema.parse({
+          step: "invites",
+          orgId: "",
+        }),
+      ).toEqual({
+        step: "invites",
+        orgId: undefined,
+      })
+      expect(
+        onboardingSearchSchema.parse({
+          orgId: "invalid-uuid",
+        }),
+      ).toEqual({
+        step: "naming",
+        orgId: undefined,
+      })
     })
   })
 
@@ -100,6 +130,7 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
     const mockContext = {
       queryClient: {
         ensureQueryData: async () => currentOrganizations,
+        fetchQuery: async () => currentOrganizations,
       },
     }
 
@@ -180,6 +211,79 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
       }
     })
 
+    it("redirects to naming step if user tries to jump to welcome without orgId", async () => {
+      currentSession = {
+        session: { id: "sess-1" },
+        user: { id: "user-1", email: "alice@example.com" },
+      }
+
+      try {
+        await beforeLoad({
+          location: { href: "/onboarding?step=welcome" },
+          search: { step: "welcome" },
+          context: mockContext,
+        })
+        expect.unreachable("Should have redirected to naming")
+      } catch (thrown) {
+        const details = getRedirectDetails(thrown)
+        expect(details?.to).toBe("/onboarding")
+        expect(details?.search).toEqual({ step: "naming" })
+      }
+    })
+
+    it("redirects to naming step if user tries to jump to welcome with orgId they don't belong to", async () => {
+      currentSession = {
+        session: { id: "sess-1" },
+        user: { id: "user-1", email: "alice@example.com" },
+      }
+      currentOrganizations = [{ id: "org-1", name: "Org 1", slug: "org-1" }]
+
+      try {
+        await beforeLoad({
+          location: {
+            href: "/onboarding?step=welcome&orgId=018f1a1a-0000-7000-8000-000000000099",
+          },
+          search: {
+            step: "welcome",
+            orgId: "018f1a1a-0000-7000-8000-000000000099",
+          },
+          context: mockContext,
+        })
+        expect.unreachable("Should have redirected to naming")
+      } catch (thrown) {
+        const details = getRedirectDetails(thrown)
+        expect(details?.to).toBe("/onboarding")
+        expect(details?.search).toEqual({ step: "naming" })
+      }
+    })
+
+    it("recovers from stale ensureQueryData cache via fetchQuery fallback", async () => {
+      const validOrgId = "018f1a1a-0000-7000-8000-000000000001"
+      currentSession = {
+        session: { id: "sess-1" },
+        user: { id: "user-1", email: "alice@example.com" },
+      }
+      let fetchQueryCalled = false
+      const staleContext = {
+        queryClient: {
+          ensureQueryData: async () => [], // stale cache returns empty
+          fetchQuery: async () => {
+            fetchQueryCalled = true
+            return [{ id: validOrgId, name: "Acme Corp", slug: "acme" }]
+          },
+        },
+      }
+
+      const result = await beforeLoad({
+        location: { href: `/onboarding?step=invites&orgId=${validOrgId}` },
+        search: { step: "invites", orgId: validOrgId },
+        context: staleContext,
+      })
+
+      expect(fetchQueryCalled).toBe(true)
+      expect(result.session).toBeDefined()
+    })
+
     it("allows user to proceed to invites or welcome if they belong to the orgId", async () => {
       const validOrgId = "018f1a1a-0000-7000-8000-000000000001"
       currentSession = {
@@ -203,6 +307,48 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
         context: mockContext,
       })
       expect(resultWelcome.session).toBeDefined()
+    })
+  })
+
+  describe("loader SSR prefetching", () => {
+    const loader = OnboardingRoute.options.loader as unknown as (opts: {
+      context: {
+        queryClient: {
+          ensureQueryData: (opts: unknown) => Promise<unknown>
+        }
+      }
+    }) => Promise<void>
+
+    it("prefetches organization list on route load", async () => {
+      let ensured = false
+      await loader({
+        context: {
+          queryClient: {
+            ensureQueryData: async () => {
+              ensured = true
+              return []
+            },
+          },
+        },
+      })
+      expect(ensured).toBe(true)
+    })
+
+    it("catches errors gracefully when ensureQueryData fails", async () => {
+      let ensured = false
+      await expect(
+        loader({
+          context: {
+            queryClient: {
+              ensureQueryData: async () => {
+                ensured = true
+                throw new Error("Network error")
+              },
+            },
+          },
+        }),
+      ).resolves.toBeUndefined()
+      expect(ensured).toBe(true)
     })
   })
 })

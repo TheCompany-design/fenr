@@ -45,10 +45,13 @@ import {
   organizationKeys,
 } from "@/features/organizations"
 import { signOut } from "@/lib/auth-client"
+import { moduleLogger } from "@/lib/logger"
 import { getSession } from "@/lib/session"
 
+const log = moduleLogger("invitation-accept")
+
 export const invitationAcceptSearchSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().optional().catch(undefined),
 })
 
 export type InvitationAcceptSearch = z.infer<
@@ -74,9 +77,9 @@ export const Route = createFileRoute("/invitations/accept")({
   loaderDeps: ({ search }) => ({ id: search.id }),
   loader: async ({ context, deps }) => {
     if (deps.id?.trim()) {
-      await context.queryClient.ensureQueryData(
-        invitationDetailsQueryOptions(deps.id.trim()),
-      )
+      await context.queryClient
+        .ensureQueryData(invitationDetailsQueryOptions(deps.id.trim()))
+        .catch(() => undefined)
     }
   },
   component: InvitationAcceptPage,
@@ -92,6 +95,7 @@ function InvitationAcceptPage() {
   const [isAccepting, setIsAccepting] = React.useState(false)
   const [isSigningOut, setIsSigningOut] = React.useState(false)
   const isAcceptingRef = React.useRef(false)
+  const isSigningOutRef = React.useRef(false)
 
   const invitationId = search.id?.trim() ?? ""
 
@@ -99,11 +103,14 @@ function InvitationAcceptPage() {
     data: detailsResult,
     isLoading,
     isError,
+    refetch,
   } = useQuery(invitationDetailsQueryOptions(invitationId))
 
-  const isEmailVerified = session.user.emailVerified !== false
+  const isEmailVerified = Boolean(session.user.emailVerified)
 
   const handleSignOut = async () => {
+    if (isSigningOutRef.current) return
+    isSigningOutRef.current = true
     setIsSigningOut(true)
     try {
       await signOut()
@@ -115,9 +122,11 @@ function InvitationAcceptPage() {
         to: "/auth/sign-in",
         search: { redirect: redirectUrl },
       })
-    } catch {
+    } catch (err) {
+      log.error({ err }, "Sign out failed")
       toast.error("Could not sign out", { description: "Please try again." })
     } finally {
+      isSigningOutRef.current = false
       setIsSigningOut(false)
     }
   }
@@ -126,31 +135,48 @@ function InvitationAcceptPage() {
     if (!invitationId || isAcceptingRef.current || !isEmailVerified) return
     isAcceptingRef.current = true
     setIsAccepting(true)
+
+    let result: { organizationId: string }
     try {
-      const result = await acceptInvitationFn({
+      result = await acceptInvitationFn({
         data: { invitationId },
       })
-
-      toast.success("Invitation accepted", {
-        description: "Welcome to the workspace!",
-      })
-
-      await invalidateOrganizationQueries(queryClient, result.organizationId)
-      await router.invalidate()
-      await navigate({ to: "/" })
     } catch (err) {
+      log.error({ err, invitationId }, "Failed to accept invitation")
       toast.error("Could not accept invitation", {
         description:
-          err instanceof Error
-            ? err.message
-            : "An unexpected error occurred while accepting.",
+          "We were unable to accept this invitation. Please try again or request a new link.",
       })
       await queryClient.invalidateQueries({
         queryKey: organizationKeys.invitationDetails(invitationId),
       })
-    } finally {
       isAcceptingRef.current = false
       setIsAccepting(false)
+      return
+    }
+
+    toast.success("Invitation accepted", {
+      description: "Welcome to the workspace!",
+    })
+
+    // Keep isAccepting active to prevent duplicate accept submissions while navigating
+    try {
+      await invalidateOrganizationQueries(queryClient, result.organizationId)
+      await router.invalidate()
+      await navigate({ to: "/" })
+    } catch (postAcceptError) {
+      log.error(
+        { err: postAcceptError, organizationId: result.organizationId },
+        "Failed during post-acceptance invalidation or navigation",
+      )
+      try {
+        await navigate({ to: "/" })
+      } catch {
+        toast.error("Navigation failed", {
+          description:
+            "Please reload the page or navigate to the dashboard manually.",
+        })
+      }
     }
   }
 
@@ -204,10 +230,42 @@ function InvitationAcceptPage() {
           </CardContent>
         )}
 
-        {/* Error / Not Found */}
+        {/* Query Error State */}
+        {invitationId && !isLoading && isError && (
+          <>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <HugeiconsIcon icon={Alert02Icon} className="size-6" />
+              </div>
+              <CardTitle className="text-xl">
+                Failed to Load Invitation
+              </CardTitle>
+              <CardDescription>
+                We could not retrieve this invitation due to a network or server
+                error. Please check your connection and try again.
+              </CardDescription>
+            </CardHeader>
+            <CardFooter className="flex justify-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  void refetch()
+                }}
+              >
+                Try again
+              </Button>
+              <Link to="/" className={cn(buttonVariants({ variant: "ghost" }))}>
+                Go to Dashboard
+              </Link>
+            </CardFooter>
+          </>
+        )}
+
+        {/* Invitation Not Found */}
         {invitationId &&
           !isLoading &&
-          (isError || detailsResult?.status === "not_found") && (
+          !isError &&
+          detailsResult?.status === "not_found" && (
             <>
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
@@ -233,8 +291,8 @@ function InvitationAcceptPage() {
         {/* Expired */}
         {invitationId &&
           !isLoading &&
-          detailsResult?.status === "expired" &&
-          detailsResult.invitation && (
+          !isError &&
+          detailsResult?.status === "expired" && (
             <>
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
@@ -242,10 +300,16 @@ function InvitationAcceptPage() {
                 </div>
                 <CardTitle className="text-xl">Invitation Expired</CardTitle>
                 <CardDescription>
-                  This invitation to join{" "}
-                  <strong className="text-foreground font-semibold">
-                    {detailsResult.invitation.organizationName}
-                  </strong>{" "}
+                  This invitation
+                  {detailsResult.invitation?.organizationName ? (
+                    <>
+                      {" "}
+                      to join{" "}
+                      <strong className="text-foreground font-semibold">
+                        {detailsResult.invitation.organizationName}
+                      </strong>
+                    </>
+                  ) : null}{" "}
                   has expired. Please request a new invitation from your team
                   administrator.
                 </CardDescription>
@@ -262,34 +326,37 @@ function InvitationAcceptPage() {
           )}
 
         {/* Canceled */}
-        {invitationId && !isLoading && detailsResult?.status === "canceled" && (
-          <>
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                <HugeiconsIcon icon={Alert02Icon} className="size-6" />
-              </div>
-              <CardTitle className="text-xl">Invitation Canceled</CardTitle>
-              <CardDescription>
-                This invitation has been canceled by an organization
-                administrator.
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className="flex justify-center">
-              <Link
-                to="/"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
-                Go to Dashboard
-              </Link>
-            </CardFooter>
-          </>
-        )}
+        {invitationId &&
+          !isLoading &&
+          !isError &&
+          detailsResult?.status === "canceled" && (
+            <>
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                  <HugeiconsIcon icon={Alert02Icon} className="size-6" />
+                </div>
+                <CardTitle className="text-xl">Invitation Canceled</CardTitle>
+                <CardDescription>
+                  This invitation has been canceled by an organization
+                  administrator.
+                </CardDescription>
+              </CardHeader>
+              <CardFooter className="flex justify-center">
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Go to Dashboard
+                </Link>
+              </CardFooter>
+            </>
+          )}
 
         {/* Already Accepted */}
         {invitationId &&
           !isLoading &&
-          detailsResult?.status === "accepted" &&
-          detailsResult.invitation && (
+          !isError &&
+          detailsResult?.status === "accepted" && (
             <>
               <CardHeader className="text-center">
                 <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -300,10 +367,16 @@ function InvitationAcceptPage() {
                 </div>
                 <CardTitle className="text-xl">Already Accepted</CardTitle>
                 <CardDescription>
-                  This invitation to{" "}
-                  <strong className="text-foreground font-semibold">
-                    {detailsResult.invitation.organizationName}
-                  </strong>{" "}
+                  This invitation
+                  {detailsResult.invitation?.organizationName ? (
+                    <>
+                      {" "}
+                      to{" "}
+                      <strong className="text-foreground font-semibold">
+                        {detailsResult.invitation.organizationName}
+                      </strong>
+                    </>
+                  ) : null}{" "}
                   has already been accepted.
                 </CardDescription>
               </CardHeader>
@@ -321,10 +394,11 @@ function InvitationAcceptPage() {
         {/* Valid Pending Invitation */}
         {invitationId &&
           !isLoading &&
+          !isError &&
           detailsResult?.status === "valid" &&
           detailsResult.invitation &&
-          (session.user.email.toLowerCase() !==
-          detailsResult.invitation.email.toLowerCase() ? (
+          (session.user.email.trim().toLowerCase() !==
+          detailsResult.invitation.email.trim().toLowerCase() ? (
             // Email Mismatch Guard
             <>
               <CardHeader className="text-center">
@@ -450,11 +524,44 @@ function InvitationAcceptPage() {
                     "w-full text-xs",
                   )}
                 >
-                  Decline or go back
+                  Go back
                 </Link>
               </CardFooter>
             </>
           ))}
+
+        {/* Unexpected / Unhandled State Fallback */}
+        {invitationId &&
+          !isLoading &&
+          !isError &&
+          detailsResult?.status !== "invalid" &&
+          detailsResult?.status !== "not_found" &&
+          detailsResult?.status !== "expired" &&
+          detailsResult?.status !== "canceled" &&
+          detailsResult?.status !== "accepted" &&
+          !(detailsResult?.status === "valid" && detailsResult.invitation) && (
+            <>
+              <CardHeader className="text-center">
+                <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <HugeiconsIcon icon={Alert02Icon} className="size-6" />
+                </div>
+                <CardTitle className="text-xl">
+                  Unable to Process Invitation
+                </CardTitle>
+                <CardDescription>
+                  An unexpected error occurred while processing this invitation.
+                </CardDescription>
+              </CardHeader>
+              <CardFooter className="flex justify-center">
+                <Link
+                  to="/"
+                  className={cn(buttonVariants({ variant: "outline" }))}
+                >
+                  Go to Dashboard
+                </Link>
+              </CardFooter>
+            </>
+          )}
       </Card>
     </div>
   )

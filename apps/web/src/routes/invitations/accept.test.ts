@@ -1,6 +1,5 @@
 import { describe, expect, it, mock } from "bun:test"
 import { isRedirect } from "@tanstack/react-router"
-import { invitationAcceptSearchSchema } from "./accept"
 
 let currentSession: {
   session: { id: string }
@@ -9,10 +8,16 @@ let currentSession: {
 
 mock.module("@/lib/session", () => ({
   getSession: async () => currentSession,
+  ensureSession: async () => {
+    if (!currentSession) throw new Error("Unauthorized")
+    return currentSession
+  },
 }))
 
 // Import Route after mock.module
-const { Route: AcceptRoute } = await import("./accept")
+const { Route: AcceptRoute, invitationAcceptSearchSchema } = await import(
+  "./accept"
+)
 
 type BeforeLoadCaller = (opts: {
   location: { href: string; pathname?: string }
@@ -39,9 +44,14 @@ describe("/invitations/accept Route & Step Guards (Atom 10)", () => {
       expect(parsed.id).toBe("018f1a1a-0000-7000-8000-000000000001")
     })
 
-    it("handles missing id safely", () => {
-      const parsed = invitationAcceptSearchSchema.parse({})
-      expect(parsed.id).toBeUndefined()
+    it("handles missing or invalid id safely", () => {
+      expect(invitationAcceptSearchSchema.parse({})).toEqual({ id: undefined })
+      expect(invitationAcceptSearchSchema.parse({ id: 12345 })).toEqual({
+        id: undefined,
+      })
+      expect(invitationAcceptSearchSchema.parse({ id: ["invalid"] })).toEqual({
+        id: undefined,
+      })
     })
   })
 
@@ -64,6 +74,24 @@ describe("/invitations/accept Route & Step Guards (Atom 10)", () => {
         expect(details?.to).toBe("/auth/sign-in")
         expect(details?.search).toEqual({
           redirect: `/invitations/accept?id=${encodeURIComponent(inviteId)}`,
+        })
+      }
+    })
+
+    it("redirects unauthenticated users to /auth/sign-in without id param when id is missing", async () => {
+      currentSession = null
+
+      try {
+        await beforeLoad({
+          location: { href: "/invitations/accept" },
+          search: {},
+        })
+        expect.unreachable("Should have redirected to sign-in")
+      } catch (thrown) {
+        const details = getRedirectDetails(thrown)
+        expect(details?.to).toBe("/auth/sign-in")
+        expect(details?.search).toEqual({
+          redirect: "/invitations/accept",
         })
       }
     })
@@ -91,36 +119,66 @@ describe("/invitations/accept Route & Step Guards (Atom 10)", () => {
       deps: { id?: string }
     }) => Promise<void>
 
-    it("prefetches invitation details when id is present", async () => {
-      let prefetched = false
+    it("ensures invitation details query data when id is present", async () => {
+      let ensured = false
       await loader({
         context: {
           queryClient: {
             ensureQueryData: async () => {
-              prefetched = true
+              ensured = true
               return {}
             },
           },
         },
         deps: { id: "018f1a1a-0000-7000-8000-000000000001" },
       })
-      expect(prefetched).toBe(true)
+      expect(ensured).toBe(true)
     })
 
-    it("does not prefetch when id is missing or empty", async () => {
-      let prefetched = false
-      await loader({
-        context: {
-          queryClient: {
-            ensureQueryData: async () => {
-              prefetched = true
-              return {}
+    it("catches errors gracefully when ensureQueryData fails", async () => {
+      let ensured = false
+      await expect(
+        loader({
+          context: {
+            queryClient: {
+              ensureQueryData: async () => {
+                ensured = true
+                throw new Error("Network error")
+              },
             },
           },
+          deps: { id: "018f1a1a-0000-7000-8000-000000000001" },
+        }),
+      ).resolves.toBeUndefined()
+      expect(ensured).toBe(true)
+    })
+
+    it("does not call ensureQueryData when id is missing or empty or whitespace", async () => {
+      let callCount = 0
+      const mockQueryClient = {
+        ensureQueryData: async () => {
+          callCount++
+          return {}
         },
+      }
+
+      await loader({
+        context: { queryClient: mockQueryClient },
         deps: {},
       })
-      expect(prefetched).toBe(false)
+      expect(callCount).toBe(0)
+
+      await loader({
+        context: { queryClient: mockQueryClient },
+        deps: { id: "" },
+      })
+      expect(callCount).toBe(0)
+
+      await loader({
+        context: { queryClient: mockQueryClient },
+        deps: { id: "   " },
+      })
+      expect(callCount).toBe(0)
     })
   })
 })
