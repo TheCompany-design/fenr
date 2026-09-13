@@ -5,20 +5,24 @@ import { and, db, eq, schema } from "@workspace/database"
 import { closeMailTransport, setMailTransport } from "@/lib/mail"
 import {
   invalidateOrganizationQueries,
+  invitationDetailsQueryOptions,
   organizationKeys,
   slugAvailabilityQueryOptions,
 } from "./queries"
 import {
+  acceptInvitation,
   ConflictError,
   cancelInvitation,
   checkSlugAvailability,
   createOrganization,
   ForbiddenError,
   getActiveOrganization,
+  getInvitationDetails,
   getOrganizationInvitations,
   getOrganizationMembers,
   inviteMember,
   listOrganizations,
+  NotFoundError,
   removeMember,
   setActiveOrganization,
   updateMemberRole,
@@ -582,6 +586,266 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
     })
   })
 
+  describe("Invitation Acceptance & Details (Atom 10)", () => {
+    let acceptInviteId = ""
+    let expiredInviteId = ""
+    let canceledInviteId = ""
+
+    beforeAll(async () => {
+      // 1. Create a fresh pending invitation for testUserB
+      const result = await inviteMember(testUserA.id, testUserA.name, {
+        organizationId: createdOrgId,
+        email: testUserB.email,
+        role: "member",
+      })
+      acceptInviteId = result.invitation.id
+
+      // 2. Insert directly an expired invitation
+      const [expiredRecord] = await db
+        .insert(schema.invitation)
+        .values({
+          organizationId: createdOrgId,
+          email: "expired-user@example.com",
+          role: "member",
+          inviterId: testUserA.id,
+          status: "pending",
+          expiresAt: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
+        })
+        .returning()
+      expiredInviteId = expiredRecord.id
+
+      // 3. Insert a canceled invitation
+      const [canceledRecord] = await db
+        .insert(schema.invitation)
+        .values({
+          organizationId: createdOrgId,
+          email: "canceled-user@example.com",
+          role: "member",
+          inviterId: testUserA.id,
+          status: "canceled",
+          expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        })
+        .returning()
+      canceledInviteId = canceledRecord.id
+    })
+
+    describe("getInvitationDetails", () => {
+      it("returns invalid status for malformed or non-UUID id", async () => {
+        const result = await getInvitationDetails("not-a-valid-uuid")
+        expect(result.status).toBe("invalid")
+      })
+
+      it("returns not_found status for non-existent UUID", async () => {
+        const result = await getInvitationDetails(
+          "018f1a1a-0000-7000-8000-999999999999",
+        )
+        expect(result.status).toBe("not_found")
+      })
+
+      it("returns valid status with sanitized details for pending invite", async () => {
+        const result = await getInvitationDetails(acceptInviteId)
+        expect(result.status).toBe("valid")
+        if (result.status === "valid") {
+          expect(result.invitation.email).toBe(testUserB.email)
+          expect(result.invitation.role).toBe("member")
+          expect(result.invitation.organizationName).toBe("Acme Laboratories")
+          expect(result.invitation.inviterName).toBe(testUserA.name)
+        }
+      })
+
+      it("returns expired status for expired invite", async () => {
+        const result = await getInvitationDetails(expiredInviteId)
+        expect(result.status).toBe("expired")
+      })
+
+      it("returns canceled status for canceled invite", async () => {
+        const result = await getInvitationDetails(canceledInviteId)
+        expect(result.status).toBe("canceled")
+      })
+    })
+
+    describe("acceptInvitation", () => {
+      it("rejects invalid or malformed invitation ID with NotFoundError", async () => {
+        expect(
+          acceptInvitation(testUserB.id, null, testUserB.email, {
+            invitationId: "invalid-uuid",
+          }),
+        ).rejects.toThrow(NotFoundError)
+      })
+
+      it("rejects non-existent invitation ID with NotFoundError", async () => {
+        expect(
+          acceptInvitation(testUserB.id, null, testUserB.email, {
+            invitationId: "018f1a1a-0000-7000-8000-999999999999",
+          }),
+        ).rejects.toThrow(NotFoundError)
+      })
+
+      it("rejects email mismatch with ForbiddenError", async () => {
+        // testUserC tries to accept an invitation meant for testUserB
+        expect(
+          acceptInvitation(testUserC.id, null, testUserC.email, {
+            invitationId: acceptInviteId,
+          }),
+        ).rejects.toThrow(ForbiddenError)
+      })
+
+      it("rejects expired invitation with ConflictError", async () => {
+        expect(
+          acceptInvitation(testUserB.id, null, "expired-user@example.com", {
+            invitationId: expiredInviteId,
+          }),
+        ).rejects.toThrow(ConflictError)
+      })
+
+      it("rejects canceled invitation with ConflictError", async () => {
+        expect(
+          acceptInvitation(testUserB.id, null, "canceled-user@example.com", {
+            invitationId: canceledInviteId,
+          }),
+        ).rejects.toThrow(ConflictError)
+      })
+
+      it("successfully accepts a valid pending invitation", async () => {
+        // Ensure testUserB is not currently a member of this org
+        await db
+          .delete(schema.member)
+          .where(
+            and(
+              eq(schema.member.organizationId, createdOrgId),
+              eq(schema.member.userId, testUserB.id),
+            ),
+          )
+
+        // Create a test session for testUserB
+        const [testSessionB] = await db
+          .insert(schema.session)
+          .values({
+            userId: testUserB.id,
+            token: `test-token-b-${Date.now()}`,
+            expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+          })
+          .returning()
+
+        const acceptResult = await acceptInvitation(
+          testUserB.id,
+          testSessionB.id,
+          testUserB.email,
+          { invitationId: acceptInviteId },
+        )
+
+        expect(acceptResult.success).toBe(true)
+        expect(acceptResult.organizationId).toBe(createdOrgId)
+
+        // Verify membership created
+        const [newMember] = await db
+          .select()
+          .from(schema.member)
+          .where(
+            and(
+              eq(schema.member.organizationId, createdOrgId),
+              eq(schema.member.userId, testUserB.id),
+            ),
+          )
+        expect(newMember).toBeDefined()
+        expect(newMember.role).toBe("member")
+
+        // Verify invitation marked as accepted
+        const [updatedInvite] = await db
+          .select()
+          .from(schema.invitation)
+          .where(eq(schema.invitation.id, acceptInviteId))
+        expect(updatedInvite.status).toBe("accepted")
+
+        // Verify active organization preference updated
+        const [activePref] = await db
+          .select()
+          .from(schema.userActiveOrganization)
+          .where(eq(schema.userActiveOrganization.userId, testUserB.id))
+        expect(activePref?.organizationId).toBe(createdOrgId)
+
+        // Verify session activeOrganizationId updated
+        const [updatedSession] = await db
+          .select()
+          .from(schema.session)
+          .where(eq(schema.session.id, testSessionB.id))
+        expect(updatedSession?.activeOrganizationId).toBe(createdOrgId)
+
+        // Idempotent re-acceptance by the same accepted user succeeds cleanly
+        const reAcceptResult = await acceptInvitation(
+          testUserB.id,
+          testSessionB.id,
+          testUserB.email,
+          {
+            invitationId: acceptInviteId,
+          },
+        )
+        expect(reAcceptResult.success).toBe(true)
+        expect(reAcceptResult.organizationId).toBe(createdOrgId)
+
+        // Another user attempting to accept this already-accepted invitation fails with ConflictError
+        expect(
+          acceptInvitation(testUserC.id, null, testUserB.email, {
+            invitationId: acceptInviteId,
+          }),
+        ).rejects.toThrow(ConflictError)
+      })
+
+      it("rejects unverified user with ForbiddenError", async () => {
+        const [unverifiedUser] = await db
+          .insert(schema.user)
+          .values({
+            name: "Unverified User",
+            email: "unverified@example.com",
+            emailVerified: false,
+          })
+          .returning()
+
+        const invite = await inviteMember(testUserA.id, testUserA.name, {
+          organizationId: createdOrgId,
+          email: "unverified@example.com",
+          role: "member",
+        })
+
+        expect(
+          acceptInvitation(unverifiedUser.id, null, "unverified@example.com", {
+            invitationId: invite.invitation.id,
+          }),
+        ).rejects.toThrow(ForbiddenError)
+      })
+
+      it("handles concurrent duplicate acceptance safely via idempotency", async () => {
+        const invite = await inviteMember(testUserA.id, testUserA.name, {
+          organizationId: createdOrgId,
+          email: testUserD.email,
+          role: "member",
+        })
+
+        // Remove any prior membership for testUserD
+        await db
+          .delete(schema.member)
+          .where(
+            and(
+              eq(schema.member.organizationId, createdOrgId),
+              eq(schema.member.userId, testUserD.id),
+            ),
+          )
+
+        const [res1, res2] = await Promise.all([
+          acceptInvitation(testUserD.id, null, testUserD.email, {
+            invitationId: invite.invitation.id,
+          }),
+          acceptInvitation(testUserD.id, null, testUserD.email, {
+            invitationId: invite.invitation.id,
+          }),
+        ])
+
+        expect(res1.success).toBe(true)
+        expect(res2.success).toBe(true)
+      })
+    })
+  })
+
   describe("Query Keys & Invalidation Helpers", () => {
     it("generates structured query keys", () => {
       expect(organizationKeys.lists()).toEqual(["organizations", "list"])
@@ -635,6 +899,21 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         "my-slug",
       ])
       expect(validSlugOpts.enabled).toBe(true)
+    })
+
+    it("invitationDetailsQueryOptions handles valid and invalid IDs safely", () => {
+      const opts = invitationDetailsQueryOptions(
+        "018f1a1a-0000-7000-8000-000000000001",
+      )
+      expect([...opts.queryKey]).toEqual([
+        "organizations",
+        "invitation-details",
+        "018f1a1a-0000-7000-8000-000000000001",
+      ])
+      expect(opts.enabled).toBe(true)
+
+      const emptyOpts = invitationDetailsQueryOptions("")
+      expect(emptyOpts.enabled).toBe(false)
     })
 
     it("invokes queryClient invalidation without errors", async () => {

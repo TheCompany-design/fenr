@@ -32,14 +32,18 @@ import {
 } from "@/lib/organizations/resolver"
 import { ensureSession } from "@/lib/session"
 import {
+  type AcceptInvitationInput,
+  acceptInvitationSchema,
   type CancelInvitationInput,
   type CheckSlugInput,
   type CreateOrganizationInput,
   cancelInvitationSchema,
   checkSlugSchema,
   createOrganizationSchema,
+  type GetInvitationDetailsInput,
   type GetOrganizationInvitationsInput,
   type GetOrganizationMembersInput,
+  getInvitationDetailsSchema,
   getOrganizationInvitationsSchema,
   getOrganizationMembersSchema,
   type InviteMemberInput,
@@ -787,21 +791,279 @@ export async function cancelInvitation(
     )
   }
 
-  const [deleted] = await db
-    .delete(schema.invitation)
+  const [canceled] = await db
+    .update(schema.invitation)
+    .set({ status: "canceled" })
     .where(
       and(
         eq(schema.invitation.id, invitationId),
         eq(schema.invitation.organizationId, organizationId),
+        eq(schema.invitation.status, "pending"),
       ),
     )
     .returning()
 
-  if (!deleted) {
-    throw new NotFoundError("Invitation not found")
+  if (!canceled) {
+    throw new NotFoundError("Invitation not found or is no longer pending")
   }
 
   return { success: true }
+}
+
+export type InvitationDetailsResult =
+  | { status: "not_found" }
+  | { status: "invalid" }
+  | {
+      status: "valid" | "expired" | "accepted" | "canceled"
+      invitation: {
+        id: string
+        email: string
+        role: string
+        organizationId: string
+        organizationName: string
+        organizationSlug: string
+        organizationLogo: string | null
+        inviterName: string
+        expiresAt: Date
+        createdAt: Date
+      }
+    }
+
+/**
+ * Retrieve public/unauthenticated details for an invitation by ID.
+ * Returns status enum so UI can render appropriate messaging without crashing.
+ */
+export async function getInvitationDetails(
+  invitationId: string,
+): Promise<InvitationDetailsResult> {
+  if (!isValidUuid(invitationId)) {
+    return { status: "invalid" }
+  }
+
+  const [record] = await db
+    .select({
+      id: schema.invitation.id,
+      email: schema.invitation.email,
+      role: schema.invitation.role,
+      status: schema.invitation.status,
+      expiresAt: schema.invitation.expiresAt,
+      createdAt: schema.invitation.createdAt,
+      organizationId: schema.organization.id,
+      organizationName: schema.organization.name,
+      organizationSlug: schema.organization.slug,
+      organizationLogo: schema.organization.logo,
+      inviterName: schema.user.name,
+    })
+    .from(schema.invitation)
+    .innerJoin(
+      schema.organization,
+      eq(schema.invitation.organizationId, schema.organization.id),
+    )
+    .innerJoin(schema.user, eq(schema.invitation.inviterId, schema.user.id))
+    .where(eq(schema.invitation.id, invitationId))
+    .limit(1)
+
+  if (!record) {
+    return { status: "not_found" }
+  }
+
+  const isExpired = record.expiresAt < new Date()
+  let computedStatus: "valid" | "expired" | "accepted" | "canceled" | "invalid"
+
+  if (record.status === "accepted") {
+    computedStatus = "accepted"
+  } else if (record.status === "canceled") {
+    computedStatus = "canceled"
+  } else if (record.status === "pending") {
+    computedStatus = isExpired ? "expired" : "valid"
+  } else {
+    computedStatus = "invalid"
+  }
+
+  if (computedStatus === "invalid") {
+    return { status: "invalid" }
+  }
+
+  return {
+    status: computedStatus,
+    invitation: {
+      id: record.id,
+      email: record.email,
+      role: record.role,
+      organizationId: record.organizationId,
+      organizationName: record.organizationName,
+      organizationSlug: record.organizationSlug,
+      organizationLogo: record.organizationLogo,
+      inviterName: record.inviterName || "A team member",
+      expiresAt: record.expiresAt,
+      createdAt: record.createdAt,
+    },
+  }
+}
+
+/**
+ * Accept an invitation for the authenticated caller.
+ *
+ * Invariants:
+ * 1. Caller email must match invitation email (case-insensitive).
+ * 2. Caller email must be verified.
+ * 3. Invitation must be in pending status and not expired.
+ * 4. Adds user to organization with specified role.
+ * 5. Marks invitation as accepted.
+ * 6. Automatically updates active organization preference and session.
+ * 7. Idempotent on repeated calls by the same accepted user.
+ */
+export async function acceptInvitation(
+  userId: string,
+  sessionId: string | null | undefined,
+  userEmail: string,
+  data: AcceptInvitationInput,
+) {
+  const { invitationId } = data
+  if (!isValidUuid(invitationId)) {
+    throw new NotFoundError("Invalid invitation ID")
+  }
+
+  return await db.transaction(async (tx) => {
+    // 1. Lock invitation row
+    const [invitationRecord] = await tx
+      .select({
+        id: schema.invitation.id,
+        organizationId: schema.invitation.organizationId,
+        email: schema.invitation.email,
+        role: schema.invitation.role,
+        status: schema.invitation.status,
+        expiresAt: schema.invitation.expiresAt,
+      })
+      .from(schema.invitation)
+      .where(eq(schema.invitation.id, invitationId))
+      .for("update")
+
+    if (!invitationRecord) {
+      throw new NotFoundError("Invitation not found")
+    }
+
+    // 2. Strict email trust boundary & email verification
+    const [userRecord] = await tx
+      .select({ emailVerified: schema.user.emailVerified })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId))
+      .limit(1)
+
+    if (!userRecord?.emailVerified) {
+      throw new ForbiddenError(
+        "You must verify your email address before accepting this invitation",
+      )
+    }
+
+    if (
+      userEmail.trim().toLowerCase() !==
+      invitationRecord.email.trim().toLowerCase()
+    ) {
+      throw new ForbiddenError(
+        "Signed-in user email does not match invitation email",
+      )
+    }
+
+    // 3. Status checks & Idempotency
+    if (invitationRecord.status === "accepted") {
+      const [membership] = await tx
+        .select({ id: schema.member.id })
+        .from(schema.member)
+        .where(
+          and(
+            eq(schema.member.organizationId, invitationRecord.organizationId),
+            eq(schema.member.userId, userId),
+          ),
+        )
+        .limit(1)
+
+      if (membership) {
+        if (sessionId) {
+          await tx
+            .update(schema.session)
+            .set({
+              activeOrganizationId: invitationRecord.organizationId,
+              updatedAt: new Date(),
+            })
+            .where(eq(schema.session.id, sessionId))
+        }
+        return {
+          success: true,
+          organizationId: invitationRecord.organizationId,
+        }
+      }
+
+      throw new ConflictError("This invitation has already been accepted")
+    }
+
+    if (invitationRecord.status === "canceled") {
+      throw new ConflictError("This invitation has been canceled")
+    }
+
+    if (invitationRecord.expiresAt < new Date()) {
+      throw new ConflictError("This invitation has expired")
+    }
+
+    // 4. Add user as member if not already a member
+    await tx
+      .insert(schema.member)
+      .values({
+        organizationId: invitationRecord.organizationId,
+        userId,
+        role: invitationRecord.role,
+      })
+      .onConflictDoNothing()
+
+    // 5. Mark invitation as accepted
+    await tx
+      .update(schema.invitation)
+      .set({ status: "accepted" })
+      .where(eq(schema.invitation.id, invitationRecord.id))
+
+    // 6. Update active organization preference
+    await tx
+      .insert(schema.userActiveOrganization)
+      .values({
+        userId,
+        organizationId: invitationRecord.organizationId,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.userActiveOrganization.userId,
+        set: {
+          organizationId: invitationRecord.organizationId,
+          updatedAt: new Date(),
+        },
+      })
+
+    // 7. Update session activeOrganizationId
+    if (sessionId) {
+      await tx
+        .update(schema.session)
+        .set({
+          activeOrganizationId: invitationRecord.organizationId,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.session.id, sessionId))
+    }
+
+    log.info(
+      {
+        userId,
+        email: maskEmail(userEmail),
+        orgId: invitationRecord.organizationId,
+        invitationId,
+        role: invitationRecord.role,
+      },
+      "invitation accepted",
+    )
+
+    return {
+      success: true,
+      organizationId: invitationRecord.organizationId,
+    }
+  })
 }
 
 /**
@@ -1127,4 +1389,28 @@ export const removeMemberFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const session = await ensureSession()
     return removeMember(session.user.id, data)
+  })
+
+export const getInvitationDetailsFn = createServerFn({ method: "GET" })
+  .validator(
+    (input: unknown): GetInvitationDetailsInput =>
+      getInvitationDetailsSchema.parse(input),
+  )
+  .handler(async ({ data }) => {
+    return getInvitationDetails(data.invitationId)
+  })
+
+export const acceptInvitationFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: unknown): AcceptInvitationInput =>
+      acceptInvitationSchema.parse(input),
+  )
+  .handler(async ({ data }) => {
+    const session = await ensureSession()
+    return acceptInvitation(
+      session.user.id,
+      session.session.id,
+      session.user.email,
+      data,
+    )
   })

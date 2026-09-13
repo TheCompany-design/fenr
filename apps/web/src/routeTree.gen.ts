@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AuthCheckEmailRouteImport } from './routes/auth/check-email'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
+import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -53,6 +54,11 @@ const AuthSignUpRoute = AuthSignUpRouteImport.update({
   path: '/auth/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
+  id: '/invitations/accept',
+  path: '/invitations/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   id: '/document/',
   path: '/document/',
@@ -71,6 +77,7 @@ export interface FileRoutesByFullPath {
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document/': typeof AppDocumentIndexRoute
 }
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document': typeof AppDocumentIndexRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/auth/check-email': typeof AuthCheckEmailRoute
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
+  '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/document/': typeof AppDocumentIndexRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/invitations/accept'
     | '/api/auth/$'
     | '/document/'
   fileRoutesByTo: FileRoutesByTo
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/invitations/accept'
     | '/'
     | '/api/auth/$'
     | '/document'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/invitations/accept'
     | '/_app/'
     | '/api/auth/$'
     | '/_app/document/'
@@ -137,6 +149,7 @@ export interface RootRouteChildren {
   AuthCheckEmailRoute: typeof AuthCheckEmailRoute
   AuthSignInRoute: typeof AuthSignInRoute
   AuthSignUpRoute: typeof AuthSignUpRoute
+  InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invitations/accept': {
+      id: '/invitations/accept'
+      path: '/invitations/accept'
+      fullPath: '/invitations/accept'
+      preLoaderRoute: typeof InvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/document/': {
       id: '/_app/document/'
       path: '/document'
@@ -229,6 +249,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCheckEmailRoute: AuthCheckEmailRoute,
   AuthSignInRoute: AuthSignInRoute,
   AuthSignUpRoute: AuthSignUpRoute,
+  InvitationsAcceptRoute: InvitationsAcceptRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

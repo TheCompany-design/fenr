@@ -8,6 +8,7 @@ import { queryOptions } from "@tanstack/react-query"
 import {
   checkSlugAvailabilityFn,
   getActiveOrganizationFn,
+  getInvitationDetailsFn,
   getOrganizationInvitationsFn,
   getOrganizationMembersFn,
   listOrganizationsFn,
@@ -23,6 +24,8 @@ export const organizationKeys = {
   invitationsRoot: () => [...organizationKeys.all, "invitations"] as const,
   invitations: (orgId: string) =>
     [...organizationKeys.all, "invitations", orgId] as const,
+  invitationDetails: (id: string) =>
+    [...organizationKeys.all, "invitation-details", id] as const,
   slugCheck: (slug: string) =>
     [...organizationKeys.all, "slug-check", slug] as const,
 }
@@ -69,6 +72,19 @@ export function organizationInvitationsQueryOptions(organizationId: string) {
     queryKey: organizationKeys.invitations(organizationId),
     queryFn: () => getOrganizationInvitationsFn({ data: { organizationId } }),
     enabled: Boolean(organizationId),
+    staleTime: 1000 * 30,
+  })
+}
+
+/**
+ * Query options for fetching invitation details by token/ID.
+ */
+export function invitationDetailsQueryOptions(invitationId?: string | null) {
+  const trimmed = (invitationId ?? "").trim()
+  return queryOptions({
+    queryKey: organizationKeys.invitationDetails(trimmed),
+    queryFn: () => getInvitationDetailsFn({ data: { invitationId: trimmed } }),
+    enabled: Boolean(trimmed),
     staleTime: 1000 * 30,
   })
 }

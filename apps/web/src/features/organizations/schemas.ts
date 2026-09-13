@@ -154,3 +154,17 @@ export const removeMemberSchema = z.object({
 })
 
 export type RemoveMemberInput = z.infer<typeof removeMemberSchema>
+
+export const getInvitationDetailsSchema = z.object({
+  invitationId: z.string().trim().min(1, "Invitation ID is required"),
+})
+
+export type GetInvitationDetailsInput = z.infer<
+  typeof getInvitationDetailsSchema
+>
+
+export const acceptInvitationSchema = z.object({
+  invitationId: z.string().uuid("Invalid invitation ID"),
+})
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>
