@@ -22,7 +22,7 @@ import {
 } from "@workspace/database"
 
 import { serverEnv } from "@/lib/env"
-import { moduleLogger } from "@/lib/logger"
+import { moduleLogger, withWideEvent } from "@/lib/logger"
 import { maskEmail, sendOrganizationInvitationEmail } from "@/lib/mail"
 import {
   clearActiveOrganizationPreference,
@@ -1279,10 +1279,20 @@ export async function removeMember(userId: string, data: RemoveMemberInput) {
 
 export const listOrganizationsFn = createServerFn({ method: "GET" }).handler(
   async () => {
-    const session = await ensureSession()
-    return listOrganizations(
-      session.user.id,
-      session.session.activeOrganizationId,
+    return withWideEvent(
+      "organizations",
+      "listOrganizations",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+        })
+        return listOrganizations(
+          session.user.id,
+          session.session.activeOrganizationId,
+        )
+      },
     )
   },
 )
@@ -1290,27 +1300,54 @@ export const listOrganizationsFn = createServerFn({ method: "GET" }).handler(
 export const getActiveOrganizationFn = createServerFn({
   method: "GET",
 }).handler(async () => {
-  const session = await ensureSession()
-  return getActiveOrganization(
-    session.user.id,
-    session.session.activeOrganizationId,
+  return withWideEvent(
+    "organizations",
+    "getActiveOrganization",
+    async (setContext) => {
+      const session = await ensureSession()
+      setContext({
+        userId: session.user.id,
+        organizationId: session.session.activeOrganizationId,
+      })
+      return getActiveOrganization(
+        session.user.id,
+        session.session.activeOrganizationId,
+      )
+    },
   )
 })
 
 export const resolveAppOrganizationAccessFn = createServerFn({
   method: "GET",
 }).handler(async (): Promise<AppOrganizationAccess> => {
-  const session = await ensureSession()
-  return resolveAppOrganizationAccess(
-    session.user.id,
-    session.session.activeOrganizationId,
+  return withWideEvent(
+    "organizations",
+    "resolveAppOrganizationAccess",
+    async (setContext) => {
+      const session = await ensureSession()
+      setContext({
+        userId: session.user.id,
+        organizationId: session.session.activeOrganizationId,
+      })
+      return resolveAppOrganizationAccess(
+        session.user.id,
+        session.session.activeOrganizationId,
+      )
+    },
   )
 })
 
 export const checkSlugAvailabilityFn = createServerFn({ method: "GET" })
   .validator((input: unknown): CheckSlugInput => checkSlugSchema.parse(input))
   .handler(async ({ data }) => {
-    return checkSlugAvailability(data)
+    return withWideEvent(
+      "organizations",
+      "checkSlugAvailability",
+      async (setContext) => {
+        setContext({ slug: data.slug })
+        return checkSlugAvailability(data)
+      },
+    )
   })
 
 export const createOrganizationFn = createServerFn({ method: "POST" })
@@ -1319,8 +1356,21 @@ export const createOrganizationFn = createServerFn({ method: "POST" })
       createOrganizationSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return createOrganization(session.user.id, session.session.id, data)
+    return withWideEvent(
+      "organizations",
+      "createOrganization",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({ userId: session.user.id, slug: data.slug })
+        const org = await createOrganization(
+          session.user.id,
+          session.session.id,
+          data,
+        )
+        setContext({ organizationId: org.id })
+        return org
+      },
+    )
   })
 
 export const setActiveOrganizationFn = createServerFn({ method: "POST" })
@@ -1329,8 +1379,18 @@ export const setActiveOrganizationFn = createServerFn({ method: "POST" })
       setActiveOrganizationSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return setActiveOrganization(session.user.id, session.session.id, data)
+    return withWideEvent(
+      "organizations",
+      "setActiveOrganization",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+        })
+        return setActiveOrganization(session.user.id, session.session.id, data)
+      },
+    )
   })
 
 export const getOrganizationMembersFn = createServerFn({ method: "GET" })
@@ -1339,8 +1399,18 @@ export const getOrganizationMembersFn = createServerFn({ method: "GET" })
       getOrganizationMembersSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return getOrganizationMembers(session.user.id, data)
+    return withWideEvent(
+      "organizations",
+      "getOrganizationMembers",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+        })
+        return getOrganizationMembers(session.user.id, data)
+      },
+    )
   })
 
 export const getOrganizationInvitationsFn = createServerFn({ method: "GET" })
@@ -1349,8 +1419,18 @@ export const getOrganizationInvitationsFn = createServerFn({ method: "GET" })
       getOrganizationInvitationsSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return getOrganizationInvitations(session.user.id, data)
+    return withWideEvent(
+      "organizations",
+      "getOrganizationInvitations",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+        })
+        return getOrganizationInvitations(session.user.id, data)
+      },
+    )
   })
 
 export const inviteMemberFn = createServerFn({ method: "POST" })
@@ -1358,8 +1438,20 @@ export const inviteMemberFn = createServerFn({ method: "POST" })
     (input: unknown): InviteMemberInput => inviteMemberSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return inviteMember(session.user.id, session.user.name, data)
+    return withWideEvent(
+      "organizations",
+      "inviteMember",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+          email: maskEmail(data.email),
+          role: data.role,
+        })
+        return inviteMember(session.user.id, session.user.name, data)
+      },
+    )
   })
 
 export const cancelInvitationFn = createServerFn({ method: "POST" })
@@ -1368,8 +1460,19 @@ export const cancelInvitationFn = createServerFn({ method: "POST" })
       cancelInvitationSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return cancelInvitation(session.user.id, data)
+    return withWideEvent(
+      "organizations",
+      "cancelInvitation",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+          invitationId: data.invitationId,
+        })
+        return cancelInvitation(session.user.id, data)
+      },
+    )
   })
 
 export const updateMemberRoleFn = createServerFn({ method: "POST" })
@@ -1378,8 +1481,20 @@ export const updateMemberRoleFn = createServerFn({ method: "POST" })
       updateMemberRoleSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return updateMemberRole(session.user.id, data)
+    return withWideEvent(
+      "organizations",
+      "updateMemberRole",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+          targetMemberId: data.memberId,
+          role: data.role,
+        })
+        return updateMemberRole(session.user.id, data)
+      },
+    )
   })
 
 export const removeMemberFn = createServerFn({ method: "POST" })
@@ -1387,8 +1502,19 @@ export const removeMemberFn = createServerFn({ method: "POST" })
     (input: unknown): RemoveMemberInput => removeMemberSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return removeMember(session.user.id, data)
+    return withWideEvent(
+      "organizations",
+      "removeMember",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: data.organizationId,
+          targetMemberId: data.memberId,
+        })
+        return removeMember(session.user.id, data)
+      },
+    )
   })
 
 export const getInvitationDetailsFn = createServerFn({ method: "GET" })
@@ -1397,7 +1523,18 @@ export const getInvitationDetailsFn = createServerFn({ method: "GET" })
       getInvitationDetailsSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    return getInvitationDetails(data.invitationId)
+    return withWideEvent(
+      "organizations",
+      "getInvitationDetails",
+      async (setContext) => {
+        setContext({ invitationId: data.invitationId })
+        const details = await getInvitationDetails(data.invitationId)
+        if ("invitation" in details && details.invitation) {
+          setContext({ organizationId: details.invitation.organizationId })
+        }
+        return details
+      },
+    )
   })
 
 export const acceptInvitationFn = createServerFn({ method: "POST" })
@@ -1406,11 +1543,23 @@ export const acceptInvitationFn = createServerFn({ method: "POST" })
       acceptInvitationSchema.parse(input),
   )
   .handler(async ({ data }) => {
-    const session = await ensureSession()
-    return acceptInvitation(
-      session.user.id,
-      session.session.id,
-      session.user.email,
-      data,
+    return withWideEvent(
+      "organizations",
+      "acceptInvitation",
+      async (setContext) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          invitationId: data.invitationId,
+        })
+        const result = await acceptInvitation(
+          session.user.id,
+          session.session.id,
+          session.user.email,
+          data,
+        )
+        setContext({ organizationId: result.organizationId })
+        return result
+      },
     )
   })
