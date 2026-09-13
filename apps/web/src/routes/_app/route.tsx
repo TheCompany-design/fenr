@@ -58,7 +58,7 @@ export const Route = createFileRoute("/_app")({
     }
 
     if (access.status === "no_organizations") {
-      throw redirect({ to: "/onboarding" })
+      throw redirect({ to: "/onboarding", search: { step: "naming" } })
     }
     if (access.status === "choose_organization") {
       throw redirect({

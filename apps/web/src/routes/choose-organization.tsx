@@ -62,7 +62,7 @@ export const Route = createFileRoute("/choose-organization")({
       organizationListQueryOptions(),
     )
     if (organizations.length === 0) {
-      throw redirect({ to: "/onboarding" })
+      throw redirect({ to: "/onboarding", search: { step: "naming" } })
     }
 
     return { session }
@@ -237,7 +237,7 @@ function ChooseOrganizationRoute() {
             <Button
               variant="outline"
               className="w-full justify-center gap-2"
-              render={<Link to="/onboarding" />}
+              render={<Link to="/onboarding" search={{ step: "naming" }} />}
             >
               <HugeiconsIcon icon={Add01Icon} size={16} />
               Create new organization

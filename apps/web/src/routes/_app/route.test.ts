@@ -27,13 +27,13 @@ mock.module("@/lib/ui-prefs", () => ({
   getSidebarOpen: async () => currentSidebarOpen,
 }))
 
+const actualOrgs = await import("@/features/organizations")
+
 mock.module("@/features/organizations", () => ({
+  ...actualOrgs,
   resolveAppOrganizationAccessFn: async () => currentAccessResult,
   listOrganizationsFn: async () => currentOrganizationsList,
   setActiveOrganizationFn: async () => ({ success: true }),
-  organizationListQueryOptions: () => ({ queryKey: ["organizations", "list"] }),
-  invalidateOrganizationQueries: async () => {},
-  OrganizationSwitcher: () => null,
 }))
 
 // Import routes after mock.module so they use the mocked session and server functions
@@ -260,7 +260,10 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
       try {
         const beforeLoad = OnboardingRoute.options
           .beforeLoad as unknown as BeforeLoadCaller
-        await beforeLoad({ location: { href: "/onboarding" } })
+        await beforeLoad({
+          location: { href: "/onboarding" },
+          search: { step: "naming" },
+        })
       } catch (e) {
         thrown = e
       }
@@ -279,7 +282,10 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
 
       const beforeLoad = OnboardingRoute.options
         .beforeLoad as unknown as BeforeLoadCaller
-      const context = await beforeLoad({ location: { href: "/onboarding" } })
+      const context = await beforeLoad({
+        location: { href: "/onboarding" },
+        search: { step: "naming" },
+      })
 
       expect(context).toBeDefined()
       expect(context.session).toEqual(currentSession)
