@@ -109,32 +109,34 @@ describe("Better Auth Configuration & Plugins", () => {
         })
         .returning()
 
-      await db.insert(schema.member).values({
-        userId: testUser.id,
-        organizationId: testOrg.id,
-        role: "owner",
-      })
+      try {
+        await db.insert(schema.member).values({
+          userId: testUser.id,
+          organizationId: testOrg.id,
+          role: "owner",
+        })
 
-      const mockSession: DbSession = {
-        id: "mock-session-id",
-        userId: testUser.id,
-        token: "mock-token",
-        expiresAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ipAddress: null,
-        userAgent: null,
-        activeOrganizationId: null,
+        const mockSession: DbSession = {
+          id: "mock-session-id",
+          userId: testUser.id,
+          token: "mock-token",
+          expiresAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ipAddress: null,
+          userAgent: null,
+          activeOrganizationId: null,
+        }
+
+        const res = await sessionHooks?.create?.before?.(mockSession)
+        expect(res?.data?.activeOrganizationId).toBe(testOrg.id)
+      } finally {
+        // Clean up
+        await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
+        await db
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, testOrg.id))
       }
-
-      const res = await sessionHooks?.create?.before?.(mockSession)
-      expect(res?.data?.activeOrganizationId).toBe(testOrg.id)
-
-      // Clean up
-      await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
-      await db
-        .delete(schema.organization)
-        .where(eq(schema.organization.id, testOrg.id))
     })
 
     it("leaves pre-set activeOrganizationId unchanged on session.create.before", async () => {
@@ -173,46 +175,48 @@ describe("Better Auth Configuration & Plugins", () => {
         })
         .returning()
 
-      await db.insert(schema.member).values({
-        userId: testUser.id,
-        organizationId: testOrg.id,
-        role: "owner",
-      })
+      try {
+        await db.insert(schema.member).values({
+          userId: testUser.id,
+          organizationId: testOrg.id,
+          role: "owner",
+        })
 
-      // User has existing preference for testOrg
-      await db.insert(schema.userActiveOrganization).values({
-        userId: testUser.id,
-        organizationId: testOrg.id,
-        updatedAt: new Date(),
-      })
+        // User has existing preference for testOrg
+        await db.insert(schema.userActiveOrganization).values({
+          userId: testUser.id,
+          organizationId: testOrg.id,
+          updatedAt: new Date(),
+        })
 
-      // Simulate routine session touch where activeOrganizationId is null or undefined
-      const touchSession: DbSession = {
-        id: "routine-session-id",
-        userId: testUser.id,
-        token: "routine-token",
-        expiresAt: new Date(Date.now() + 86400000),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ipAddress: null,
-        userAgent: null,
-        activeOrganizationId: null,
+        // Simulate routine session touch where activeOrganizationId is null or undefined
+        const touchSession: DbSession = {
+          id: "routine-session-id",
+          userId: testUser.id,
+          token: "routine-token",
+          expiresAt: new Date(Date.now() + 86400000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ipAddress: null,
+          userAgent: null,
+          activeOrganizationId: null,
+        }
+
+        await sessionHooks?.update?.after?.(touchSession)
+
+        // Invariant check: Preference MUST NOT be deleted!
+        const [pref] = await db
+          .select()
+          .from(schema.userActiveOrganization)
+          .where(eq(schema.userActiveOrganization.userId, testUser.id))
+        expect(pref?.organizationId).toBe(testOrg.id)
+      } finally {
+        // Clean up
+        await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
+        await db
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, testOrg.id))
       }
-
-      await sessionHooks?.update?.after?.(touchSession)
-
-      // Invariant check: Preference MUST NOT be deleted!
-      const [pref] = await db
-        .select()
-        .from(schema.userActiveOrganization)
-        .where(eq(schema.userActiveOrganization.userId, testUser.id))
-      expect(pref?.organizationId).toBe(testOrg.id)
-
-      // Clean up
-      await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
-      await db
-        .delete(schema.organization)
-        .where(eq(schema.organization.id, testOrg.id))
     })
 
     it("syncs preference on session.update.after when activeOrganizationId is a valid string", async () => {
@@ -232,38 +236,40 @@ describe("Better Auth Configuration & Plugins", () => {
         })
         .returning()
 
-      await db.insert(schema.member).values({
-        userId: testUser.id,
-        organizationId: testOrg.id,
-        role: "owner",
-      })
+      try {
+        await db.insert(schema.member).values({
+          userId: testUser.id,
+          organizationId: testOrg.id,
+          role: "owner",
+        })
 
-      const updateSession: DbSession = {
-        id: "sync-session-id",
-        userId: testUser.id,
-        token: "sync-token",
-        expiresAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ipAddress: null,
-        userAgent: null,
-        activeOrganizationId: testOrg.id,
+        const updateSession: DbSession = {
+          id: "sync-session-id",
+          userId: testUser.id,
+          token: "sync-token",
+          expiresAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ipAddress: null,
+          userAgent: null,
+          activeOrganizationId: testOrg.id,
+        }
+
+        await sessionHooks?.update?.after?.(updateSession)
+
+        // Invariant check: Preference MUST be recorded!
+        const [pref] = await db
+          .select()
+          .from(schema.userActiveOrganization)
+          .where(eq(schema.userActiveOrganization.userId, testUser.id))
+        expect(pref?.organizationId).toBe(testOrg.id)
+      } finally {
+        // Clean up
+        await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
+        await db
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, testOrg.id))
       }
-
-      await sessionHooks?.update?.after?.(updateSession)
-
-      // Invariant check: Preference MUST be recorded!
-      const [pref] = await db
-        .select()
-        .from(schema.userActiveOrganization)
-        .where(eq(schema.userActiveOrganization.userId, testUser.id))
-      expect(pref?.organizationId).toBe(testOrg.id)
-
-      // Clean up
-      await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
-      await db
-        .delete(schema.organization)
-        .where(eq(schema.organization.id, testOrg.id))
     })
   })
 })

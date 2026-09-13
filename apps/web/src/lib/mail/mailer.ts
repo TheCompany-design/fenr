@@ -66,10 +66,16 @@ export function validateRecipientEmail(email: string): string {
     throw new MailDeliveryError("Recipient email address is required")
   }
   const trimmed = email.trim()
+  const atIndex = trimmed.lastIndexOf("@")
+  const localPart = trimmed.slice(0, atIndex)
   if (
+    atIndex <= 0 ||
     trimmed.includes(",") ||
     trimmed.includes(";") ||
     /[\r\n]/.test(trimmed) ||
+    localPart.startsWith(".") ||
+    localPart.endsWith(".") ||
+    localPart.includes("..") ||
     !EMAIL_REGEX.test(trimmed)
   ) {
     throw new MailDeliveryError(
@@ -122,6 +128,15 @@ export async function sendMagicLinkEmail({
   expiresInMinutes = 10,
   correlationId,
 }: SendMagicLinkEmailOptions): Promise<{ messageId: string }> {
+  if (
+    typeof expiresInMinutes !== "number" ||
+    !Number.isFinite(expiresInMinutes) ||
+    expiresInMinutes <= 0
+  ) {
+    throw new MailDeliveryError(
+      "expiresInMinutes must be a positive finite number",
+    )
+  }
   const recipient = validateRecipientEmail(to)
   const actionUrl = validateActionUrl(url, "Magic link URL")
   const masked = maskEmail(recipient)
@@ -207,6 +222,15 @@ export async function sendOrganizationInvitationEmail({
   expiresInHours = 48,
   correlationId,
 }: SendOrganizationInvitationEmailOptions): Promise<{ messageId: string }> {
+  if (
+    typeof expiresInHours !== "number" ||
+    !Number.isFinite(expiresInHours) ||
+    expiresInHours <= 0
+  ) {
+    throw new MailDeliveryError(
+      "expiresInHours must be a positive finite number",
+    )
+  }
   const recipient = validateRecipientEmail(to)
   const url = validateActionUrl(acceptUrl, "Invitation accept URL")
   const masked = maskEmail(recipient)

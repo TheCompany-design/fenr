@@ -63,6 +63,7 @@ describe("Active Organization Resolver", () => {
   describe("UUID Validation & Boundaries", () => {
     it("validates UUID format correctly", () => {
       expect(isValidUuid("0191ca7f-8e7c-7a91-9c12-3456789abcde")).toBe(true)
+      expect(isValidUuid(" 0191ca7f-8e7c-7a91-9c12-3456789abcde ")).toBe(false)
       expect(isValidUuid("invalid-uuid")).toBe(false)
       expect(isValidUuid("")).toBe(false)
       expect(isValidUuid(null)).toBe(false)
@@ -95,10 +96,16 @@ describe("Active Organization Resolver", () => {
       ).rejects.toThrow(/UUID/)
     })
 
-    it("handles invalid UUID safely in clearActiveOrganizationPreference without throwing", async () => {
+    it("handles invalid userId safely in clearActiveOrganizationPreference without throwing", async () => {
       await expect(
         clearActiveOrganizationPreference("not-a-uuid"),
       ).resolves.toBeUndefined()
+    })
+
+    it("rejects invalid organizationId in clearActiveOrganizationPreference", async () => {
+      await expect(
+        clearActiveOrganizationPreference(testUserId, "invalid-uuid"),
+      ).rejects.toThrow(/Invalid organizationId format/)
     })
   })
 

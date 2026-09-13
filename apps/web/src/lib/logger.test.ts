@@ -360,4 +360,41 @@ describe("withWideEvent", () => {
       infoSpy.mockRestore()
     }
   })
+
+  it("canonical event identity fields cannot be overwritten by caller context", async () => {
+    const infoSpy = spyOn(logger, "info").mockImplementation(() => logger)
+
+    try {
+      await withWideEvent(
+        "protected_mod",
+        "protected_action",
+        async (setContext) => {
+          setContext({
+            service: "hijacked_service",
+            mod: "hijacked_mod",
+            action: "hijacked_action",
+            duration_ms: -999,
+            outcome: "error",
+          } as unknown as Record<string, unknown>)
+          return "ok"
+        },
+        {
+          service: "malicious_service",
+          requestId: 12345 as unknown as string,
+        },
+      )
+
+      expect(infoSpy).toHaveBeenCalledTimes(1)
+      const [event] = infoSpy.mock.calls[0] as [Record<string, unknown>]
+      expect(event.service).toBe("fenr")
+      expect(event.mod).toBe("protected_mod")
+      expect(event.action).toBe("protected_action")
+      expect(event.outcome).toBe("success")
+      expect(typeof event.requestId).toBe("string")
+      expect(typeof event.duration_ms).toBe("number")
+      expect((event.duration_ms as number) >= 0).toBe(true)
+    } finally {
+      infoSpy.mockRestore()
+    }
+  })
 })

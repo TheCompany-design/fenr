@@ -76,6 +76,18 @@ describe("Mailer Service", () => {
       ).toThrow(MailDeliveryError)
     })
 
+    it("rejects invalid dot-atom recipient email addresses", () => {
+      expect(() => validateRecipientEmail(".alice@example.com")).toThrow(
+        MailDeliveryError,
+      )
+      expect(() => validateRecipientEmail("alice.@example.com")).toThrow(
+        MailDeliveryError,
+      )
+      expect(() => validateRecipientEmail("alice..smith@example.com")).toThrow(
+        MailDeliveryError,
+      )
+    })
+
     it("rejects CRLF injection in recipient email", () => {
       expect(() =>
         validateRecipientEmail("alice@example.com\r\nBcc: evil@attacker.com"),
@@ -178,6 +190,40 @@ describe("Mailer Service", () => {
         expect(mockSendMail).toHaveBeenCalledTimes(0)
       })
 
+      it("rejects non-positive or non-finite expiresInMinutes", async () => {
+        await expect(
+          sendMagicLinkEmail({
+            to: "user@example.com",
+            url: "https://fenr.app/auth/verify",
+            expiresInMinutes: 0,
+          }),
+        ).rejects.toThrow("expiresInMinutes must be a positive finite number")
+
+        await expect(
+          sendMagicLinkEmail({
+            to: "user@example.com",
+            url: "https://fenr.app/auth/verify",
+            expiresInMinutes: -5,
+          }),
+        ).rejects.toThrow("expiresInMinutes must be a positive finite number")
+
+        await expect(
+          sendMagicLinkEmail({
+            to: "user@example.com",
+            url: "https://fenr.app/auth/verify",
+            expiresInMinutes: Number.NaN,
+          }),
+        ).rejects.toThrow("expiresInMinutes must be a positive finite number")
+
+        await expect(
+          sendMagicLinkEmail({
+            to: "user@example.com",
+            url: "https://fenr.app/auth/verify",
+            expiresInMinutes: Number.POSITIVE_INFINITY,
+          }),
+        ).rejects.toThrow("expiresInMinutes must be a positive finite number")
+      })
+
       it("throws MailDeliveryError with cause when transport fails", async () => {
         const failureError = new Error("SMTP connection timed out")
         mockSendMail = mock(async () => {
@@ -248,6 +294,52 @@ describe("Mailer Service", () => {
         expect(typeof callArgs.text).toBe("string")
         expect(callArgs.text).toContain("Stark Enterprises")
         expect(callArgs.text).toContain(acceptUrl)
+      })
+
+      it("rejects non-positive or non-finite expiresInHours", async () => {
+        await expect(
+          sendOrganizationInvitationEmail({
+            to: "newhire@example.com",
+            organizationName: "Stark Enterprises",
+            inviterName: "Tony Stark",
+            role: "Admin",
+            acceptUrl: "https://fenr.app/invitations/accept?id=inv-456",
+            expiresInHours: 0,
+          }),
+        ).rejects.toThrow("expiresInHours must be a positive finite number")
+
+        await expect(
+          sendOrganizationInvitationEmail({
+            to: "newhire@example.com",
+            organizationName: "Stark Enterprises",
+            inviterName: "Tony Stark",
+            role: "Admin",
+            acceptUrl: "https://fenr.app/invitations/accept?id=inv-456",
+            expiresInHours: -1,
+          }),
+        ).rejects.toThrow("expiresInHours must be a positive finite number")
+
+        await expect(
+          sendOrganizationInvitationEmail({
+            to: "newhire@example.com",
+            organizationName: "Stark Enterprises",
+            inviterName: "Tony Stark",
+            role: "Admin",
+            acceptUrl: "https://fenr.app/invitations/accept?id=inv-456",
+            expiresInHours: Number.NaN,
+          }),
+        ).rejects.toThrow("expiresInHours must be a positive finite number")
+
+        await expect(
+          sendOrganizationInvitationEmail({
+            to: "newhire@example.com",
+            organizationName: "Stark Enterprises",
+            inviterName: "Tony Stark",
+            role: "Admin",
+            acceptUrl: "https://fenr.app/invitations/accept?id=inv-456",
+            expiresInHours: Number.POSITIVE_INFINITY,
+          }),
+        ).rejects.toThrow("expiresInHours must be a positive finite number")
       })
 
       it("throws MailDeliveryError when invitation sending fails", async () => {

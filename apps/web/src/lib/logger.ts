@@ -13,11 +13,13 @@
  */
 import pino from "pino"
 
-import { serverEnv } from "./env"
+const logLevel =
+  typeof window !== "undefined" ? "info" : (process.env.LOG_LEVEL ?? "info")
 
 export const logger = pino({
-  level: serverEnv.LOG_LEVEL,
+  level: logLevel,
   base: { app: "fenr" },
+  browser: typeof window !== "undefined" ? { asObject: true } : undefined,
   redact: {
     paths: [
       "password",
@@ -128,14 +130,13 @@ export async function withWideEvent<T>(
   } finally {
     const duration_ms = Math.max(0, Math.round(performance.now() - startTime))
     const finalStatusCode = statusCode ?? (outcome === "success" ? 200 : 500)
-
     const event: Record<string, unknown> = {
+      ...context,
       service: "fenr",
       mod,
       action,
       requestId,
       timestamp,
-      ...context,
       duration_ms,
       status_code: finalStatusCode,
       outcome,
