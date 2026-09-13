@@ -1,28 +1,21 @@
 /**
  * /auth/sign-up — public route for passwordless registration.
  *
- * In email-only authentication, entering an email automatically creates
- * and verifies the account upon link click.
+ * Session bouncing is handled at the parent /auth route.
+ * Entering an email automatically creates and verifies the account.
  */
-import { createFileRoute, Link, redirect } from "@tanstack/react-router"
+import { createFileRoute, Link } from "@tanstack/react-router"
 import { z } from "zod"
 
-import { AuthHeader, AuthShell, MagicLinkForm } from "@/features/auth"
+import { AuthHeader, MagicLinkForm } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
-import { getSession } from "@/lib/session"
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
 })
 
-export const Route = createFileRoute("/auth/sign-up")({
+export const Route = createFileRoute("/auth/sign-up/")({
   validateSearch: (search) => searchSchema.parse(search),
-  beforeLoad: async ({ search }) => {
-    const session = await getSession()
-    if (session) {
-      throw redirect({ href: safeRedirectPath(search.redirect) })
-    }
-  },
   component: SignUpPage,
 })
 
@@ -31,7 +24,7 @@ function SignUpPage() {
   const redirectTo = safeRedirectPath(redirectToParam)
 
   return (
-    <AuthShell tagline="Create your account and start with a clean, focused canvas.">
+    <>
       <AuthHeader
         title="Get started with Fenr"
         description="Enter your email to receive a passwordless sign-in link."
@@ -47,6 +40,6 @@ function SignUpPage() {
           Sign in
         </Link>
       </footer>
-    </AuthShell>
+    </>
   )
 }

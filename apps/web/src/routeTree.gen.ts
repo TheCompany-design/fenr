@@ -10,20 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
+import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as ChooseOrganizationRouteImport } from './routes/choose-organization'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AuthCheckEmailRouteImport } from './routes/auth/check-email'
-import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
-import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
+import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppSettingsOrganizationRouteImport } from './routes/_app/settings/organization'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AuthCheckEmailIndexRouteImport } from './routes/auth/check-email/index'
+import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index'
+import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRouteRoute = AuthRouteRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChooseOrganizationRoute = ChooseOrganizationRouteImport.update({
@@ -41,20 +48,10 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AuthCheckEmailRoute = AuthCheckEmailRouteImport.update({
-  id: '/auth/check-email',
-  path: '/auth/check-email',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthSignUpRoute = AuthSignUpRouteImport.update({
-  id: '/auth/sign-up',
-  path: '/auth/sign-up',
-  getParentRoute: () => rootRouteImport,
+const AuthIndexRoute = AuthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthRouteRoute,
 } as any)
 const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   id: '/invitations/accept',
@@ -81,98 +78,121 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCheckEmailIndexRoute = AuthCheckEmailIndexRouteImport.update({
+  id: '/check-email/',
+  path: '/check-email/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthSignInIndexRoute = AuthSignInIndexRouteImport.update({
+  id: '/sign-in/',
+  path: '/sign-in/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
+const AuthSignUpIndexRoute = AuthSignUpIndexRouteImport.update({
+  id: '/sign-up/',
+  path: '/sign-up/',
+  getParentRoute: () => AuthRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
-  '/auth/check-email': typeof AuthCheckEmailRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/auth/': typeof AuthIndexRoute
   '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document/': typeof AppDocumentIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
+  '/auth/check-email/': typeof AuthCheckEmailIndexRoute
+  '/auth/sign-in/': typeof AuthSignInIndexRoute
+  '/auth/sign-up/': typeof AuthSignUpIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
-  '/auth/check-email': typeof AuthCheckEmailRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
+  '/auth': typeof AuthIndexRoute
   '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document': typeof AppDocumentIndexRoute
   '/settings': typeof AppSettingsIndexRoute
+  '/auth/check-email': typeof AuthCheckEmailIndexRoute
+  '/auth/sign-in': typeof AuthSignInIndexRoute
+  '/auth/sign-up': typeof AuthSignUpIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteRouteWithChildren
+  '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
-  '/auth/check-email': typeof AuthCheckEmailRoute
-  '/auth/sign-in': typeof AuthSignInRoute
-  '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
+  '/auth/': typeof AuthIndexRoute
   '/_app/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/document/': typeof AppDocumentIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/auth/check-email/': typeof AuthCheckEmailIndexRoute
+  '/auth/sign-in/': typeof AuthSignInIndexRoute
+  '/auth/sign-up/': typeof AuthSignUpIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth'
     | '/choose-organization'
     | '/onboarding'
-    | '/auth/check-email'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
     | '/invitations/accept'
+    | '/auth/'
     | '/settings/organization'
     | '/api/auth/$'
     | '/document/'
     | '/settings/'
+    | '/auth/check-email/'
+    | '/auth/sign-in/'
+    | '/auth/sign-up/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
     | '/onboarding'
-    | '/auth/check-email'
-    | '/auth/sign-in'
-    | '/auth/sign-up'
     | '/invitations/accept'
     | '/'
+    | '/auth'
     | '/settings/organization'
     | '/api/auth/$'
     | '/document'
     | '/settings'
-  id:
-    | '__root__'
-    | '/_app'
-    | '/choose-organization'
-    | '/onboarding'
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/auth'
+    | '/choose-organization'
+    | '/onboarding'
     | '/invitations/accept'
     | '/_app/'
+    | '/auth/'
     | '/_app/settings/organization'
     | '/api/auth/$'
     | '/_app/document/'
     | '/_app/settings/'
+    | '/auth/check-email/'
+    | '/auth/sign-in/'
+    | '/auth/sign-up/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRouteRoute: typeof AppRouteRouteWithChildren
+  AuthRouteRoute: typeof AuthRouteRouteWithChildren
   ChooseOrganizationRoute: typeof ChooseOrganizationRoute
   OnboardingRoute: typeof OnboardingRoute
-  AuthCheckEmailRoute: typeof AuthCheckEmailRoute
-  AuthSignInRoute: typeof AuthSignInRoute
-  AuthSignUpRoute: typeof AuthSignUpRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -184,6 +204,13 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AppRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/choose-organization': {
@@ -207,26 +234,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/auth/check-email': {
-      id: '/auth/check-email'
-      path: '/auth/check-email'
-      fullPath: '/auth/check-email'
-      preLoaderRoute: typeof AuthCheckEmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/sign-in': {
-      id: '/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/sign-up': {
-      id: '/auth/sign-up'
-      path: '/auth/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthSignUpRouteImport
-      parentRoute: typeof rootRouteImport
+    '/auth/': {
+      id: '/auth/'
+      path: '/'
+      fullPath: '/auth/'
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
     }
     '/invitations/accept': {
       id: '/invitations/accept'
@@ -263,6 +276,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/check-email/': {
+      id: '/auth/check-email/'
+      path: '/check-email'
+      fullPath: '/auth/check-email/'
+      preLoaderRoute: typeof AuthCheckEmailIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/sign-in/': {
+      id: '/auth/sign-in/'
+      path: '/sign-in'
+      fullPath: '/auth/sign-in/'
+      preLoaderRoute: typeof AuthSignInIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
+    '/auth/sign-up/': {
+      id: '/auth/sign-up/'
+      path: '/sign-up'
+      fullPath: '/auth/sign-up/'
+      preLoaderRoute: typeof AuthSignUpIndexRouteImport
+      parentRoute: typeof AuthRouteRoute
+    }
   }
 }
 
@@ -284,13 +318,29 @@ const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
 )
 
+interface AuthRouteRouteChildren {
+  AuthIndexRoute: typeof AuthIndexRoute
+  AuthCheckEmailIndexRoute: typeof AuthCheckEmailIndexRoute
+  AuthSignInIndexRoute: typeof AuthSignInIndexRoute
+  AuthSignUpIndexRoute: typeof AuthSignUpIndexRoute
+}
+
+const AuthRouteRouteChildren: AuthRouteRouteChildren = {
+  AuthIndexRoute: AuthIndexRoute,
+  AuthCheckEmailIndexRoute: AuthCheckEmailIndexRoute,
+  AuthSignInIndexRoute: AuthSignInIndexRoute,
+  AuthSignUpIndexRoute: AuthSignUpIndexRoute,
+}
+
+const AuthRouteRouteWithChildren = AuthRouteRoute._addFileChildren(
+  AuthRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRouteRoute: AppRouteRouteWithChildren,
+  AuthRouteRoute: AuthRouteRouteWithChildren,
   ChooseOrganizationRoute: ChooseOrganizationRoute,
   OnboardingRoute: OnboardingRoute,
-  AuthCheckEmailRoute: AuthCheckEmailRoute,
-  AuthSignInRoute: AuthSignInRoute,
-  AuthSignUpRoute: AuthSignUpRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

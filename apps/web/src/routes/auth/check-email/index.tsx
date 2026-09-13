@@ -1,12 +1,14 @@
 /**
  * /auth/check-email — public route displaying the magic link confirmation screen.
+ *
+ * Session bouncing is handled at the parent /auth route.
+ * Missing email bounces back to /auth/sign-in.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { z } from "zod"
 
-import { AuthShell, CheckEmailCard } from "@/features/auth"
+import { CheckEmailCard } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
-import { getSession } from "@/lib/session"
 
 const searchSchema = z.object({
   email: z.string().default(""),
@@ -14,14 +16,9 @@ const searchSchema = z.object({
   error: z.string().optional(),
 })
 
-export const Route = createFileRoute("/auth/check-email")({
+export const Route = createFileRoute("/auth/check-email/")({
   validateSearch: (search) => searchSchema.parse(search),
-  beforeLoad: async ({ search }) => {
-    const session = await getSession()
-    if (session) {
-      throw redirect({ href: safeRedirectPath(search.redirect) })
-    }
-
+  beforeLoad: ({ search }) => {
     if (!search.email?.trim()) {
       throw redirect({
         to: "/auth/sign-in",
@@ -40,12 +37,6 @@ function CheckEmailPage() {
   const redirectTo = safeRedirectPath(redirectToParam)
 
   return (
-    <AuthShell tagline="A quiet workspace for focused work.">
-      <CheckEmailCard
-        email={email}
-        redirectTo={redirectTo}
-        errorReason={error}
-      />
-    </AuthShell>
+    <CheckEmailCard email={email} redirectTo={redirectTo} errorReason={error} />
   )
 }

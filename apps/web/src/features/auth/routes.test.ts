@@ -15,16 +15,18 @@ mock.module("@/lib/session", () => ({
 }))
 
 // Import routes after mock.module so they use the mocked session
-const { Route: SignInRoute } = await import("@/routes/auth/sign-in")
-const { Route: SignUpRoute } = await import("@/routes/auth/sign-up")
-const { Route: CheckEmailRoute } = await import("@/routes/auth/check-email")
+const { Route: AuthParentRoute } = await import("@/routes/auth/route")
+const { Route: AuthIndexRoute } = await import("@/routes/auth/index")
+const { Route: CheckEmailRoute } = await import(
+  "@/routes/auth/check-email/index"
+)
 
 type BeforeLoadCaller = (opts: {
   search: Record<string, unknown>
 }) => Promise<unknown>
 
 describe("Auth Route Guards & Loaders", () => {
-  describe("/auth/sign-in Route", () => {
+  describe("Parent /auth Layout Route", () => {
     it("bounces authenticated users preserving intended deep-link redirect", async () => {
       currentSession = {
         session: { id: "s1" },
@@ -33,7 +35,7 @@ describe("Auth Route Guards & Loaders", () => {
 
       let thrownRedirect: unknown = null
       try {
-        const beforeLoad = SignInRoute.options.beforeLoad
+        const beforeLoad = AuthParentRoute.options.beforeLoad
         if (beforeLoad) {
           await (beforeLoad as unknown as BeforeLoadCaller)({
             search: { redirect: "/document/doc-456" },
@@ -52,7 +54,7 @@ describe("Auth Route Guards & Loaders", () => {
     it("allows unauthenticated visitors to proceed", async () => {
       currentSession = null
 
-      const beforeLoad = SignInRoute.options.beforeLoad
+      const beforeLoad = AuthParentRoute.options.beforeLoad
       if (beforeLoad) {
         await (beforeLoad as unknown as BeforeLoadCaller)({ search: {} })
       }
@@ -60,19 +62,14 @@ describe("Auth Route Guards & Loaders", () => {
     })
   })
 
-  describe("/auth/sign-up Route", () => {
-    it("bounces authenticated users preserving intended redirect", async () => {
-      currentSession = {
-        session: { id: "s1" },
-        user: { id: "u1", email: "user@example.com" },
-      }
-
+  describe("/auth Index Route", () => {
+    it("redirects /auth to /auth/sign-in preserving search params", async () => {
       let thrownRedirect: unknown = null
       try {
-        const beforeLoad = SignUpRoute.options.beforeLoad
+        const beforeLoad = AuthIndexRoute.options.beforeLoad
         if (beforeLoad) {
           await (beforeLoad as unknown as BeforeLoadCaller)({
-            search: { redirect: "/settings" },
+            search: { redirect: "/settings", error: "session_expired" },
           })
         }
       } catch (e) {
@@ -80,9 +77,16 @@ describe("Auth Route Guards & Loaders", () => {
       }
 
       expect(isRedirect(thrownRedirect)).toBe(true)
-      expect(
-        (thrownRedirect as { headers?: Headers }).headers?.get("location"),
-      ).toBe("/settings")
+      const redirectOptions = (
+        thrownRedirect as {
+          options?: { to?: string; search?: Record<string, string> }
+        }
+      ).options
+      expect(redirectOptions?.to).toBe("/auth/sign-in")
+      expect(redirectOptions?.search).toEqual({
+        redirect: "/settings",
+        error: "session_expired",
+      })
     })
   })
 
