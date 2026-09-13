@@ -195,4 +195,107 @@ describe("Organization Domain Components (Atom 7)", () => {
       expect(html).toContain("Pending Invitations (0)")
     })
   })
+
+  describe("OrganizationSettings", () => {
+    it("renders organization details, badges, and member components for owners", async () => {
+      const { OrganizationSettings } = await import("./organization-settings")
+      const { organizationKeys } = await import("../queries")
+
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      })
+
+      const testOrgId = "018f1a1a-0000-7000-8000-000000000001"
+
+      queryClient.setQueryData(organizationKeys.members(testOrgId), {
+        callerRole: "owner",
+        members: [
+          {
+            id: "mem-1",
+            userId: "user-1",
+            role: "owner",
+            createdAt: new Date("2026-01-15T00:00:00Z"),
+            user: {
+              id: "user-1",
+              name: "Alice Founder",
+              email: "alice@example.com",
+              image: null,
+            },
+          },
+        ],
+      })
+
+      queryClient.setQueryData(organizationKeys.invitations(testOrgId), [])
+
+      const html = renderToStaticMarkup(
+        createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          createElement(OrganizationSettings, {
+            activeOrganization: {
+              organization: {
+                id: testOrgId,
+                name: "Fenr Tech",
+                slug: "fenr-tech",
+                logo: null,
+                createdAt: new Date("2026-01-01T00:00:00Z"),
+              },
+              role: "owner",
+              joinedAt: new Date("2026-01-01T00:00:00Z"),
+              memberCount: 1,
+            },
+            currentUserId: "user-1",
+          }),
+        ),
+      )
+
+      expect(html).toContain("Fenr Tech")
+      expect(html).toContain("fenr.app/fenr-tech")
+      expect(html).toContain("Organization Details")
+      expect(html).toContain("Invite Teammates")
+      expect(html).toContain("Members &amp; Permissions")
+      expect(html).toContain("owner")
+    })
+
+    it("hides invite teammates section for regular members", async () => {
+      const { OrganizationSettings } = await import("./organization-settings")
+      const { organizationKeys } = await import("../queries")
+
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      })
+
+      const testOrgId = "018f1a1a-0000-7000-8000-000000000001"
+
+      queryClient.setQueryData(organizationKeys.members(testOrgId), {
+        callerRole: "member",
+        members: [],
+      })
+
+      const html = renderToStaticMarkup(
+        createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          createElement(OrganizationSettings, {
+            activeOrganization: {
+              organization: {
+                id: testOrgId,
+                name: "Fenr Tech",
+                slug: "fenr-tech",
+                logo: null,
+                createdAt: new Date("2026-01-01T00:00:00Z"),
+              },
+              role: "member",
+              joinedAt: new Date("2026-01-01T00:00:00Z"),
+              memberCount: 1,
+            },
+            currentUserId: "user-2",
+          }),
+        ),
+      )
+
+      expect(html).toContain("Fenr Tech")
+      expect(html).not.toContain("Invite Teammates")
+    })
+  })
 })

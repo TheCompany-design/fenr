@@ -18,6 +18,8 @@ import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as AuthSignUpRouteImport } from './routes/auth/sign-up'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsOrganizationRouteImport } from './routes/_app/settings/organization'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const AppRouteRoute = AppRouteRouteImport.update({
@@ -64,6 +66,16 @@ const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   path: '/document/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSettingsOrganizationRoute = AppSettingsOrganizationRouteImport.update({
+  id: '/settings/organization',
+  path: '/settings/organization',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -78,8 +90,10 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthSignInRoute
   '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
+  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document/': typeof AppDocumentIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -89,8 +103,10 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
+  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document': typeof AppDocumentIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,8 +118,10 @@ export interface FileRoutesById {
   '/auth/sign-up': typeof AuthSignUpRoute
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
+  '/_app/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/document/': typeof AppDocumentIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -115,8 +133,10 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/auth/sign-up'
     | '/invitations/accept'
+    | '/settings/organization'
     | '/api/auth/$'
     | '/document/'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -126,8 +146,10 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/invitations/accept'
     | '/'
+    | '/settings/organization'
     | '/api/auth/$'
     | '/document'
+    | '/settings'
   id:
     | '__root__'
     | '/_app'
@@ -138,8 +160,10 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/invitations/accept'
     | '/_app/'
+    | '/_app/settings/organization'
     | '/api/auth/$'
     | '/_app/document/'
+    | '/_app/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -218,6 +242,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDocumentIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/settings/organization': {
+      id: '/_app/settings/organization'
+      path: '/settings/organization'
+      fullPath: '/settings/organization'
+      preLoaderRoute: typeof AppSettingsOrganizationRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -230,12 +268,16 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteRouteChildren {
   AppIndexRoute: typeof AppIndexRoute
+  AppSettingsOrganizationRoute: typeof AppSettingsOrganizationRoute
   AppDocumentIndexRoute: typeof AppDocumentIndexRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppIndexRoute: AppIndexRoute,
+  AppSettingsOrganizationRoute: AppSettingsOrganizationRoute,
   AppDocumentIndexRoute: AppDocumentIndexRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

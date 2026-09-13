@@ -710,9 +710,7 @@ export function UserMenuItems({
             }
           }}
           onClick={() => {
-            toast.info("Invite teammates", {
-              description: "Collaboration invitations coming soon.",
-            })
+            navigate({ to: "/settings/organization" })
             onClose?.()
           }}
           className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
