@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { db } from "../index"
 import * as schema from "./index"
 
@@ -314,6 +314,51 @@ describe("Schema & Database Architecture", () => {
     })
 
     it("enforces unique constraints", async () => {
+      // Ensure baseline records exist for uniqueness checks
+      const [existingUser] = await db
+        .insert(schema.user)
+        .values({
+          name: "Alice Tester",
+          email: "alice@example.com",
+        })
+        .onConflictDoUpdate({
+          target: schema.user.email,
+          set: { name: "Alice Tester" },
+        })
+        .returning()
+
+      const [existingOrg] = await db
+        .insert(schema.organization)
+        .values({
+          name: "Acme Corp",
+          slug: "acme-corp",
+        })
+        .onConflictDoUpdate({
+          target: schema.organization.slug,
+          set: { name: "Acme Corp" },
+        })
+        .returning()
+
+      await db
+        .insert(schema.member)
+        .values({
+          organizationId: existingOrg.id,
+          userId: existingUser.id,
+          role: "owner",
+        })
+        .onConflictDoNothing()
+
+      await db
+        .insert(schema.account)
+        .values({
+          issuer: "local:credential",
+          accountId: "alice-account",
+          providerId: "credential",
+          userId: existingUser.id,
+          password: "hashed_password",
+        })
+        .onConflictDoNothing()
+
       // Unique user email
       let userEmailError: unknown = null
       try {
@@ -339,16 +384,6 @@ describe("Schema & Database Architecture", () => {
       expect(orgSlugError).not.toBeNull()
 
       // Unique member (organizationId, userId)
-      const existingUser = await db.query.user.findFirst({
-        where: eq(schema.user.email, "alice@example.com"),
-      })
-      const existingOrg = await db.query.organization.findFirst({
-        where: eq(schema.organization.slug, "acme-corp"),
-      })
-
-      if (!existingUser || !existingOrg) {
-        throw new Error("Expected existingUser and existingOrg to be defined")
-      }
 
       let memberError: unknown = null
       try {
@@ -377,6 +412,24 @@ describe("Schema & Database Architecture", () => {
       expect(accountError).not.toBeNull()
 
       // Partial unique invitation (organizationId, email) WHERE status = 'pending'
+      const existingPendingInvite = await db.query.invitation.findFirst({
+        where: and(
+          eq(schema.invitation.organizationId, existingOrg.id),
+          eq(schema.invitation.email, "bob@example.com"),
+          eq(schema.invitation.status, "pending"),
+        ),
+      })
+      if (!existingPendingInvite) {
+        await db.insert(schema.invitation).values({
+          organizationId: existingOrg.id,
+          email: "bob@example.com",
+          role: "member",
+          inviterId: existingUser.id,
+          expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+          status: "pending",
+        })
+      }
+
       let duplicatePendingInviteError: unknown = null
       try {
         await db.insert(schema.invitation).values({
