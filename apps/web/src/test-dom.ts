@@ -67,6 +67,35 @@ export function setupTestDOM() {
   }
 
   ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+  const ElementProto = (
+    globalThis.Element ||
+    (globalThis.window as unknown as { Element?: { prototype?: unknown } })
+      ?.Element
+  )?.prototype as
+    | { animate?: (...args: unknown[]) => { finished?: Promise<unknown> } }
+    | undefined
+  if (ElementProto && typeof ElementProto.animate === "function") {
+    const origAnimate = ElementProto.animate
+    ElementProto.animate = function (...args: unknown[]) {
+      const anim = origAnimate.apply(this, args)
+      anim.finished?.catch(() => {})
+      return anim
+    }
+  }
+
+  if (typeof process !== "undefined" && typeof process.on === "function") {
+    process.on("unhandledRejection", (reason: unknown) => {
+      if (
+        reason &&
+        typeof reason === "object" &&
+        "name" in reason &&
+        (reason as { name: string }).name === "AbortError"
+      ) {
+        return
+      }
+    })
+  }
 }
 
 setupTestDOM()
