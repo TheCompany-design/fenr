@@ -11,6 +11,7 @@ import {
   SparklesIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { useForm, useStore } from "@tanstack/react-form"
 import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
@@ -26,7 +27,11 @@ import * as React from "react"
 import { toast } from "sonner"
 
 import { moduleLogger } from "@/lib/logger"
-import type { OrganizationRole } from "../schemas"
+import {
+  type InviteMembersFormValues,
+  inviteMembersFormSchema,
+  type OrganizationRole,
+} from "../schemas"
 
 const log = moduleLogger("organizations")
 
@@ -88,15 +93,12 @@ export function InviteMembersForm({
   defaultRole: defaultRoleProp,
   defaultOpenRoleForEmail,
 }: InviteMembersFormProps) {
-  const [defaultRole, setDefaultRole] = React.useState<OrganizationRole>(
-    defaultRoleProp ?? allowedRoles[0] ?? "member",
-  )
-
-  const [invites, setInvites] = React.useState<QueuedInvite[]>(() => {
+  const initialRole = defaultRoleProp ?? allowedRoles[0] ?? "member"
+  const initialInvites = React.useMemo<QueuedInvite[]>(() => {
     if (!initialEmails || initialEmails.length === 0) return []
     const seen = new Set<string>()
     const initial: QueuedInvite[] = []
-    const role = defaultRoleProp ?? allowedRoles[0] ?? "member"
+    const role = initialRole
     for (const raw of initialEmails) {
       const email = raw.trim().toLowerCase()
       if (!email || seen.has(email)) continue
@@ -109,12 +111,8 @@ export function InviteMembersForm({
       })
     }
     return initial
-  })
+  }, [initialEmails, initialRole])
 
-  const [draft, setDraft] = React.useState("")
-  const [note, setNote] = React.useState("")
-  const [showMessage, setShowMessage] = React.useState(false)
-  const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [copied, setCopied] = React.useState(false)
 
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -124,7 +122,38 @@ export function InviteMembersForm({
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
-  const invitesRef = React.useRef(invites)
+  const invitesRef = React.useRef(initialInvites)
+
+  const form = useForm({
+    defaultValues: {
+      invites: initialInvites,
+      draft: "",
+      note: "",
+      showMessage: false,
+      defaultRole: initialRole,
+    },
+    validators: { onSubmit: inviteMembersFormSchema },
+    onSubmit: async ({ value }) => {
+      await submitInvites(value)
+    },
+    onSubmitInvalid: ({ formApi }) => {
+      log.warn(
+        { errors: formApi.state.errors },
+        "Invite form validation failed",
+      )
+      toast.error("Review the invitation form", {
+        description:
+          "Correct the highlighted invitation details and try again.",
+      })
+    },
+  })
+
+  const invites = useStore(form.store, (state) => state.values.invites)
+  const draft = useStore(form.store, (state) => state.values.draft)
+  const note = useStore(form.store, (state) => state.values.note)
+  const defaultRole = useStore(form.store, (state) => state.values.defaultRole)
+  const showMessage = useStore(form.store, (state) => state.values.showMessage)
+  const isSubmitting = useStore(form.store, (state) => state.isSubmitting)
 
   React.useEffect(() => {
     invitesRef.current = invites
@@ -143,9 +172,9 @@ export function InviteMembersForm({
   // Ensure defaultRole is among allowedRoles
   React.useEffect(() => {
     if (allowedRoles.length > 0 && !allowedRoles.includes(defaultRole)) {
-      setDefaultRole(allowedRoles[0] ?? "member")
+      form.setFieldValue("defaultRole", allowedRoles[0] ?? "member")
     }
-  }, [allowedRoles, defaultRole])
+  }, [allowedRoles, defaultRole, form])
 
   const isAutoJoin = React.useCallback(
     (email: string) => {
@@ -184,7 +213,7 @@ export function InviteMembersForm({
         .filter(Boolean)
       if (parts.length === 0) return
 
-      setInvites((prev) => {
+      form.setFieldValue("invites", (prev) => {
         const seen = new Set(prev.map((c) => c.email.toLowerCase()))
         const next = [...prev]
         for (const email of parts) {
@@ -201,7 +230,7 @@ export function InviteMembersForm({
         return next
       })
     },
-    [defaultRole],
+    [defaultRole, form.setFieldValue],
   )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -217,7 +246,7 @@ export function InviteMembersForm({
       if (raw.length === 0) return
       e.preventDefault()
       addEmails(raw)
-      setDraft("")
+      form.setFieldValue("draft", "")
       if (e.currentTarget) {
         e.currentTarget.value = ""
       }
@@ -228,7 +257,7 @@ export function InviteMembersForm({
       invites.length > 0
     ) {
       e.preventDefault()
-      setInvites((prev) => prev.slice(0, -1))
+      form.setFieldValue("invites", (prev) => prev.slice(0, -1))
     }
   }
 
@@ -240,7 +269,7 @@ export function InviteMembersForm({
       e.preventDefault()
       const fullText = draft.trim() ? `${draft} ${text}` : text
       addEmails(fullText)
-      setDraft("")
+      form.setFieldValue("draft", "")
       if (e.currentTarget) {
         e.currentTarget.value = ""
       }
@@ -251,7 +280,7 @@ export function InviteMembersForm({
     const raw = (draft || e.currentTarget?.value || "").trim()
     if (raw.length === 0) return
     addEmails(raw)
-    setDraft("")
+    form.setFieldValue("draft", "")
     if (e.currentTarget) {
       e.currentTarget.value = ""
     }
@@ -266,11 +295,13 @@ export function InviteMembersForm({
   }
 
   const handleRemoveInvite = (id: string) => {
-    setInvites((prev) => prev.filter((i) => i.id !== id))
+    form.setFieldValue("invites", (prev) => prev.filter((i) => i.id !== id))
   }
 
   const handleChangeRole = (id: string, role: OrganizationRole) => {
-    setInvites((prev) => prev.map((i) => (i.id === id ? { ...i, role } : i)))
+    form.setFieldValue("invites", (prev) =>
+      prev.map((i) => (i.id === id ? { ...i, role } : i)),
+    )
   }
 
   const displayLink = React.useMemo(() => {
@@ -323,10 +354,9 @@ export function InviteMembersForm({
   }, [stats.sendable, stats.invalid, invites, isAutoJoin])
 
   const handleRetryFailed = async (invite: QueuedInvite) => {
-    if (submittingRef.current || isSubmitting) return
+    if (submittingRef.current) return
     submittingRef.current = true
-    setIsSubmitting(true)
-    setInvites((prev) =>
+    form.setFieldValue("invites", (prev) =>
       prev.map((i) =>
         i.id === invite.id ? { ...i, status: "sending", error: undefined } : i,
       ),
@@ -351,7 +381,7 @@ export function InviteMembersForm({
             : i,
         )
         invitesRef.current = next
-        setInvites((prev) =>
+        form.setFieldValue("invites", (prev) =>
           prev.map((i) =>
             i.id === invite.id
               ? { ...i, status: "success" as const, error: undefined }
@@ -365,7 +395,8 @@ export function InviteMembersForm({
             !isAutoJoin(i.email) &&
             i.status !== "success",
         )
-        if (sendableRemaining.length === 0) {
+        const hasInvalidInvites = next.some((i) => !isValidEmail(i.email))
+        if (sendableRemaining.length === 0 && !hasInvalidInvites) {
           onComplete?.()
         }
       } else {
@@ -373,7 +404,7 @@ export function InviteMembersForm({
         toast.error(`Failed to send invitation to ${invite.email}`, {
           description: errorMsg,
         })
-        setInvites((prev) =>
+        form.setFieldValue("invites", (prev) =>
           prev.map((i) =>
             i.id === invite.id
               ? {
@@ -390,7 +421,7 @@ export function InviteMembersForm({
       if (!mountedRef.current) return
       const message = "Failed to send invitation. Please try again."
       toast.error(message)
-      setInvites((prev) =>
+      form.setFieldValue("invites", (prev) =>
         prev.map((i) =>
           i.id === invite.id
             ? {
@@ -403,18 +434,14 @@ export function InviteMembersForm({
       )
     } finally {
       submittingRef.current = false
-      if (mountedRef.current) {
-        setIsSubmitting(false)
-      }
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (submittingRef.current || isSubmitting) return
+  async function submitInvites(values: InviteMembersFormValues) {
+    if (submittingRef.current) return
 
-    let currentInvites = invites
-    const trimmed = draft.trim()
+    let currentInvites = values.invites
+    const trimmed = values.draft.trim()
     if (trimmed) {
       const parts = trimmed
         .split(SPLIT_RE)
@@ -435,9 +462,20 @@ export function InviteMembersForm({
           })
         }
         currentInvites = next
-        setInvites(currentInvites)
-        setDraft("")
+        form.setFieldValue("invites", currentInvites)
+        form.setFieldValue("draft", "")
       }
+    }
+
+    const hasInvalidInvites = currentInvites.some(
+      (invite) => !isValidEmail(invite.email),
+    )
+    if (hasInvalidInvites) {
+      toast.info("Review invalid invitations", {
+        description:
+          "Remove or correct invalid email addresses before continuing.",
+      })
+      return
     }
 
     const pendingInvites = currentInvites.filter(
@@ -446,7 +484,12 @@ export function InviteMembersForm({
     )
 
     if (pendingInvites.length === 0) {
-      if (canContinueWithoutSending) {
+      if (
+        currentInvites.length > 0 &&
+        currentInvites.every(
+          (invite) => isAutoJoin(invite.email) || invite.status === "success",
+        )
+      ) {
         if (currentInvites.every((i) => isAutoJoin(i.email))) {
           toast.info("All members have auto-join enabled", {
             description: "No invitation emails needed for this domain.",
@@ -455,15 +498,22 @@ export function InviteMembersForm({
         onComplete?.()
         return
       }
-      toast.info("No invitations to send", {
-        description: "Add one or more valid email addresses first.",
-      })
+      toast.info(
+        hasInvalidInvites
+          ? "Review invalid invitations"
+          : "No invitations to send",
+        {
+          description: hasInvalidInvites
+            ? "Remove or correct invalid email addresses before continuing."
+            : "Add one or more valid email addresses first.",
+        },
+      )
       return
     }
 
     submittingRef.current = true
-    setIsSubmitting(true)
-    setInvites(
+    form.setFieldValue(
+      "invites",
       currentInvites.map((i) =>
         pendingInvites.some((p) => p.id === i.id)
           ? { ...i, status: "sending", error: undefined }
@@ -474,15 +524,15 @@ export function InviteMembersForm({
     const payload = pendingInvites.map((i) => ({
       email: i.email,
       role: i.role,
-      ...(note.trim() ? { note: note.trim() } : {}),
+      ...(values.note.trim() ? { note: values.note.trim() } : {}),
     }))
 
     try {
       const results = await onInvite(payload)
       if (!mountedRef.current) return
 
-      setInvites((prev) =>
-        prev.map((item) => {
+      const nextInvites: InviteMembersFormValues["invites"] =
+        currentInvites.map((item) => {
           const res = results.find(
             (r) => r.email.toLowerCase() === item.email.toLowerCase(),
           )
@@ -493,16 +543,31 @@ export function InviteMembersForm({
           }
           return {
             ...item,
-            status: res.success ? "success" : "error",
+            status: res.success ? ("success" as const) : ("error" as const),
             error: res.error,
           }
-        }),
-      )
+        })
+      form.setFieldValue("invites", nextInvites)
 
       const successCount = results.filter((r) => r.success).length
       const failureCount = payload.length - successCount
 
-      if (failureCount === 0 && successCount > 0) {
+      const hasInvalidInvites = nextInvites.some(
+        (invite) => !isValidEmail(invite.email),
+      )
+      const hasPendingSendable = nextInvites.some(
+        (invite) =>
+          isValidEmail(invite.email) &&
+          !isAutoJoin(invite.email) &&
+          invite.status !== "success",
+      )
+
+      if (
+        failureCount === 0 &&
+        successCount > 0 &&
+        !hasInvalidInvites &&
+        !hasPendingSendable
+      ) {
         toast.success(
           successCount === 1
             ? "Invitation sent"
@@ -526,7 +591,7 @@ export function InviteMembersForm({
       const message = "Could not send invitations. Please try again."
       toast.error("Invitation error", { description: message })
       if (!mountedRef.current) return
-      setInvites((prev) =>
+      form.setFieldValue("invites", (prev) =>
         prev.map((i) =>
           i.status === "sending"
             ? { ...i, status: "error", error: message }
@@ -535,23 +600,23 @@ export function InviteMembersForm({
       )
     } finally {
       submittingRef.current = false
-      if (mountedRef.current) {
-        setIsSubmitting(false)
-      }
     }
   }
 
   return (
     <form
-      onSubmit={handleSubmit}
-      className={cn("flex flex-col gap-5", className)}
+      onSubmit={(event) => {
+        event.preventDefault()
+        void form.handleSubmit()
+      }}
+      className={cn("flex min-w-0 max-w-full flex-col gap-5", className)}
     >
       {/* Header Row: Label & Default Role Selector */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <Label htmlFor="invite-email-input" className="font-medium text-sm">
           Invitees
         </Label>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <span className="hidden font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em] sm:inline">
             Default role
           </span>
@@ -578,7 +643,7 @@ export function InviteMembersForm({
                 return (
                   <DropdownMenuItem
                     key={r}
-                    onClick={() => setDefaultRole(r)}
+                    onClick={() => form.setFieldValue("defaultRole", r)}
                     data-testid={`default-role-option-${r}`}
                     className="flex items-start gap-2 py-1.5 cursor-pointer capitalize"
                   >
@@ -617,7 +682,7 @@ export function InviteMembersForm({
         )}
       >
         <ScrollArea className="max-h-48 w-full">
-          <div className="flex flex-wrap items-center gap-1.5 p-0.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 p-0.5">
             {invites.map((invite) => (
               <ChipPill
                 key={invite.id}
@@ -639,7 +704,7 @@ export function InviteMembersForm({
               aria-label="Recipient email addresses"
               type="text"
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => form.setFieldValue("draft", e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
               onBlur={handleBlur}
@@ -648,7 +713,7 @@ export function InviteMembersForm({
                   ? "name@example.com, another@example.com…"
                   : "Add another…"
               }
-              className="min-w-[14ch] flex-1 bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted-foreground"
+              className="min-w-[8ch] max-w-full flex-[1_1_8ch] bg-transparent px-1.5 py-1 text-sm outline-none placeholder:text-muted-foreground"
               disabled={isSubmitting}
             />
           </div>
@@ -660,7 +725,7 @@ export function InviteMembersForm({
         data-testid="stats-counter"
         role="status"
         aria-live="polite"
-        className="flex items-center gap-3 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]"
+        className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]"
       >
         <span>
           <span className="text-foreground font-semibold">
@@ -669,7 +734,7 @@ export function InviteMembersForm({
           to invite
         </span>
         {stats.autojoin > 0 && (
-          <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+          <span className="flex items-center gap-1 text-foreground">
             <HugeiconsIcon icon={SparklesIcon} size={12} />
             <span>{stats.autojoin} auto-join</span>
           </span>
@@ -697,7 +762,7 @@ export function InviteMembersForm({
             </Label>
             <button
               type="button"
-              onClick={() => setShowMessage(false)}
+              onClick={() => form.setFieldValue("showMessage", false)}
               disabled={isSubmitting}
               className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em] hover:text-foreground transition-colors cursor-pointer disabled:pointer-events-none"
             >
@@ -708,7 +773,7 @@ export function InviteMembersForm({
             id="invite-personal-note"
             rows={3}
             value={note}
-            onChange={(e) => setNote(e.target.value)}
+            onChange={(e) => form.setFieldValue("note", e.target.value)}
             placeholder="Add a quick hello so they know what they're joining."
             disabled={isSubmitting}
             className="resize-none text-xs"
@@ -718,7 +783,7 @@ export function InviteMembersForm({
         <div>
           <button
             type="button"
-            onClick={() => setShowMessage(true)}
+            onClick={() => form.setFieldValue("showMessage", true)}
             disabled={isSubmitting}
             aria-expanded={false}
             aria-controls="personal-note-section"
@@ -731,7 +796,7 @@ export function InviteMembersForm({
       )}
 
       {/* Action Footer */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-border/60 pt-4">
+      <div className="flex min-w-0 flex-col items-stretch justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
         <div className="flex items-center">
           <button
             type="button"
@@ -745,7 +810,7 @@ export function InviteMembersForm({
               className={cn(
                 "shrink-0 transition-colors",
                 copied
-                  ? "text-emerald-600 dark:text-emerald-400"
+                  ? "text-foreground"
                   : "opacity-60 group-hover:opacity-100",
               )}
             />
@@ -761,7 +826,7 @@ export function InviteMembersForm({
           </button>
         </div>
 
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {onSkip && (
             <Button
               type="button"
@@ -812,7 +877,7 @@ export function InviteMembersForm({
       {/* Domain Auto-Join Info Banner */}
       <div
         data-testid="domain-info-banner"
-        className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 text-sm"
+        className="min-w-0 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 text-sm"
       >
         <div className="flex items-start gap-3">
           <HugeiconsIcon
@@ -884,9 +949,9 @@ export function ChipPill({
         isFailed
           ? "border-destructive/40 bg-destructive/5 text-destructive"
           : autoJoinActive
-            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-300"
+            ? "border-border bg-muted text-foreground"
             : !valid
-              ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-300"
+              ? "border-border bg-secondary text-secondary-foreground"
               : "border-border bg-foreground/[0.04] text-foreground",
       )}
     >
@@ -895,7 +960,7 @@ export function ChipPill({
         className={cn(
           "flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[9px] uppercase",
           autoJoinActive
-            ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-semibold"
+            ? "bg-muted text-foreground font-semibold"
             : "bg-foreground/[0.08] text-muted-foreground font-medium",
         )}
         aria-hidden="true"
@@ -912,7 +977,7 @@ export function ChipPill({
       {autoJoinActive ? (
         <span
           data-testid={`autojoin-badge-${invite.email}`}
-          className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 font-mono text-[9px] text-emerald-700 font-medium uppercase tracking-[0.18em] dark:text-emerald-400"
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px] text-foreground font-medium uppercase tracking-[0.18em]"
         >
           <HugeiconsIcon icon={SparklesIcon} size={10} />
           Auto-join
@@ -982,7 +1047,7 @@ export function ChipPill({
         <HugeiconsIcon
           icon={CheckmarkCircle02Icon}
           size={12}
-          className="text-emerald-600 dark:text-emerald-400 shrink-0"
+          className="text-foreground shrink-0"
         />
       )}
 

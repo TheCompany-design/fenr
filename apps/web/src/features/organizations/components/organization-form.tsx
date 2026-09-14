@@ -5,17 +5,14 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useForm } from "@tanstack/react-form"
-import { useQuery } from "@tanstack/react-query"
+import { useForm, useStore } from "@tanstack/react-form"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
-import { toast } from "sonner"
 
 import { FieldError } from "@/features/auth/components/field-error"
-import { slugAvailabilityQueryOptions } from "../queries"
 import {
   type CreateOrganizationInput,
   createOrganizationSchema,
@@ -23,6 +20,7 @@ import {
   isValidSlugFormat,
   normalizeSlug,
 } from "../schemas"
+import { checkSlugAvailabilityFn } from "../server"
 
 export interface OrganizationFormProps {
   defaultValues?: {
@@ -44,32 +42,7 @@ export function OrganizationForm({
   onCancel,
   className,
 }: OrganizationFormProps) {
-  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = React.useState(
-    Boolean(defaultValues?.slug),
-  )
-  const [currentSlug, setCurrentSlug] = React.useState(
-    defaultValues?.slug ?? "",
-  )
-  const [debouncedSlug, setDebouncedSlug] = React.useState(
-    normalizeSlug(defaultValues?.slug ?? ""),
-  )
-
-  // Debounce slug input for server availability query
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSlug(normalizeSlug(currentSlug))
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [currentSlug])
-
-  const isSlugLengthValid = debouncedSlug.length >= 3
-  const isSlugFormatValid = isValidSlugFormat(debouncedSlug)
-  const isSlugReserved = isReservedSlug(debouncedSlug)
-
-  const { data: availabilityData, isFetching: isCheckingSlug } = useQuery({
-    ...slugAvailabilityQueryOptions(debouncedSlug),
-    enabled: isSlugLengthValid && isSlugFormatValid && !isSlugReserved,
-  })
+  const isSlugManuallyEditedRef = React.useRef(Boolean(defaultValues?.slug))
 
   const form = useForm({
     defaultValues: {
@@ -77,31 +50,11 @@ export function OrganizationForm({
       slug: defaultValues?.slug ?? "",
     } as CreateOrganizationInput,
     validators: {
-      onChange: createOrganizationSchema,
+      onBlur: createOrganizationSchema,
+      onSubmit: createOrganizationSchema,
     },
     onSubmit: async ({ value }) => {
       const normalized = normalizeSlug(value.slug)
-      if (normalized !== debouncedSlug || isCheckingSlug) {
-        toast.error("Please wait", {
-          description: "Checking slug availability...",
-        })
-        return
-      }
-
-      if (isReservedSlug(normalized)) {
-        toast.error("Reserved slug", {
-          description: "This URL slug is reserved and cannot be used.",
-        })
-        return
-      }
-
-      if (availabilityData && !availabilityData.available) {
-        toast.error("Slug unavailable", {
-          description: availabilityData.reason ?? "This slug is already taken.",
-        })
-        return
-      }
-
       await onSubmit({
         name: value.name.trim(),
         slug: normalized,
@@ -110,19 +63,33 @@ export function OrganizationForm({
     },
   })
 
-  const isDebouncing = normalizeSlug(currentSlug) !== debouncedSlug
+  const currentSlug = useStore(form.store, (state) => state.values.slug)
+  const slugMeta = useStore(form.store, (state) => state.fieldMeta.slug)
+  const isSlugLengthValid = currentSlug.length >= 3
+  const normalizedSlug = normalizeSlug(currentSlug)
+  const isSlugFormatValid = isValidSlugFormat(normalizedSlug)
+  const isSlugReserved = isReservedSlug(normalizedSlug)
+  const isCheckingSlug = slugMeta?.isValidating ?? false
+  const showSlugValidation = slugMeta?.isTouched === true
+  const slugError = slugMeta?.errors[0]
+  const slugErrorMessage =
+    typeof slugError === "string"
+      ? slugError
+      : slugError && typeof slugError === "object" && "message" in slugError
+        ? String(slugError.message)
+        : "Invalid workspace URL"
 
   // Derive slug availability status
   let slugStatusBadge: React.ReactNode = null
   const isAvailable =
-    !isDebouncing &&
-    availabilityData?.available === true &&
+    slugMeta?.isDirty === true &&
+    slugMeta.isValid === true &&
     !isCheckingSlug &&
     isSlugFormatValid &&
     !isSlugReserved
 
   if (currentSlug.length > 0) {
-    if (isCheckingSlug || isDebouncing) {
+    if (isCheckingSlug) {
       slugStatusBadge = (
         <span
           role="status"
@@ -137,7 +104,7 @@ export function OrganizationForm({
           Checking availability…
         </span>
       )
-    } else if (isSlugReserved) {
+    } else if (showSlugValidation && isSlugReserved) {
       slugStatusBadge = (
         <span
           role="alert"
@@ -147,13 +114,13 @@ export function OrganizationForm({
           Reserved slug
         </span>
       )
-    } else if (currentSlug.length < 3) {
+    } else if (showSlugValidation && currentSlug.length < 3) {
       slugStatusBadge = (
         <span className="text-xs text-muted-foreground">
           Minimum 3 characters
         </span>
       )
-    } else if (!isSlugFormatValid) {
+    } else if (showSlugValidation && !isSlugFormatValid) {
       slugStatusBadge = (
         <span
           role="alert"
@@ -163,14 +130,14 @@ export function OrganizationForm({
           Lowercase letters, numbers, and hyphens only
         </span>
       )
-    } else if (availabilityData?.available === false) {
+    } else if (showSlugValidation && slugError) {
       slugStatusBadge = (
         <span
           role="alert"
           className="flex items-center gap-1.5 text-xs text-destructive"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={14} />
-          {availabilityData.reason ?? "Slug is already taken"}
+          {slugErrorMessage}
         </span>
       )
     } else if (isAvailable) {
@@ -178,7 +145,7 @@ export function OrganizationForm({
         <span
           role="status"
           aria-live="polite"
-          className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium"
+          className="flex items-center gap-1.5 text-xs text-foreground font-medium"
         >
           <HugeiconsIcon icon={Tick02Icon} size={14} />
           Slug is available
@@ -214,10 +181,9 @@ export function OrganizationForm({
                 field.handleChange(newName)
 
                 // Auto-generate slug if user hasn't manually edited it
-                if (!isSlugManuallyEdited) {
+                if (!isSlugManuallyEditedRef.current) {
                   const generatedSlug = normalizeSlug(newName)
                   form.setFieldValue("slug", generatedSlug)
-                  setCurrentSlug(generatedSlug)
                 }
               }}
             />
@@ -227,7 +193,23 @@ export function OrganizationForm({
       </form.Field>
 
       {/* Organization Slug Field */}
-      <form.Field name="slug">
+      <form.Field
+        name="slug"
+        asyncDebounceMs={300}
+        validators={{
+          onChangeAsync: async ({ value }) => {
+            const normalized = normalizeSlug(value)
+            if (!isValidSlugFormat(normalized) || isReservedSlug(normalized)) {
+              return undefined
+            }
+
+            const availability = await checkSlugAvailabilityFn({
+              data: { slug: normalized },
+            })
+            return availability.available ? undefined : availability.reason
+          },
+        }}
+      >
         {(field) => (
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
@@ -248,9 +230,8 @@ export function OrganizationForm({
                 onBlur={field.handleBlur}
                 onChange={(e) => {
                   const newSlug = e.target.value.toLowerCase()
-                  setIsSlugManuallyEdited(true)
+                  isSlugManuallyEditedRef.current = true
                   field.handleChange(newSlug)
-                  setCurrentSlug(newSlug)
                 }}
               />
             </div>
@@ -271,9 +252,9 @@ export function OrganizationForm({
             (!isSlugLengthValid ||
               !isSlugFormatValid ||
               isSlugReserved ||
-              availabilityData?.available === false ||
+              slugMeta?.isValid === false ||
               isCheckingSlug ||
-              isDebouncing)
+              Boolean(slugError))
 
           return (
             <div className="flex items-center justify-end gap-3 pt-2">

@@ -267,11 +267,9 @@ describe("Organization Domain Components (Atom 7)", () => {
         ),
       )
 
-      expect(html).toContain("Fenr Tech")
-      expect(html).toContain("fenr.app/fenr-tech")
-      expect(html).toContain("Organization Details")
-      expect(html).toContain("Invite Teammates")
-      expect(html).toContain("Members &amp; Permissions")
+      expect(html).toContain("General")
+      expect(html).toContain("Invite teammates")
+      expect(html).toContain("Members &amp; invites")
       expect(html).toContain("owner")
     })
 
@@ -312,7 +310,6 @@ describe("Organization Domain Components (Atom 7)", () => {
         ),
       )
 
-      expect(html).toContain("Fenr Tech")
       expect(html).not.toContain("Invite Teammates")
     })
   })

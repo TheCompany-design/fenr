@@ -26,6 +26,13 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -59,6 +66,46 @@ import {
 
 const log = moduleLogger("organizations")
 
+const TONES = [
+  "bg-muted text-foreground border-border",
+  "bg-secondary text-secondary-foreground border-border",
+  "bg-accent text-accent-foreground border-border",
+  "bg-muted text-muted-foreground border-border",
+  "bg-secondary text-secondary-foreground border-border",
+  "bg-accent text-accent-foreground border-border",
+] as const
+
+export function getMemberTone(key: string): string {
+  let hash = 0
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash << 5) - hash + key.charCodeAt(i)
+    hash |= 0
+  }
+  const index = Math.abs(hash) % TONES.length
+  return TONES[index]
+}
+
+export function getMemberInitials(
+  name?: string | null,
+  email?: string | null,
+): string {
+  const trimmedName = name?.trim()
+  if (trimmedName) {
+    const parts = trimmedName.split(/\s+/)
+    if (parts.length >= 2) {
+      return (
+        (parts[0][0] || "") + (parts[parts.length - 1][0] || "")
+      ).toUpperCase()
+    }
+    return trimmedName.slice(0, 2).toUpperCase()
+  }
+  const trimmedEmail = email?.trim()
+  if (trimmedEmail) {
+    return trimmedEmail.slice(0, 2).toUpperCase()
+  }
+  return "??"
+}
+
 export interface OrganizationMembersProps {
   organizationId: string
   currentUserId: string
@@ -87,7 +134,10 @@ export function OrganizationMembers({
     error: membersError,
   } = useQuery(organizationMembersQueryOptions(organizationId))
 
-  const members = membersData?.members ?? []
+  const members = React.useMemo(
+    () => membersData?.members ?? [],
+    [membersData?.members],
+  )
 
   const {
     data: invitations = [],
@@ -102,6 +152,7 @@ export function OrganizationMembers({
   const [loadingActionIds, setLoadingActionIds] = React.useState<Set<string>>(
     () => new Set(),
   )
+  const actionLocksRef = React.useRef(new Set<string>())
 
   const addLoadingId = React.useCallback((id: string) => {
     setLoadingActionIds((prev) => new Set(prev).add(id))
@@ -115,6 +166,24 @@ export function OrganizationMembers({
     })
   }, [])
 
+  const acquireAction = React.useCallback(
+    (id: string) => {
+      if (actionLocksRef.current.has(id)) return false
+      actionLocksRef.current.add(id)
+      addLoadingId(id)
+      return true
+    },
+    [addLoadingId],
+  )
+
+  const releaseAction = React.useCallback(
+    (id: string) => {
+      actionLocksRef.current.delete(id)
+      removeLoadingId(id)
+    },
+    [removeLoadingId],
+  )
+
   // Count active owners
   const ownerCount = React.useMemo(
     () => members.filter((m) => m.role === "owner").length,
@@ -125,7 +194,7 @@ export function OrganizationMembers({
     memberId: string,
     newRole: OrganizationRole,
   ) => {
-    addLoadingId(memberId)
+    if (!acquireAction(memberId)) return
     try {
       await updateMemberRoleFn({
         data: {
@@ -135,18 +204,31 @@ export function OrganizationMembers({
         },
       })
       toast.success("Member role updated")
-      await invalidateOrganizationQueries(queryClient, organizationId)
-      await router.invalidate()
+      try {
+        await invalidateOrganizationQueries(queryClient, organizationId)
+        await router.invalidate()
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, memberId, newRole, organizationId },
+          "Member role updated but refresh failed",
+        )
+        toast.warning("Role updated", {
+          description: "The change was saved. Refresh the page to see it.",
+        })
+      }
     } catch (err) {
       log.error(
         { err, memberId, newRole, organizationId },
         "Failed to update member role",
       )
       toast.error("Failed to update role", {
-        description: "Could not update member role. Please try again.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not update member role. Please try again.",
       })
     } finally {
-      removeLoadingId(memberId)
+      releaseAction(memberId)
     }
   }
 
@@ -155,19 +237,20 @@ export function OrganizationMembers({
     memberName: string,
     isSelf: boolean,
   ) => {
-    const confirmed = await openConfirm({
-      title: isSelf ? "Leave organization?" : `Remove ${memberName}?`,
-      description: isSelf
-        ? "You will lose access to all resources in this organization until re-invited."
-        : `Are you sure you want to remove ${memberName} from this organization?`,
-      confirmText: isSelf ? "Leave" : "Remove",
-      variant: "destructive",
-    })
+    if (!acquireAction(memberId)) return
 
-    if (!confirmed) return
-
-    addLoadingId(memberId)
     try {
+      const confirmed = await openConfirm({
+        title: isSelf ? "Leave organization?" : `Remove ${memberName}?`,
+        description: isSelf
+          ? "You will lose access to all resources in this organization until re-invited."
+          : `Are you sure you want to remove ${memberName} from this organization?`,
+        confirmText: isSelf ? "Leave" : "Remove",
+        variant: "destructive",
+      })
+
+      if (!confirmed) return
+
       await removeMemberFn({
         data: {
           organizationId,
@@ -175,18 +258,38 @@ export function OrganizationMembers({
         },
       })
       toast.success(isSelf ? "You left the organization" : "Member removed")
-      await invalidateOrganizationQueries(queryClient, organizationId)
+      try {
+        await invalidateOrganizationQueries(queryClient, organizationId)
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, memberId, organizationId },
+          "Member removed but refresh failed",
+        )
+      }
       if (isSelf) {
-        await router.navigate({ to: "/", replace: true })
-        await router.invalidate()
+        try {
+          await router.navigate({ to: "/", replace: true })
+          await router.invalidate()
+        } catch (navigationErr) {
+          log.warn(
+            { err: navigationErr, memberId, organizationId },
+            "Member removed but navigation failed",
+          )
+          toast.warning("You left the organization", {
+            description: "Refresh the page to continue.",
+          })
+        }
       }
     } catch (err) {
       log.error({ err, memberId, organizationId }, "Failed to remove member")
       toast.error("Failed to remove member", {
-        description: "Could not remove member. Please try again.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not remove member. Please try again.",
       })
     } finally {
-      removeLoadingId(memberId)
+      releaseAction(memberId)
     }
   }
 
@@ -194,17 +297,17 @@ export function OrganizationMembers({
     invitationId: string,
     email: string,
   ) => {
-    const confirmed = await openConfirm({
-      title: "Revoke invitation?",
-      description: `Revoke the pending invitation for ${email}? They will no longer be able to use the invitation link.`,
-      confirmText: "Revoke",
-      variant: "destructive",
-    })
-
-    if (!confirmed) return
-
-    addLoadingId(invitationId)
+    if (!acquireAction(invitationId)) return
     try {
+      const confirmed = await openConfirm({
+        title: "Revoke invitation?",
+        description: `Revoke the pending invitation for ${email}? They will no longer be able to use the invitation link.`,
+        confirmText: "Revoke",
+        variant: "destructive",
+      })
+
+      if (!confirmed) return
+
       await cancelInvitationFn({
         data: {
           organizationId,
@@ -212,17 +315,30 @@ export function OrganizationMembers({
         },
       })
       toast.success("Invitation revoked")
-      await invalidateOrganizationQueries(queryClient, organizationId)
+      try {
+        await invalidateOrganizationQueries(queryClient, organizationId)
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, invitationId, organizationId },
+          "Invitation revoked but refresh failed",
+        )
+        toast.warning("Invitation revoked", {
+          description: "The change was saved. Refresh the page to see it.",
+        })
+      }
     } catch (err) {
       log.error(
         { err, invitationId, organizationId },
         "Failed to cancel invitation",
       )
       toast.error("Failed to cancel invitation", {
-        description: "Could not revoke invitation. Please try again.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not revoke invitation. Please try again.",
       })
     } finally {
-      removeLoadingId(invitationId)
+      releaseAction(invitationId)
     }
   }
 
@@ -252,27 +368,32 @@ export function OrganizationMembers({
     <div className={cn("flex flex-col gap-8", className)}>
       {/* Active Members Section */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
+        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
-            <h3 className="text-base font-medium flex items-center gap-2">
+            <h3 className="font-heading text-lg font-medium flex items-center gap-2">
               <HugeiconsIcon icon={UserGroupIcon} size={18} />
               Members ({members.length})
             </h3>
             <p className="text-xs text-muted-foreground">
-              Manage member roles and workspace access.
+              {members.length} {members.length === 1 ? "person" : "people"}
+              {isOwnerOrAdmin
+                ? ` · ${invitations.length} pending invite${invitations.length === 1 ? "" : "s"}`
+                : ""}
             </p>
           </div>
-        </div>
+        </header>
 
-        <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xs">
           <ScrollArea className="w-full">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[300px]">User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="w-[80px] text-right">Actions</TableHead>
+                  <TableHead className="ps-4 min-w-[220px]">Member</TableHead>
+                  <TableHead className="min-w-[140px]">Role</TableHead>
+                  <TableHead className="min-w-[120px]">Joined</TableHead>
+                  <TableHead className="pe-4 w-[70px] text-right">
+                    Actions
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -281,20 +402,39 @@ export function OrganizationMembers({
                   const isMemberOwner = member.role === "owner"
                   const isSoleOwner = isMemberOwner && ownerCount <= 1
                   const isBusy = loadingActionIds.has(member.id)
+                  const tone = getMemberTone(member.user.email || member.userId)
+                  const initials = getMemberInitials(
+                    member.user.name,
+                    member.user.email,
+                  )
 
                   // Can current user manage this member?
-                  // Owners can manage anyone (except sole owner demotion/removal).
+                  // Owners can manage anyone (except demoting sole owner).
                   // Admins can only manage regular members.
-                  const canManage =
-                    isOwner ||
-                    (currentUserRole === "admin" && member.role === "member") ||
-                    isCurrentUser
+                  const canChangeRole =
+                    !isSoleOwner &&
+                    ((isOwner && !isCurrentUser) ||
+                      (currentUserRole === "admin" &&
+                        member.role === "member" &&
+                        !isCurrentUser))
+
+                  const canRemove =
+                    !isSoleOwner &&
+                    (isOwner ||
+                      (currentUserRole === "admin" &&
+                        member.role === "member") ||
+                      isCurrentUser)
 
                   return (
                     <TableRow key={member.id}>
-                      <TableCell>
+                      <TableCell className="ps-4">
                         <div className="flex items-center gap-3">
-                          <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-semibold text-xs shrink-0 select-none">
+                          <div
+                            className={cn(
+                              "size-8 rounded-full border flex items-center justify-center font-mono text-[11px] font-semibold shrink-0 select-none",
+                              tone,
+                            )}
+                          >
                             {member.user.image ? (
                               <img
                                 src={member.user.image}
@@ -302,24 +442,22 @@ export function OrganizationMembers({
                                 className="size-full rounded-full object-cover"
                               />
                             ) : (
-                              (
-                                Array.from(member.user.name || "?")[0] ?? "?"
-                              ).toUpperCase()
+                              initials
                             )}
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-medium truncate flex items-center gap-1.5">
+                            <span className="text-sm font-medium truncate flex items-center gap-1.5 text-foreground">
                               {member.user.name}
                               {isCurrentUser && (
                                 <Badge
                                   variant="secondary"
-                                  className="text-[10px] px-1.5 py-0"
+                                  className="text-[10px] px-1.5 py-0 font-normal"
                                 >
                                   You
                                 </Badge>
                               )}
                             </span>
-                            <span className="text-xs text-muted-foreground truncate">
+                            <span className="text-xs text-muted-foreground truncate font-mono">
                               {member.user.email}
                             </span>
                           </div>
@@ -327,32 +465,89 @@ export function OrganizationMembers({
                       </TableCell>
 
                       <TableCell>
-                        <Badge
-                          variant={
-                            member.role === "owner"
-                              ? "default"
-                              : member.role === "admin"
-                                ? "secondary"
-                                : "outline"
-                          }
-                          className="capitalize text-xs font-normal"
-                        >
-                          {member.role === "owner" && (
-                            <HugeiconsIcon
-                              icon={CrownIcon}
-                              size={12}
-                              className="mr-1"
-                            />
-                          )}
-                          {member.role === "admin" && (
-                            <HugeiconsIcon
-                              icon={Shield01Icon}
-                              size={12}
-                              className="mr-1"
-                            />
-                          )}
-                          {member.role}
-                        </Badge>
+                        {canChangeRole ? (
+                          <Select
+                            value={member.role}
+                            onValueChange={(value) => {
+                              if (value && value !== member.role) {
+                                handleUpdateRole(
+                                  member.id,
+                                  value as OrganizationRole,
+                                )
+                              }
+                            }}
+                            disabled={isBusy}
+                          >
+                            <SelectTrigger
+                              size="sm"
+                              aria-label={`Change role for ${member.user.name}`}
+                              className="h-8 w-32 capitalize text-xs font-medium cursor-pointer"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="start">
+                              {isOwner && (
+                                <SelectItem value="owner">
+                                  <div className="flex items-center gap-1.5">
+                                    <HugeiconsIcon
+                                      icon={CrownIcon}
+                                      size={12}
+                                      className="text-muted-foreground"
+                                    />
+                                    <span>Owner</span>
+                                  </div>
+                                </SelectItem>
+                              )}
+                              <SelectItem value="admin">
+                                <div className="flex items-center gap-1.5">
+                                  <HugeiconsIcon
+                                    icon={Shield01Icon}
+                                    size={12}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span>Admin</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="member">
+                                <div className="flex items-center gap-1.5">
+                                  <HugeiconsIcon
+                                    icon={UserIcon}
+                                    size={12}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span>Member</span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Badge
+                            variant={
+                              member.role === "owner"
+                                ? "default"
+                                : member.role === "admin"
+                                  ? "secondary"
+                                  : "outline"
+                            }
+                            className="capitalize text-xs font-normal gap-1"
+                          >
+                            {member.role === "owner" && (
+                              <HugeiconsIcon
+                                icon={CrownIcon}
+                                size={12}
+                                className="text-muted-foreground"
+                              />
+                            )}
+                            {member.role === "admin" && (
+                              <HugeiconsIcon
+                                icon={Shield01Icon}
+                                size={12}
+                                className="text-muted-foreground"
+                              />
+                            )}
+                            <span>{member.role}</span>
+                          </Badge>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
@@ -366,21 +561,22 @@ export function OrganizationMembers({
                         )}
                       </TableCell>
 
-                      <TableCell className="text-right">
+                      <TableCell className="pe-4 text-right">
                         {isBusy ? (
                           <HugeiconsIcon
                             icon={Loading03Icon}
                             size={16}
                             className="animate-spin text-muted-foreground ml-auto"
                           />
-                        ) : canManage ? (
+                        ) : (
                           <DropdownMenu>
                             <DropdownMenuTrigger
                               render={
                                 <Button
                                   variant="ghost"
                                   size="icon-xs"
-                                  aria-label="Member actions"
+                                  aria-label={`Actions for ${member.user.name}`}
+                                  className="cursor-pointer"
                                 />
                               }
                             >
@@ -389,59 +585,44 @@ export function OrganizationMembers({
                                 size={16}
                               />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              {isOwner && (
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuGroup>
+                                <DropdownMenuItem
+                                  render={
+                                    <a href={`mailto:${member.user.email}`} />
+                                  }
+                                  className="flex items-center gap-2 cursor-pointer"
+                                >
+                                  <HugeiconsIcon icon={Mail01Icon} size={14} />
+                                  <span>Send email</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuGroup>
+
+                              {isOwner && !isMemberOwner && (
                                 <>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuGroup>
                                     <DropdownMenuLabel>
-                                      Change Role
+                                      Role Assignment
                                     </DropdownMenuLabel>
                                     <DropdownMenuItem
-                                      disabled={member.role === "owner"}
                                       onClick={() =>
                                         handleUpdateRole(member.id, "owner")
                                       }
+                                      className="cursor-pointer"
                                     >
                                       <HugeiconsIcon
                                         icon={CrownIcon}
                                         size={14}
+                                        className="text-muted-foreground"
                                       />
-                                      Make Owner
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      disabled={
-                                        member.role === "admin" ||
-                                        (isSoleOwner && member.role === "owner")
-                                      }
-                                      onClick={() =>
-                                        handleUpdateRole(member.id, "admin")
-                                      }
-                                    >
-                                      <HugeiconsIcon
-                                        icon={Shield01Icon}
-                                        size={14}
-                                      />
-                                      Make Admin
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      disabled={
-                                        member.role === "member" ||
-                                        (isSoleOwner && member.role === "owner")
-                                      }
-                                      onClick={() =>
-                                        handleUpdateRole(member.id, "member")
-                                      }
-                                    >
-                                      <HugeiconsIcon
-                                        icon={UserIcon}
-                                        size={14}
-                                      />
-                                      Make Member
+                                      <span>Transfer Ownership</span>
                                     </DropdownMenuItem>
                                   </DropdownMenuGroup>
-                                  <DropdownMenuSeparator />
                                 </>
                               )}
+
+                              <DropdownMenuSeparator />
 
                               <DropdownMenuGroup>
                                 {isSoleOwner ? (
@@ -459,8 +640,8 @@ export function OrganizationMembers({
                                                 size={14}
                                               />
                                               {isCurrentUser
-                                                ? "Leave"
-                                                : "Remove"}
+                                                ? "Leave Organization"
+                                                : "Remove Member"}
                                             </DropdownMenuItem>
                                           </div>
                                         }
@@ -470,7 +651,7 @@ export function OrganizationMembers({
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
-                                ) : (
+                                ) : canRemove ? (
                                   <DropdownMenuItem
                                     variant="destructive"
                                     onClick={() =>
@@ -480,6 +661,7 @@ export function OrganizationMembers({
                                         isCurrentUser,
                                       )
                                     }
+                                    className="cursor-pointer"
                                   >
                                     <HugeiconsIcon
                                       icon={Delete02Icon}
@@ -489,11 +671,11 @@ export function OrganizationMembers({
                                       ? "Leave Organization"
                                       : "Remove Member"}
                                   </DropdownMenuItem>
-                                )}
+                                ) : null}
                               </DropdownMenuGroup>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        ) : null}
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -508,7 +690,7 @@ export function OrganizationMembers({
       {isOwnerOrAdmin && (
         <section className="flex flex-col gap-3">
           <div>
-            <h3 className="text-base font-medium flex items-center gap-2">
+            <h3 className="font-heading text-lg font-medium flex items-center gap-2">
               <HugeiconsIcon icon={Mail01Icon} size={18} />
               Pending Invitations ({invitations.length})
             </h3>
@@ -526,19 +708,19 @@ export function OrganizationMembers({
               Failed to load pending invitations.
             </div>
           ) : invitations.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border/70 p-6 text-center text-xs text-muted-foreground">
               No pending invitations.
             </div>
           ) : (
-            <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="rounded-lg border border-border/80 bg-card overflow-hidden shadow-xs">
               <ScrollArea className="w-full">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Email</TableHead>
+                      <TableHead className="ps-4">Email</TableHead>
                       <TableHead>Invited Role</TableHead>
                       <TableHead>Expires</TableHead>
-                      <TableHead className="w-[80px] text-right">
+                      <TableHead className="pe-4 w-[70px] text-right">
                         Actions
                       </TableHead>
                     </TableRow>
@@ -548,13 +730,21 @@ export function OrganizationMembers({
                       const isBusy = loadingActionIds.has(inv.id)
                       return (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-mono text-xs">
-                            {inv.email}
+                          <TableCell className="ps-4 font-mono text-xs">
+                            <div className="flex items-center gap-2">
+                              <span>{inv.email}</span>
+                              <Badge
+                                variant="outline"
+                                className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground px-1.5 py-0"
+                              >
+                                pending
+                              </Badge>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge
                               variant="outline"
-                              className="capitalize text-xs"
+                              className="capitalize text-xs font-normal"
                             >
                               {inv.role}
                             </Badge>
@@ -569,7 +759,7 @@ export function OrganizationMembers({
                               },
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="pe-4 text-right">
                             {isBusy ? (
                               <HugeiconsIcon
                                 icon={Loading03Icon}
@@ -580,16 +770,13 @@ export function OrganizationMembers({
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                title="Revoke invitation"
+                                aria-label={`Revoke invitation for ${inv.email}`}
                                 onClick={() =>
                                   handleCancelInvitation(inv.id, inv.email)
                                 }
+                                className="cursor-pointer text-muted-foreground hover:text-destructive"
                               >
-                                <HugeiconsIcon
-                                  icon={Cancel01Icon}
-                                  size={14}
-                                  className="text-destructive"
-                                />
+                                <HugeiconsIcon icon={Cancel01Icon} size={14} />
                               </Button>
                             )}
                           </TableCell>

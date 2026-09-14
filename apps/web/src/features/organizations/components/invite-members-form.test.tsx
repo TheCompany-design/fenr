@@ -366,6 +366,35 @@ describe("InviteMembersForm (Block 2)", () => {
     expect(onComplete).toHaveBeenCalledTimes(1)
   })
 
+  it("does not complete when a valid invite is mixed with an invalid chip", async () => {
+    const onComplete = mock(() => {})
+    const onInvite = mock(async () => [
+      { email: "valid@example.com", success: true },
+    ])
+
+    await act(async () => {
+      root.render(
+        React.createElement(InviteMembersForm, {
+          onInvite,
+          onComplete,
+          initialEmails: ["valid@example.com", "not-an-email"],
+        }),
+      )
+    })
+
+    const submitBtn = container.querySelector(
+      'button[data-testid="submit-invites-btn"]',
+    ) as HTMLButtonElement
+
+    await act(async () => {
+      submitBtn.click()
+    })
+
+    expect(onInvite).not.toHaveBeenCalled()
+    expect(onComplete).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("1 invalid")
+  })
+
   it("handles copy invite link functionality", async () => {
     const onInvite = mock(async () => [])
     let copiedText = ""

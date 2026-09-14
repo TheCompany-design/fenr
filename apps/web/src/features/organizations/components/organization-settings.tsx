@@ -1,52 +1,195 @@
 import {
+  Alert02Icon,
   Building01Icon,
-  CrownIcon,
+  Delete02Icon,
+  Loading03Icon,
   Mail01Icon,
-  Shield01Icon,
+  Tick02Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { useForm, useStore } from "@tanstack/react-form"
 import { useQueryClient } from "@tanstack/react-query"
-import { Badge } from "@workspace/ui/components/badge"
+import { useRouter } from "@tanstack/react-router"
+import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import { Separator } from "@workspace/ui/components/separator"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
+import { toast } from "sonner"
 
+import { useConfirmStore } from "@/components/feedback/confirm.store"
+import { moduleLogger } from "@/lib/logger"
 import { invalidateOrganizationQueries } from "../queries"
-import type { OrganizationRole } from "../schemas"
-import { type ActiveOrganization, inviteMemberFn } from "../server"
+import { type OrganizationRole, updateOrganizationSchema } from "../schemas"
+import {
+  type ActiveOrganization,
+  deleteOrganizationFn,
+  inviteMemberFn,
+  leaveOrganizationFn,
+  updateOrganizationFn,
+} from "../server"
 import { InviteMembersForm } from "./invite-members-form"
-import { OrganizationAvatar } from "./organization-avatar"
 import { OrganizationMembers } from "./organization-members"
+
+const log = moduleLogger("organizations")
 
 export interface OrganizationSettingsProps {
   activeOrganization: ActiveOrganization
   currentUserId: string
+  section?: "all" | "general" | "members" | "danger"
   className?: string
 }
 
 export function OrganizationSettings({
   activeOrganization,
   currentUserId,
+  section = "all",
   className,
 }: OrganizationSettingsProps) {
   const queryClient = useQueryClient()
+  const router = useRouter({ warn: false })
+  const openConfirm = useConfirmStore((state) => state.openConfirm)
   const org = activeOrganization.organization
   const role: OrganizationRole =
     activeOrganization.role === "owner" || activeOrganization.role === "admin"
       ? activeOrganization.role
       : "member"
-  const isOwnerOrAdmin = role === "owner" || role === "admin"
+  const isOwner = role === "owner"
+  const isOwnerOrAdmin = isOwner || role === "admin"
+  const showGeneral = section === "all" || section === "general"
+  const showMembers = section === "all" || section === "members"
+  const showDanger = section === "all" || section === "danger"
+
+  const form = useForm({
+    defaultValues: {
+      organizationId: org.id,
+      name: org.name,
+      slug: org.slug,
+      logo: org.logo,
+    },
+    validators: {
+      onBlur: updateOrganizationSchema,
+      onSubmit: updateOrganizationSchema,
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        const updated = await updateOrganizationFn({ data: value })
+        form.reset({
+          organizationId: updated.id,
+          name: updated.name,
+          slug: updated.slug,
+          logo: updated.logo,
+        })
+        toast.success("Workspace settings saved")
+        try {
+          await invalidateOrganizationQueries(queryClient, org.id)
+          await router.invalidate()
+        } catch (refreshErr) {
+          log.warn(
+            { err: refreshErr, organizationId: org.id },
+            "Workspace settings saved but refresh failed",
+          )
+          toast.warning("Workspace settings saved", {
+            description: "Refresh the page to see the latest workspace data.",
+          })
+        }
+      } catch (err) {
+        log.error(
+          { err, organizationId: org.id },
+          "Failed to update workspace settings",
+        )
+        toast.error("Could not save workspace settings", {
+          description: "Check the values and try again.",
+        })
+      }
+    },
+  })
+
+  const isDirty = useStore(form.store, (state) => state.isDirty)
+  const isSubmitting = useStore(form.store, (state) => state.isSubmitting)
+
+  const handleDiscard = () => {
+    form.reset({
+      organizationId: org.id,
+      name: org.name,
+      slug: org.slug,
+      logo: org.logo,
+    })
+  }
+
+  const handleLeave = async () => {
+    const confirmed = await openConfirm({
+      title: "Leave organization?",
+      description: "You will lose access to this workspace.",
+      confirmText: "Leave organization",
+      variant: "destructive",
+    })
+    if (!confirmed) return
+    try {
+      await leaveOrganizationFn({ data: { organizationId: org.id } })
+      toast.success("You left the organization")
+      try {
+        await invalidateOrganizationQueries(queryClient, org.id)
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, organizationId: org.id },
+          "Organization left but refresh failed",
+        )
+      }
+      await router.navigate({ to: "/", replace: true })
+    } catch (err) {
+      log.error({ err, organizationId: org.id }, "Failed to leave organization")
+      toast.error("Could not leave organization", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      })
+    }
+  }
+
+  const handleDelete = async () => {
+    const confirmed = await openConfirm({
+      title: `Delete ${org.name}?`,
+      description:
+        "This permanently removes the workspace, its members, and invitations.",
+      confirmText: "Delete organization",
+      variant: "destructive",
+    })
+    if (!confirmed) return
+    try {
+      await deleteOrganizationFn({ data: { organizationId: org.id } })
+      toast.success("Organization deleted")
+      try {
+        await invalidateOrganizationQueries(queryClient, org.id)
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, organizationId: org.id },
+          "Organization deleted but refresh failed",
+        )
+      }
+      await router.navigate({ to: "/", replace: true })
+    } catch (err) {
+      log.error(
+        { err, organizationId: org.id },
+        "Failed to delete organization",
+      )
+      toast.error("Could not delete organization", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      })
+    }
+  }
 
   const handleInviteBatch = React.useCallback(
     async (
-      invites: Array<{ email: string; role: OrganizationRole }>,
+      invites: Array<{ email: string; role: OrganizationRole; note?: string }>,
     ): Promise<Array<{ email: string; success: boolean; error?: string }>> => {
       const results = await Promise.all(
         invites.map(async (invite) => {
@@ -56,6 +199,7 @@ export function OrganizationSettings({
                 organizationId: org.id,
                 email: invite.email,
                 role: invite.role,
+                note: invite.note,
               },
             })
             return { email: invite.email, success: true }
@@ -71,154 +215,270 @@ export function OrganizationSettings({
           }
         }),
       )
-      await invalidateOrganizationQueries(queryClient, org.id)
+      try {
+        await invalidateOrganizationQueries(queryClient, org.id)
+      } catch (refreshErr) {
+        log.warn(
+          { err: refreshErr, organizationId: org.id },
+          "Invitations sent but organization refresh failed",
+        )
+      }
       return results
     },
     [org.id, queryClient],
   )
 
   return (
-    <div
-      className={cn("mx-auto flex w-full max-w-5xl flex-col gap-8", className)}
-    >
-      {/* Header Profile Section */}
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
-        <div className="flex items-center gap-4">
-          <OrganizationAvatar
-            name={org.name}
-            slug={org.slug}
-            logo={org.logo}
-            size="lg"
-            className="size-16 rounded-2xl border-2 border-border shadow-xs text-xl"
-          />
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold text-2xl tracking-tight text-foreground sm:text-3xl">
-                {org.name}
-              </h1>
-              <Badge
-                variant={
-                  role === "owner"
-                    ? "default"
-                    : role === "admin"
-                      ? "secondary"
-                      : "outline"
-                }
-                className="capitalize text-xs font-normal"
+    <div className={cn("flex min-w-0 flex-col gap-8", className)}>
+      {showGeneral && (
+        <section id="general" aria-labelledby="general-heading">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void form.handleSubmit()
+            }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle
+                  id="general-heading"
+                  className="flex items-center gap-2 text-base"
+                >
+                  <HugeiconsIcon icon={Building01Icon} size={18} />
+                  General
+                </CardTitle>
+                <CardDescription>
+                  Update the identity and public URL for this workspace.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-8">
+                <form.Field name="name">
+                  {(field) => (
+                    <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+                      <div>
+                        <Label htmlFor="organization-settings-name">
+                          Workspace name
+                        </Label>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Shown in invitations and navigation.
+                        </p>
+                      </div>
+                      <Input
+                        id="organization-settings-name"
+                        value={field.state.value}
+                        onBlur={field.handleBlur}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        disabled={!isOwner || isSubmitting}
+                        aria-invalid={
+                          field.state.meta.isTouched &&
+                          field.state.meta.errors.length > 0
+                        }
+                      />
+                    </div>
+                  )}
+                </form.Field>
+                <form.Field name="slug">
+                  {(field) => (
+                    <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+                      <div>
+                        <Label htmlFor="organization-settings-slug">
+                          Workspace URL
+                        </Label>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Use lowercase letters, numbers, and hyphens.
+                        </p>
+                      </div>
+                      <div className="flex items-center rounded-lg border border-input bg-background">
+                        <span className="select-none px-3 font-mono text-sm text-muted-foreground">
+                          fenr.app/
+                        </span>
+                        <Input
+                          id="organization-settings-slug"
+                          className="border-0 pl-0 font-mono focus-visible:ring-0"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(e) =>
+                            field.handleChange(e.target.value.toLowerCase())
+                          }
+                          disabled={!isOwner || isSubmitting}
+                          aria-invalid={
+                            field.state.meta.isTouched &&
+                            field.state.meta.errors.length > 0
+                          }
+                        />
+                      </div>
+                    </div>
+                  )}
+                </form.Field>
+                <form.Field name="logo">
+                  {(field) => (
+                    <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+                      <div>
+                        <Label htmlFor="organization-settings-logo">
+                          Logo URL
+                        </Label>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          Optional image URL for the workspace avatar.
+                        </p>
+                      </div>
+                      <Input
+                        id="organization-settings-logo"
+                        type="url"
+                        placeholder="https://…"
+                        value={field.state.value ?? ""}
+                        onBlur={field.handleBlur}
+                        onChange={(e) =>
+                          field.handleChange(e.target.value || null)
+                        }
+                        disabled={!isOwner || isSubmitting}
+                        aria-invalid={
+                          field.state.meta.isTouched &&
+                          field.state.meta.errors.length > 0
+                        }
+                      />
+                    </div>
+                  )}
+                </form.Field>
+              </CardContent>
+              <form.Subscribe
+                selector={(state) => [state.canSubmit, state.isSubmitting]}
               >
-                {role === "owner" && (
-                  <HugeiconsIcon icon={CrownIcon} size={12} className="mr-1" />
+                {([canSubmit, submitting]) => (
+                  <CardFooter className="justify-end gap-2 border-t border-border pt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDiscard}
+                      disabled={!isDirty || submitting}
+                    >
+                      Discard
+                    </Button>
+                    <Button
+                      type="submit"
+                      onClick={() => void form.handleSubmit()}
+                      disabled={
+                        !isOwner || !isDirty || !canSubmit || submitting
+                      }
+                    >
+                      {submitting ? (
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={16}
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <HugeiconsIcon icon={Tick02Icon} size={16} />
+                      )}
+                      Save changes
+                    </Button>
+                  </CardFooter>
                 )}
-                {role === "admin" && (
-                  <HugeiconsIcon
-                    icon={Shield01Icon}
-                    size={12}
-                    className="mr-1"
-                  />
-                )}
-                {role}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground font-mono">
-              fenr.app/{org.slug}
-            </p>
-          </div>
-        </div>
-      </header>
-
-      {/* General Information Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <HugeiconsIcon icon={Building01Icon} size={18} />
-            Organization Details
-          </CardTitle>
-          <CardDescription>
-            General workspace properties and configuration.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-          <div className="flex flex-col gap-1 p-3 rounded-lg border border-border/60 bg-muted/20">
-            <span className="text-xs font-medium text-muted-foreground">
-              Organization Name
-            </span>
-            <span className="font-semibold text-foreground">{org.name}</span>
-          </div>
-          <div className="flex flex-col gap-1 p-3 rounded-lg border border-border/60 bg-muted/20">
-            <span className="text-xs font-medium text-muted-foreground">
-              Workspace URL
-            </span>
-            <span className="font-mono text-foreground">
-              fenr.app/{org.slug}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 p-3 rounded-lg border border-border/60 bg-muted/20">
-            <span className="text-xs font-medium text-muted-foreground">
-              Total Members
-            </span>
-            <span className="text-foreground">
-              {activeOrganization.memberCount}{" "}
-              {activeOrganization.memberCount === 1 ? "member" : "members"}
-            </span>
-          </div>
-          <div className="flex flex-col gap-1 p-3 rounded-lg border border-border/60 bg-muted/20">
-            <span className="text-xs font-medium text-muted-foreground">
-              Created Date
-            </span>
-            <span className="text-foreground">
-              {new Date(org.createdAt).toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Invite Teammates Section (Owner/Admin only) */}
-      {isOwnerOrAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <HugeiconsIcon icon={Mail01Icon} size={18} />
-              Invite Teammates
-            </CardTitle>
-            <CardDescription>
-              Invite coworkers and collaborators to join {org.name}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <InviteMembersForm
-              organizationId={org.id}
-              onInvite={handleInviteBatch}
-              allowedRoles={role === "owner" ? ["member", "admin"] : ["member"]}
-              submitLabel="Send Invitations"
-            />
-          </CardContent>
-        </Card>
+              </form.Subscribe>
+            </Card>
+          </form>
+        </section>
       )}
 
-      {/* Members & Invitations Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <HugeiconsIcon icon={UserGroupIcon} size={18} />
-            Members &amp; Permissions
-          </CardTitle>
-          <CardDescription>
-            View active teammates, assign administrative roles, and manage
-            access.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <OrganizationMembers
-            organizationId={org.id}
-            currentUserId={currentUserId}
-            currentUserRole={role}
-          />
-        </CardContent>
-      </Card>
+      {showMembers && (
+        <section id="members" aria-labelledby="members-heading">
+          <Card>
+            <CardHeader>
+              <CardTitle
+                id="members-heading"
+                className="flex items-center gap-2 text-base"
+              >
+                <HugeiconsIcon icon={UserGroupIcon} size={18} />
+                Members &amp; invites
+              </CardTitle>
+              <CardDescription>
+                Manage workspace access and pending invitations.
+              </CardDescription>
+            </CardHeader>
+            {isOwnerOrAdmin && (
+              <CardContent className="border-b border-border pb-8">
+                <div className="mb-4 flex items-center gap-2">
+                  <HugeiconsIcon icon={Mail01Icon} size={18} />
+                  <h3 className="font-medium text-sm">Invite teammates</h3>
+                </div>
+                <InviteMembersForm
+                  organizationId={org.id}
+                  onInvite={handleInviteBatch}
+                  allowedRoles={isOwner ? ["member", "admin"] : ["member"]}
+                  submitLabel="Send invitations"
+                />
+              </CardContent>
+            )}
+            <CardContent className="pt-8">
+              <OrganizationMembers
+                organizationId={org.id}
+                currentUserId={currentUserId}
+                currentUserRole={role}
+              />
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {showDanger && (
+        <section id="danger" aria-labelledby="danger-heading">
+          <Card className="border-destructive/40">
+            <CardHeader>
+              <CardTitle
+                id="danger-heading"
+                className="flex items-center gap-2 text-base text-destructive"
+              >
+                <HugeiconsIcon icon={Alert02Icon} size={18} />
+                Danger zone
+              </CardTitle>
+              <CardDescription>
+                These actions affect access for you and everyone in the
+                workspace.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-medium text-sm">Leave organization</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Remove your membership from this workspace.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleLeave()}
+                  disabled={isOwner && activeOrganization.memberCount <= 1}
+                >
+                  Leave organization
+                </Button>
+              </div>
+              {isOwner && (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="font-medium text-sm">
+                        Delete organization
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Permanently delete this workspace and its data.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => void handleDelete()}
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} size={16} />
+                      Delete organization
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      )}
     </div>
   )
 }
