@@ -37,6 +37,11 @@ function CheckEmailPage() {
   const redirectTo = safeRedirectPath(redirectToParam)
 
   return (
-    <CheckEmailCard email={email} redirectTo={redirectTo} errorReason={error} />
+    <CheckEmailCard
+      key={`${email}:${error ?? ""}`}
+      email={email}
+      redirectTo={redirectTo}
+      errorReason={error}
+    />
   )
 }

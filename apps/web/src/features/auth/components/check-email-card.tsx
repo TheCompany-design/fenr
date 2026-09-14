@@ -14,6 +14,7 @@
  */
 import {
   ArrowLeft01Icon,
+  ArrowRight01Icon,
   CheckmarkCircle02Icon,
   Mail01Icon,
 } from "@hugeicons/core-free-icons"
@@ -53,6 +54,8 @@ export function CheckEmailCard({
 
   const isResendingRef = useRef(false)
   const isMountedRef = useRef(true)
+  const cooldownEndRef = useRef<number | null>(cooldownEnd)
+  cooldownEndRef.current = cooldownEnd
 
   useEffect(() => {
     isMountedRef.current = true
@@ -63,6 +66,7 @@ export function CheckEmailCard({
 
   useEffect(() => {
     if (!cooldownEnd) {
+      cooldownEndRef.current = null
       setSecondsLeft(0)
       return
     }
@@ -74,6 +78,7 @@ export function CheckEmailCard({
       )
       setSecondsLeft(remaining)
       if (remaining <= 0) {
+        cooldownEndRef.current = null
         setCooldownEnd(null)
       }
     }
@@ -92,7 +97,10 @@ export function CheckEmailCard({
       return
     }
 
-    if (secondsLeft > 0 || isResendingRef.current || resending) {
+    const inCooldown = cooldownEndRef.current
+      ? cooldownEndRef.current > Date.now()
+      : false
+    if (inCooldown || secondsLeft > 0 || isResendingRef.current || resending) {
       return
     }
 
@@ -105,21 +113,25 @@ export function CheckEmailCard({
         callbackURL: redirectTo || "/",
       })
 
-      if (!isMountedRef.current) return
-
       if (result.error) {
         log.error(
           { err: result.error, email: trimmedEmail },
           "Failed to resend magic link",
         )
+        if (!isMountedRef.current) return
         toast.error("Failed to resend magic link", {
-          description: "Please try again shortly.",
+          description: result.error.message || "Please try again shortly.",
         })
         return
       }
 
+      if (!isMountedRef.current) return
+
       setResendCount((c) => c + 1)
-      setCooldownEnd(Date.now() + RESEND_COOLDOWN_SECONDS * 1000)
+      const nextCooldown = Date.now() + RESEND_COOLDOWN_SECONDS * 1000
+      cooldownEndRef.current = nextCooldown
+      setCooldownEnd(nextCooldown)
+      setSecondsLeft(RESEND_COOLDOWN_SECONDS)
       toast.success("Magic link resent", {
         description: "A fresh sign-in link has been sent to your email.",
       })
@@ -141,16 +153,14 @@ export function CheckEmailCard({
     }
   }
 
-  const handleOpenMailApp = () => {
-    window.location.href = "mailto:"
-  }
-
   return (
     <div className="w-full max-w-lg">
       {/* Error recovery notice if previous magic link was expired or invalid */}
-      {errorReason ? <AuthErrorBanner error={errorReason} /> : null}
+      {errorReason && resendCount === 0 ? (
+        <AuthErrorBanner error={errorReason} />
+      ) : null}
 
-      <div className="inline-flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+      <div className="inline-flex size-11 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
         <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5" />
       </div>
 
@@ -176,38 +186,48 @@ export function CheckEmailCard({
             We sent a sign-in link to{" "}
             <span className="font-medium text-foreground">{email}</span>. Click
             it to continue — the link expires in{" "}
-            <span className="text-foreground">10 minutes</span>.
+            <span className="font-medium text-foreground">10 minutes</span>.
           </>
         )}
       </p>
 
       <div className="mt-7 flex flex-col gap-2.5">
-        <Button
-          size="lg"
-          type="button"
-          onClick={handleOpenMailApp}
-          className="gap-2"
-        >
-          <HugeiconsIcon icon={Mail01Icon} className="size-4" />
-          Open mail app
+        <Button size="lg" className="gap-2" asChild>
+          <a href="mailto:">
+            <HugeiconsIcon
+              icon={Mail01Icon}
+              className="size-4"
+              aria-hidden="true"
+            />
+            Open mail app
+          </a>
         </Button>
         <Button
           size="lg"
-          variant="outline"
+          variant="ghost"
           type="button"
-          disabled={secondsLeft > 0 || resending}
+          disabled={
+            isResendingRef.current ||
+            resending ||
+            secondsLeft > 0 ||
+            (cooldownEnd !== null && Date.now() < cooldownEnd)
+          }
           onClick={handleResend}
         >
           {resending
             ? "Sending…"
             : secondsLeft > 0
-              ? `Resend link in ${String(secondsLeft).padStart(2, "0")}s`
+              ? `Resend in ${String(secondsLeft).padStart(2, "0")}s`
               : "Resend link"}
         </Button>
       </div>
 
       {resendCount > 0 && (
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 font-mono text-[10px] text-primary uppercase tracking-[0.25em]">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[10px] text-emerald-700 uppercase tracking-[0.25em] dark:text-emerald-400"
+        >
           <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3" />
           Sent again · {resendCount}
         </div>
@@ -227,8 +247,15 @@ export function CheckEmailCard({
           Use a different email
         </Link>
         <p className="mt-3 text-muted-foreground text-xs leading-relaxed">
-          Didn't get the email? Check your spam folder, or try requesting
-          another link above.
+          Didn't get the email? Check spam, then{" "}
+          <a
+            href="mailto:support@fenr.app"
+            className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+          >
+            contact support{" "}
+            <HugeiconsIcon icon={ArrowRight01Icon} className="size-3" />
+          </a>
+          .
         </p>
       </div>
     </div>
