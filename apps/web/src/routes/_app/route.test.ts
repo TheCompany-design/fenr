@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, mock } from "bun:test"
+import { describe, expect, it, mock } from "bun:test"
 import {
   createMemoryHistory,
   createRootRoute,
@@ -10,15 +10,6 @@ import { GlobalWindow } from "happy-dom"
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
 
-// Setup DOM globals for component tests
-const originalWindow = globalThis.window
-const originalDocument = globalThis.document
-const originalNavigator = globalThis.navigator
-const originalElement = globalThis.Element
-const originalHTMLElement = globalThis.HTMLElement
-const originalNode = globalThis.Node
-const originalCustomElements = globalThis.customElements
-
 const win = new GlobalWindow({ url: "http://localhost:3000" })
 Object.assign(globalThis, {
   window: win,
@@ -26,42 +17,21 @@ Object.assign(globalThis, {
   navigator: win.navigator,
   Element: win.Element,
   HTMLElement: win.HTMLElement,
+  HTMLInputElement: win.HTMLInputElement,
+  HTMLTextAreaElement: win.HTMLTextAreaElement,
   Node: win.Node,
+  Event: win.Event,
+  UIEvent: win.UIEvent,
+  MouseEvent: win.MouseEvent,
+  KeyboardEvent: win.KeyboardEvent,
+  InputEvent: win.InputEvent ?? win.Event,
   customElements: win.customElements,
   scrollTo: () => {},
   requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
   cancelAnimationFrame: (id: number) => clearTimeout(id),
 })
 
-afterAll(() => {
-  if (originalWindow === undefined)
-    delete (globalThis as Record<string, unknown>).window
-  else globalThis.window = originalWindow
-
-  if (originalDocument === undefined)
-    delete (globalThis as Record<string, unknown>).document
-  else globalThis.document = originalDocument
-
-  if (originalNavigator === undefined)
-    delete (globalThis as Record<string, unknown>).navigator
-  else globalThis.navigator = originalNavigator
-
-  if (originalElement === undefined)
-    delete (globalThis as Record<string, unknown>).Element
-  else globalThis.Element = originalElement
-
-  if (originalHTMLElement === undefined)
-    delete (globalThis as Record<string, unknown>).HTMLElement
-  else globalThis.HTMLElement = originalHTMLElement
-
-  if (originalNode === undefined)
-    delete (globalThis as Record<string, unknown>).Node
-  else globalThis.Node = originalNode
-
-  if (originalCustomElements === undefined)
-    delete (globalThis as Record<string, unknown>).customElements
-  else globalThis.customElements = originalCustomElements
-})
+// DOM globals persist across test suite for DOM-dependent component tests
 
 let currentSession: {
   session: { id: string; activeOrganizationId?: string | null }

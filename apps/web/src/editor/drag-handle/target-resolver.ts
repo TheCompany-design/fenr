@@ -22,8 +22,8 @@ export interface ResolveDragTargetOptions {
 }
 
 function isHTMLElement(node: unknown): node is HTMLElement {
-  if (typeof HTMLElement !== "undefined") {
-    return node instanceof HTMLElement
+  if (typeof HTMLElement !== "undefined" && node instanceof HTMLElement) {
+    return true
   }
   return Boolean(
     node &&

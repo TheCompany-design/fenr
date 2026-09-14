@@ -1,4 +1,20 @@
 import { describe, expect, it } from "bun:test"
+import { GlobalWindow } from "happy-dom"
+
+if (typeof window === "undefined") {
+  const win = new GlobalWindow({ url: "http://localhost:3000" })
+  Object.assign(globalThis, {
+    window: win,
+    document: win.document,
+    navigator: win.navigator,
+    customElements: win.customElements,
+    HTMLElement: win.HTMLElement,
+    scrollTo: () => {},
+    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
+    cancelAnimationFrame: (id: number) => clearTimeout(id),
+  })
+}
+
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -108,7 +124,7 @@ describe("Organization Domain Components (Atom 7)", () => {
   })
 
   describe("InviteMembersForm", () => {
-    it("renders email input, role buttons, and action buttons", () => {
+    it("renders email input, role selectors, and action buttons", () => {
       const html = renderToStaticMarkup(
         createElement(InviteMembersForm, {
           onInvite: async () => [],
@@ -120,11 +136,13 @@ describe("Organization Domain Components (Atom 7)", () => {
 
       expect(html).toContain('id="invite-email-input"')
       expect(html).toContain('for="invite-email-input"')
-      expect(html).toContain("Teammate Email")
-      expect(html).toContain("colleague@example.com")
+      expect(html).toContain("Invitees")
+      expect(html).toContain("Default role")
       expect(html).toContain("member")
-      expect(html).toContain("admin")
-      expect(html).toContain("Add")
+      expect(html).toContain("0")
+      expect(html).toContain("to invite")
+      expect(html).toContain("+ Add a personal note")
+      expect(html).toContain("Copy link")
       expect(html).toContain("Invite Teammates")
       expect(html).toContain("Not now")
     })

@@ -1,14 +1,36 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test"
-import {
-  createMemoryHistory,
-  createRootRoute,
-  createRouter,
-  RouterProvider,
-} from "@tanstack/react-router"
+import { beforeEach, describe, expect, it, mock } from "bun:test"
 import { GlobalWindow } from "happy-dom"
-import { act, createElement } from "react"
-import { createRoot } from "react-dom/client"
-import { renderToStaticMarkup } from "react-dom/server"
+
+if (typeof window === "undefined") {
+  const win = new GlobalWindow({ url: "http://localhost:3000" })
+  Object.assign(globalThis, {
+    window: win,
+    document: win.document,
+    navigator: win.navigator,
+    Element: win.Element,
+    HTMLElement: win.HTMLElement,
+    HTMLInputElement: win.HTMLInputElement,
+    HTMLTextAreaElement: win.HTMLTextAreaElement,
+    Node: win.Node,
+    Event: win.Event,
+    UIEvent: win.UIEvent,
+    MouseEvent: win.MouseEvent,
+    KeyboardEvent: win.KeyboardEvent,
+    InputEvent: win.InputEvent ?? win.Event,
+    customElements: win.customElements,
+    scrollTo: () => {},
+    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
+    cancelAnimationFrame: (id: number) => clearTimeout(id),
+  })
+}
+
+;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+const { act, createElement } = await import("react")
+const { createRoot } = await import("react-dom/client")
+const { renderToStaticMarkup } = await import("react-dom/server")
+const { createMemoryHistory, createRootRoute, createRouter, RouterProvider } =
+  await import("@tanstack/react-router")
 
 const mockMagicLink = mock(
   async (_opts: {
@@ -31,65 +53,12 @@ mock.module("@/lib/auth-client", () => ({
   },
 }))
 
-import { CheckEmailCard } from "./check-email-card"
-import { MagicLinkForm } from "./magic-link-form"
-
-// Setup DOM globals for interactive tests
-const originalWindow = globalThis.window
-const originalDocument = globalThis.document
-const originalNavigator = globalThis.navigator
-const originalElement = globalThis.Element
-const originalHTMLElement = globalThis.HTMLElement
-const originalNode = globalThis.Node
-const originalCustomElements = globalThis.customElements
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    Element: win.Element,
-    HTMLElement: win.HTMLElement,
-    Node: win.Node,
-    customElements: win.customElements,
-    scrollTo: () => {},
-    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-    cancelAnimationFrame: (id: number) => clearTimeout(id),
-  })
-}
+const { CheckEmailCard } = await import("./check-email-card")
+const { MagicLinkForm } = await import("./magic-link-form")
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-afterAll(() => {
-  if (originalWindow === undefined)
-    delete (globalThis as Record<string, unknown>).window
-  else globalThis.window = originalWindow
-
-  if (originalDocument === undefined)
-    delete (globalThis as Record<string, unknown>).document
-  else globalThis.document = originalDocument
-
-  if (originalNavigator === undefined)
-    delete (globalThis as Record<string, unknown>).navigator
-  else globalThis.navigator = originalNavigator
-
-  if (originalElement === undefined)
-    delete (globalThis as Record<string, unknown>).Element
-  else globalThis.Element = originalElement
-
-  if (originalHTMLElement === undefined)
-    delete (globalThis as Record<string, unknown>).HTMLElement
-  else globalThis.HTMLElement = originalHTMLElement
-
-  if (originalNode === undefined)
-    delete (globalThis as Record<string, unknown>).Node
-  else globalThis.Node = originalNode
-
-  if (originalCustomElements === undefined)
-    delete (globalThis as Record<string, unknown>).customElements
-  else globalThis.customElements = originalCustomElements
-})
+// DOM globals persist across test suite for DOM-dependent component tests
 
 async function renderWithRouter(component: () => React.ReactNode) {
   const rootRoute = createRootRoute({ component })
