@@ -23,7 +23,8 @@ export function DemoForm() {
       message: "",
     },
     validators: {
-      onChange: demoFormSchema,
+      onBlur: demoFormSchema,
+      onSubmit: demoFormSchema,
     },
     onSubmit: async ({ value }) => {
       console.info("form submitted", value)
