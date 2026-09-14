@@ -20,6 +20,7 @@ export interface OrganizationInvitationEmailProps {
   role: string
   acceptUrl: string
   expiresInHours?: number
+  personalNote?: string
 }
 
 export function OrganizationInvitationEmail({
@@ -28,6 +29,7 @@ export function OrganizationInvitationEmail({
   role,
   acceptUrl,
   expiresInHours = 48,
+  personalNote,
 }: OrganizationInvitationEmailProps) {
   const previewText = `Join ${organizationName} on Fenr`
 
@@ -49,6 +51,16 @@ export function OrganizationInvitationEmail({
               {" as a "}
               <strong style={emailStyles.boldText}>{role}</strong>.
             </Text>
+            {personalNote ? (
+              <Section>
+                <Text style={emailStyles.paragraph}>
+                  <strong style={emailStyles.boldText}>
+                    A note from {inviterName}:
+                  </strong>
+                </Text>
+                <Text style={emailStyles.paragraph}>{personalNote}</Text>
+              </Section>
+            ) : null}
             <Section style={emailStyles.buttonContainer}>
               <Button style={emailStyles.button} href={acceptUrl}>
                 Accept Invitation

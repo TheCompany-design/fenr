@@ -210,6 +210,7 @@ export interface SendOrganizationInvitationEmailOptions {
   role: string
   acceptUrl: string
   expiresInHours?: number
+  personalNote?: string
   correlationId?: string
 }
 
@@ -220,6 +221,7 @@ export async function sendOrganizationInvitationEmail({
   role,
   acceptUrl,
   expiresInHours = 48,
+  personalNote,
   correlationId,
 }: SendOrganizationInvitationEmailOptions): Promise<{ messageId: string }> {
   if (
@@ -242,6 +244,10 @@ export async function sendOrganizationInvitationEmail({
   const safeInviterName =
     inviterName.replace(/[\r\n]+/g, " ").trim() || "Someone"
   const safeRole = role.replace(/[\r\n]+/g, " ").trim() || "member"
+  const safePersonalNote = personalNote
+    ?.replace(/[\r\n]+/g, " ")
+    .trim()
+    .slice(0, 2000)
 
   try {
     const [html, text] = await Promise.all([
@@ -252,6 +258,7 @@ export async function sendOrganizationInvitationEmail({
           role: safeRole,
           acceptUrl: url,
           expiresInHours,
+          personalNote: safePersonalNote,
         }),
       ),
       render(
@@ -261,6 +268,7 @@ export async function sendOrganizationInvitationEmail({
           role: safeRole,
           acceptUrl: url,
           expiresInHours,
+          personalNote: safePersonalNote,
         }),
         { plainText: true },
       ),
