@@ -262,7 +262,7 @@ function OnboardingPage() {
 
   // Step 2: Invitations Submit
   const handleSendInvites = async (
-    invites: Array<{ email: string; role: OrganizationRole }>,
+    invites: Array<{ email: string; role: OrganizationRole; note?: string }>,
   ) => {
     const orgId = search.orgId ?? currentOrg?.id
     if (!orgId) {
@@ -276,6 +276,7 @@ function OnboardingPage() {
             organizationId: orgId,
             email: invite.email,
             role: invite.role,
+            note: invite.note,
           },
         })
         return invite.email
@@ -390,7 +391,7 @@ function OnboardingPage() {
       {/* STEP 1: Workspace Naming */}
       {currentStep === "naming" && (
         <div
-          className="flex flex-col gap-6"
+          className="flex min-w-0 flex-col gap-6"
           data-testid="onboarding-step-naming"
         >
           <header>
@@ -419,8 +420,8 @@ function OnboardingPage() {
           className="flex flex-col gap-6"
           data-testid="onboarding-step-invites"
         >
-          <header className="flex items-start justify-between gap-4">
-            <div>
+          <header className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
                 Bring people with you
               </div>
@@ -429,7 +430,7 @@ function OnboardingPage() {
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 Collaborate with teammates in{" "}
-                <strong className="font-medium text-foreground">
+                <strong className="font-medium text-foreground break-words">
                   {currentOrg?.name ?? "your new workspace"}
                 </strong>
                 . Optional — you can add anyone later.
@@ -440,6 +441,7 @@ function OnboardingPage() {
                 name={currentOrg.name}
                 slug={currentOrg.slug}
                 size="md"
+                className="shrink-0 self-start"
               />
             )}
           </header>

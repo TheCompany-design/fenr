@@ -43,6 +43,9 @@ mock.module("@/features/organizations/server", () => ({
   cancelInvitationFn: async () => {},
   updateMemberRoleFn: async () => {},
   removeMemberFn: async () => {},
+  updateOrganizationFn: async () => ({}),
+  leaveOrganizationFn: async () => ({ success: true }),
+  deleteOrganizationFn: async () => ({ success: true }),
   getInvitationDetailsFn: async () => null,
   acceptInvitationFn: async () => {},
 }))
