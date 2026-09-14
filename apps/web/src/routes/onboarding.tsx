@@ -9,33 +9,19 @@
  */
 import {
   ArrowRight01Icon,
-  CheckmarkCircle01Icon,
   Loading03Icon,
   Logout03Icon,
-  RocketIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  createFileRoute,
-  redirect,
-  useNavigate,
-  useRouter,
-} from "@tanstack/react-router"
-import { Badge } from "@workspace/ui/components/badge"
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { AuthShell } from "@/features/auth/components/auth-shell"
 import {
   InviteMembersForm,
   OrganizationAvatar,
@@ -43,7 +29,7 @@ import {
 } from "@/features/organizations"
 import {
   invalidateOrganizationQueries,
-  organizationKeys,
+  organizationInvitationsQueryOptions,
   organizationListQueryOptions,
 } from "@/features/organizations/queries"
 import type {
@@ -53,9 +39,11 @@ import type {
 import {
   createOrganizationFn,
   inviteMemberFn,
+  setActiveOrganizationFn,
 } from "@/features/organizations/server"
 import { signOut } from "@/lib/auth-client"
 import { moduleLogger } from "@/lib/logger"
+import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
 
 const log = moduleLogger("onboarding")
@@ -74,12 +62,12 @@ export type OnboardingSearch = z.infer<typeof onboardingSearchSchema>
 export const Route = createFileRoute("/onboarding")({
   validateSearch: (search: Record<string, unknown>): OnboardingSearch =>
     onboardingSearchSchema.parse(search),
-  beforeLoad: async ({ context, search }) => {
+  beforeLoad: async ({ context, location, search }) => {
     const session = await getSession()
     if (!session) {
       throw redirect({
         to: "/auth/sign-in",
-        search: { redirect: "/onboarding" },
+        search: { redirect: safeRedirectPath(location.href) },
       })
     }
 
@@ -135,7 +123,6 @@ function OnboardingPage() {
   const { session } = Route.useRouteContext()
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
-  const router = useRouter()
   const queryClient = useQueryClient()
 
   const [isSigningOut, setIsSigningOut] = React.useState(false)
@@ -173,12 +160,31 @@ function OnboardingPage() {
     return null
   }, [createdOrg, search.orgId, organizations])
 
+  // Fetch invitations for target organization to resiliently populate invitedCount even on reload
+  const targetOrgId = search.orgId ?? currentOrg?.id ?? ""
+  const { data: invitations = [] } = useQuery({
+    ...organizationInvitationsQueryOptions(targetOrgId),
+    enabled: Boolean(targetOrgId),
+  })
+  const displayInvitedCount = Math.max(invitedCount, invitations.length)
+
   const handleSignOut = async () => {
-    if (isSigningOutRef.current) return
+    if (
+      isSigningOutRef.current ||
+      isCreatingRef.current ||
+      isEnteringRef.current
+    ) {
+      return
+    }
     isSigningOutRef.current = true
     setIsSigningOut(true)
     try {
-      await signOut()
+      const res = await signOut()
+      if (res?.error) {
+        log.error({ err: res.error }, "Sign out failed")
+        toast.error("Couldn't sign out", { description: "Please try again." })
+        return
+      }
       queryClient.clear()
       await navigate({ to: "/auth/sign-in" })
     } catch (err) {
@@ -192,37 +198,42 @@ function OnboardingPage() {
 
   // Step 1: Create Organization Submit
   const handleCreateOrganization = async (values: CreateOrganizationInput) => {
-    if (isCreatingRef.current || createdOrg) return
+    if (isSigningOutRef.current || isCreatingRef.current) return
+    if (createdOrg) {
+      try {
+        await navigate({
+          search: { step: "invites", orgId: createdOrg.id },
+        })
+      } catch (retryErr) {
+        log.error({ err: retryErr }, "Failed to navigate to invites on retry")
+      }
+      return
+    }
+
     isCreatingRef.current = true
     setIsCreating(true)
 
     let org: { id: string; name: string; slug: string }
     try {
       org = await createOrganizationFn({ data: values })
+      setCreatedOrg(org)
+      toast.success("Workspace created", {
+        description: `Welcome to ${org.name}!`,
+      })
     } catch (err) {
       log.error(
         { err, name: values.name, slug: values.slug },
         "Failed to create workspace",
       )
-      toast.error("Could not create workspace", {
-        description: "The workspace could not be created. Please try again.",
-      })
+      const description =
+        err instanceof Error
+          ? err.message
+          : "The workspace could not be created. Please try again."
+      toast.error("Could not create workspace", { description })
       isCreatingRef.current = false
       setIsCreating(false)
       return
     }
-
-    setCreatedOrg(org)
-    queryClient.setQueryData(
-      organizationKeys.lists(),
-      (old: Array<{ id: string; name: string; slug: string }> = []) => [
-        ...old,
-        org,
-      ],
-    )
-    toast.success("Workspace created", {
-      description: `Welcome to ${org.name}!`,
-    })
 
     try {
       await invalidateOrganizationQueries(queryClient, org.id)
@@ -244,6 +255,7 @@ function OnboardingPage() {
         )
       }
     } finally {
+      isCreatingRef.current = false
       setIsCreating(false)
     }
   }
@@ -315,18 +327,31 @@ function OnboardingPage() {
 
   // Step 3: Enter Application
   const handleEnterApp = async () => {
-    if (isEnteringRef.current) return
+    if (isSigningOutRef.current || isEnteringRef.current) return
     isEnteringRef.current = true
     setIsEntering(true)
     try {
-      await invalidateOrganizationQueries(queryClient)
-      await router.invalidate()
+      const targetOrgId = search.orgId ?? currentOrg?.id
+      if (targetOrgId) {
+        try {
+          await setActiveOrganizationFn({
+            data: { organizationId: targetOrgId },
+          })
+        } catch (setErr) {
+          log.warn(
+            { err: setErr, targetOrgId },
+            "Failed to explicitly set active organization",
+          )
+        }
+      }
+      await invalidateOrganizationQueries(queryClient, targetOrgId)
       await navigate({ to: "/" })
     } catch (err) {
       log.error({ err }, "Navigation to workspace failed")
       toast.error("Navigation failed", {
         description: "Please reload the page or navigate to your workspace.",
       })
+    } finally {
       isEnteringRef.current = false
       setIsEntering(false)
     }
@@ -336,220 +361,199 @@ function OnboardingPage() {
   const currentStepIndex = STEPS.findIndex((s) => s.id === currentStep)
 
   return (
-    <div className="flex min-h-svh w-full flex-col items-center justify-center p-4 bg-background">
-      {/* Top utility bar */}
-      <div className="fixed top-4 right-4 flex items-center gap-3">
-        <span className="text-xs text-muted-foreground hidden sm:inline">
-          Signed in as{" "}
-          <strong className="font-medium text-foreground">
+    <AuthShell
+      eyebrow="Fenr"
+      quoteEyebrow="Onboarding"
+      tagline="A single canvas for documentation, engineering specs, and team alignment."
+    >
+      {/* Top utility row with Stepper and Sign Out */}
+      <div className="mb-8 flex items-center justify-between border-b border-border/40 pb-4">
+        <Stepper currentStepIndex={currentStepIndex} />
+
+        <div className="flex items-center gap-3">
+          <span className="hidden font-mono text-[11px] text-muted-foreground sm:inline">
             {session.user.email}
-          </strong>
-        </span>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={handleSignOut}
-          disabled={isSigningOut}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <HugeiconsIcon icon={Logout03Icon} size={14} className="mr-1.5" />
-          {isSigningOut ? "Signing out…" : "Sign out"}
-        </Button>
+          </span>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={handleSignOut}
+            disabled={isSigningOut || isCreating || isEntering}
+            className="font-mono text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <HugeiconsIcon icon={Logout03Icon} size={13} className="mr-1" />
+            {isSigningOut ? "Signing out…" : "Sign out"}
+          </Button>
+        </div>
       </div>
 
-      <div className="w-full max-w-lg flex flex-col gap-6">
-        {/* Step Indicator Header */}
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-xs">
-            <HugeiconsIcon icon={RocketIcon} size={24} />
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Welcome to Fenr
+      {/* STEP 1: Workspace Naming */}
+      {currentStep === "naming" && (
+        <div
+          className="flex flex-col gap-6"
+          data-testid="onboarding-step-naming"
+        >
+          <header>
+            <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+              Name your workspace
+            </div>
+            <h1 className="mt-2 font-heading text-3xl leading-tight text-foreground">
+              What are we calling it?
             </h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              Let&apos;s set up your team workspace in a few simple steps.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Choose a display name and unique URL for your organization.
             </p>
-          </div>
+          </header>
 
-          {/* Stepper pills */}
-          <div className="flex items-center gap-2 pt-2">
-            {STEPS.map((s, idx) => {
-              const isPast = idx < currentStepIndex
-              const isCurrent = idx === currentStepIndex
-
-              return (
-                <div key={s.id} className="flex items-center gap-2">
-                  <div
-                    className={cn(
-                      "flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors select-none",
-                      isCurrent &&
-                        "bg-primary text-primary-foreground shadow-xs",
-                      isPast && "bg-muted text-foreground",
-                      !isCurrent && !isPast && "text-muted-foreground/60",
-                    )}
-                  >
-                    <span>{s.stepNumber}.</span>
-                    <span>{s.label}</span>
-                    {isPast && (
-                      <HugeiconsIcon
-                        icon={CheckmarkCircle01Icon}
-                        size={12}
-                        className="text-primary"
-                      />
-                    )}
-                  </div>
-                  {idx < STEPS.length - 1 && (
-                    <div className="w-3 h-px bg-border shrink-0" />
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <OrganizationForm
+            onSubmit={handleCreateOrganization}
+            isSubmitting={isCreating || isSigningOut}
+            submitLabel="Continue to Teammates"
+          />
         </div>
+      )}
 
-        {/* Step Card Container */}
-        <Card className="border-border/70 shadow-xl overflow-hidden">
-          {/* STEP 1: Workspace Naming */}
-          {currentStep === "naming" && (
-            <>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">
-                  Name your workspace
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Choose a display name and unique URL for your organization.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <OrganizationForm
-                  onSubmit={handleCreateOrganization}
-                  isSubmitting={isCreating}
-                  submitLabel="Continue to Teammates"
+      {/* STEP 2: Optional Teammates */}
+      {currentStep === "invites" && (
+        <div
+          className="flex flex-col gap-6"
+          data-testid="onboarding-step-invites"
+        >
+          <header className="flex items-start justify-between gap-4">
+            <div>
+              <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+                Bring people with you
+              </div>
+              <h1 className="mt-2 font-heading text-3xl leading-tight text-foreground">
+                Invite teammates
+              </h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Collaborate with teammates in{" "}
+                <strong className="font-medium text-foreground">
+                  {currentOrg?.name ?? "your new workspace"}
+                </strong>
+                . Optional — you can add anyone later.
+              </p>
+            </div>
+            {currentOrg && (
+              <OrganizationAvatar
+                name={currentOrg.name}
+                slug={currentOrg.slug}
+                size="md"
+              />
+            )}
+          </header>
+
+          <InviteMembersForm
+            organizationId={search.orgId}
+            onInvite={handleSendInvites}
+            onSkip={handleSkipInvites}
+            onComplete={handleInvitesComplete}
+            submitLabel="Send Invites & Continue"
+            skipLabel="Skip for now"
+          />
+        </div>
+      )}
+
+      {/* STEP 3: Welcome & Finish */}
+      {currentStep === "welcome" && (
+        <div
+          className="flex flex-col gap-6"
+          data-testid="onboarding-step-welcome"
+        >
+          <header>
+            <div className="font-mono text-[11px] text-muted-foreground uppercase tracking-[0.3em]">
+              You&apos;re set
+            </div>
+            <h1 className="mt-2 font-heading text-3xl leading-tight text-foreground">
+              Welcome to {currentOrg?.name ?? "Fenr"}.
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              {displayInvitedCount === 0
+                ? "Quiet for now — when you're ready, invite people from workspace settings."
+                : `We've sent ${displayInvitedCount} invite${displayInvitedCount === 1 ? "" : "s"}. They'll show up in members once accepted.`}
+            </p>
+          </header>
+
+          <div className="grid grid-cols-3 gap-3">
+            <FactCard
+              label="Workspace"
+              value={currentOrg?.name ?? "Untitled"}
+            />
+            <FactCard label="Members" value={String(displayInvitedCount + 1)} />
+            <FactCard
+              label="Slug"
+              value={currentOrg?.slug ? `/${currentOrg.slug}` : "—"}
+            />
+          </div>
+
+          <Button
+            size="lg"
+            onClick={handleEnterApp}
+            disabled={isEntering || isSigningOut}
+            className="mt-2 w-full text-sm font-medium gap-2 cursor-pointer"
+          >
+            {isEntering ? (
+              <>
+                <HugeiconsIcon
+                  icon={Loading03Icon}
+                  size={16}
+                  className="animate-spin"
                 />
-              </CardContent>
-            </>
-          )}
+                <span>Launching Workspace…</span>
+              </>
+            ) : (
+              <>
+                <span>Launch Workspace</span>
+                <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+    </AuthShell>
+  )
+}
 
-          {/* STEP 2: Optional Teammates */}
-          {currentStep === "invites" && (
-            <>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg font-semibold">
-                      Invite your team
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Collaborate with teammates in{" "}
-                      <strong className="font-medium text-foreground">
-                        {currentOrg?.name ?? "your new workspace"}
-                      </strong>
-                      . This is optional.
-                    </CardDescription>
-                  </div>
-                  {currentOrg && (
-                    <OrganizationAvatar
-                      name={currentOrg.name}
-                      slug={currentOrg.slug}
-                      size="sm"
-                    />
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="pt-2">
-                <InviteMembersForm
-                  organizationId={search.orgId}
-                  onInvite={handleSendInvites}
-                  onSkip={handleSkipInvites}
-                  onComplete={handleInvitesComplete}
-                  submitLabel="Send Invites & Continue"
-                  skipLabel="Skip for now"
-                />
-              </CardContent>
-            </>
-          )}
+function Stepper({ currentStepIndex }: { currentStepIndex: number }) {
+  return (
+    <section
+      aria-label={`Progress: Step ${currentStepIndex + 1} of ${STEPS.length}`}
+      className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.3em]"
+    >
+      <span>
+        Step {String(currentStepIndex + 1).padStart(2, "0")} / {STEPS.length}
+      </span>
+      <div aria-hidden="true" className="ml-2 flex items-center gap-1.5">
+        {STEPS.map((s, i) => (
+          <span
+            key={s.id}
+            className={cn(
+              "h-1.5 rounded-full transition-all duration-300",
+              i === currentStepIndex
+                ? "w-5 bg-foreground"
+                : i < currentStepIndex
+                  ? "w-1.5 bg-foreground/70"
+                  : "w-1.5 bg-foreground/20",
+            )}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
 
-          {/* STEP 3: Welcome & Finish */}
-          {currentStep === "welcome" && (
-            <>
-              <CardHeader className="text-center pb-2">
-                <div className="mx-auto mb-2">
-                  <OrganizationAvatar
-                    name={currentOrg?.name}
-                    slug={currentOrg?.slug}
-                    size="xl"
-                    className="shadow-md"
-                  />
-                </div>
-                <CardTitle className="text-xl font-bold">
-                  You&apos;re all set!
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  Workspace{" "}
-                  <span className="font-semibold text-foreground">
-                    {currentOrg?.name}
-                  </span>{" "}
-                  is ready.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-5 pt-2">
-                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 flex flex-col gap-2.5 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Workspace URL</span>
-                    <span className="font-mono font-medium text-foreground">
-                      fenr.app/{currentOrg?.slug}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Your Role</span>
-                    <Badge variant="default" className="capitalize text-[10px]">
-                      Owner
-                    </Badge>
-                  </div>
-                  {invitedCount > 0 && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        Teammates Invited
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {invitedCount}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <Button
-                  size="lg"
-                  onClick={handleEnterApp}
-                  disabled={isEntering}
-                  className="w-full text-sm font-medium"
-                >
-                  {isEntering ? (
-                    <>
-                      <HugeiconsIcon
-                        icon={Loading03Icon}
-                        size={16}
-                        className="mr-2 animate-spin"
-                      />
-                      Launching Workspace...
-                    </>
-                  ) : (
-                    <>
-                      Launch Workspace
-                      <HugeiconsIcon
-                        icon={ArrowRight01Icon}
-                        size={16}
-                        className="ml-2"
-                      />
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </>
-          )}
-        </Card>
+function FactCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-muted/20 px-3.5 py-3">
+      <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em]">
+        {label}
+      </div>
+      <div
+        title={value}
+        className="mt-1 truncate font-heading text-sm font-medium text-foreground"
+      >
+        {value}
       </div>
     </div>
   )
