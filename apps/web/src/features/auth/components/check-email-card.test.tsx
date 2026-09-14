@@ -130,10 +130,7 @@ describe("Auth UI Components", () => {
       expect(html).toContain("Open mail app")
       expect(html).toContain("10 minutes")
       expect(html).toContain("Resend in 60s")
-      // Restored visual polish tokens: emerald success badge & support contact link
-      expect(html).toContain(
-        "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-      )
+      expect(html).toContain("bg-muted text-foreground")
       expect(html).toContain("mailto:support@fenr.app")
       expect(html).toContain("contact support")
     })

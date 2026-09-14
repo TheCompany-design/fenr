@@ -160,7 +160,7 @@ export function CheckEmailCard({
         <AuthErrorBanner error={errorReason} />
       ) : null}
 
-      <div className="inline-flex size-11 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+      <div className="inline-flex size-11 items-center justify-center rounded-full bg-muted text-foreground">
         <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-5" />
       </div>
 
@@ -226,7 +226,7 @@ export function CheckEmailCard({
         <div
           role="status"
           aria-live="polite"
-          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[10px] text-emerald-700 uppercase tracking-[0.25em] dark:text-emerald-400"
+          className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 font-mono text-[10px] text-foreground uppercase tracking-[0.25em]"
         >
           <HugeiconsIcon icon={CheckmarkCircle02Icon} className="size-3" />
           Sent again · {resendCount}
