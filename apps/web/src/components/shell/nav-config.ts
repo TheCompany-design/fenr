@@ -31,7 +31,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     id: "settings",
     title: "Settings",
     icon: Settings01Icon,
-    to: "/settings/organization",
+    to: "/settings",
   },
   { id: "document", title: "Document", icon: Doc01Icon, to: "/document" },
 ]

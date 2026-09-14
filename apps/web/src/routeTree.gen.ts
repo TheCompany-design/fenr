@@ -14,15 +14,17 @@ import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as ChooseOrganizationRouteImport } from './routes/choose-organization'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSettingsRouteRouteImport } from './routes/_app/settings/route'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
-import { Route as AppSettingsOrganizationRouteImport } from './routes/_app/settings/organization'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthCheckEmailIndexRouteImport } from './routes/auth/check-email/index'
 import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index'
 import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index'
+import { Route as AppSettingsDangerIndexRouteImport } from './routes/_app/settings/danger/index'
+import { Route as AppSettingsMembersIndexRouteImport } from './routes/_app/settings/members/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -48,6 +50,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppSettingsRouteRoute = AppSettingsRouteRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AuthIndexRoute = AuthIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -64,14 +71,9 @@ const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppSettingsOrganizationRoute = AppSettingsOrganizationRouteImport.update({
-  id: '/settings/organization',
-  path: '/settings/organization',
-  getParentRoute: () => AppRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRouteRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -93,21 +95,33 @@ const AuthSignUpIndexRoute = AuthSignUpIndexRouteImport.update({
   path: '/sign-up/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AppSettingsDangerIndexRoute = AppSettingsDangerIndexRouteImport.update({
+  id: '/danger/',
+  path: '/danger/',
+  getParentRoute: () => AppSettingsRouteRoute,
+} as any)
+const AppSettingsMembersIndexRoute = AppSettingsMembersIndexRouteImport.update({
+  id: '/members/',
+  path: '/members/',
+  getParentRoute: () => AppSettingsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
+  '/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/auth/': typeof AuthIndexRoute
-  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document/': typeof AppDocumentIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in/': typeof AuthSignInIndexRoute
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
+  '/settings/danger/': typeof AppSettingsDangerIndexRoute
+  '/settings/members/': typeof AppSettingsMembersIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -115,13 +129,14 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
-  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document': typeof AppDocumentIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/auth/check-email': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in': typeof AuthSignInIndexRoute
   '/auth/sign-up': typeof AuthSignUpIndexRoute
+  '/settings/danger': typeof AppSettingsDangerIndexRoute
+  '/settings/members': typeof AppSettingsMembersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -129,16 +144,18 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
+  '/_app/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
-  '/_app/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/document/': typeof AppDocumentIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in/': typeof AuthSignInIndexRoute
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
+  '/_app/settings/danger/': typeof AppSettingsDangerIndexRoute
+  '/_app/settings/members/': typeof AppSettingsMembersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -147,15 +164,17 @@ export interface FileRouteTypes {
     | '/auth'
     | '/choose-organization'
     | '/onboarding'
+    | '/settings'
     | '/invitations/accept'
     | '/auth/'
-    | '/settings/organization'
     | '/api/auth/$'
     | '/document/'
     | '/settings/'
     | '/auth/check-email/'
     | '/auth/sign-in/'
     | '/auth/sign-up/'
+    | '/settings/danger/'
+    | '/settings/members/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -163,29 +182,32 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/'
     | '/auth'
-    | '/settings/organization'
     | '/api/auth/$'
     | '/document'
     | '/settings'
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/settings/danger'
+    | '/settings/members'
   id:
     | '__root__'
     | '/_app'
     | '/auth'
     | '/choose-organization'
     | '/onboarding'
+    | '/_app/settings'
     | '/invitations/accept'
     | '/_app/'
     | '/auth/'
-    | '/_app/settings/organization'
     | '/api/auth/$'
     | '/_app/document/'
     | '/_app/settings/'
     | '/auth/check-email/'
     | '/auth/sign-in/'
     | '/auth/sign-up/'
+    | '/_app/settings/danger/'
+    | '/_app/settings/members/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -234,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/auth/': {
       id: '/auth/'
       path: '/'
@@ -257,17 +286,10 @@ declare module '@tanstack/react-router' {
     }
     '/_app/settings/': {
       id: '/_app/settings/'
-      path: '/settings'
+      path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/settings/organization': {
-      id: '/_app/settings/organization'
-      path: '/settings/organization'
-      fullPath: '/settings/organization'
-      preLoaderRoute: typeof AppSettingsOrganizationRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppSettingsRouteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -297,21 +319,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignUpIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/_app/settings/danger/': {
+      id: '/_app/settings/danger/'
+      path: '/danger'
+      fullPath: '/settings/danger/'
+      preLoaderRoute: typeof AppSettingsDangerIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
+    '/_app/settings/members/': {
+      id: '/_app/settings/members/'
+      path: '/members'
+      fullPath: '/settings/members/'
+      preLoaderRoute: typeof AppSettingsMembersIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
   }
 }
 
-interface AppRouteRouteChildren {
-  AppIndexRoute: typeof AppIndexRoute
-  AppSettingsOrganizationRoute: typeof AppSettingsOrganizationRoute
-  AppDocumentIndexRoute: typeof AppDocumentIndexRoute
+interface AppSettingsRouteRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+  AppSettingsDangerIndexRoute: typeof AppSettingsDangerIndexRoute
+  AppSettingsMembersIndexRoute: typeof AppSettingsMembersIndexRoute
+}
+
+const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+  AppSettingsDangerIndexRoute: AppSettingsDangerIndexRoute,
+  AppSettingsMembersIndexRoute: AppSettingsMembersIndexRoute,
+}
+
+const AppSettingsRouteRouteWithChildren =
+  AppSettingsRouteRoute._addFileChildren(AppSettingsRouteRouteChildren)
+
+interface AppRouteRouteChildren {
+  AppSettingsRouteRoute: typeof AppSettingsRouteRouteWithChildren
+  AppIndexRoute: typeof AppIndexRoute
+  AppDocumentIndexRoute: typeof AppDocumentIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
+  AppSettingsRouteRoute: AppSettingsRouteRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
-  AppSettingsOrganizationRoute: AppSettingsOrganizationRoute,
   AppDocumentIndexRoute: AppDocumentIndexRoute,
-  AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
