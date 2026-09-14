@@ -40,9 +40,11 @@ import {
   isReservedSlug,
   isValidSlugFormat,
   normalizeSlug,
+  type OrganizationMembershipInput,
   type RemoveMemberInput,
   type SetActiveOrganizationInput,
   type UpdateMemberRoleInput,
+  type UpdateOrganizationInput,
 } from "./schemas"
 import type {
   ActiveOrganization,
@@ -434,6 +436,170 @@ export async function createOrganization(
   return createdOrg
 }
 
+export async function updateOrganization(
+  userId: string,
+  data: UpdateOrganizationInput,
+) {
+  try {
+    return await db.transaction(async (tx) => {
+      const [callerMembership] = await tx
+        .select({ role: schema.member.role })
+        .from(schema.member)
+        .where(
+          and(
+            eq(schema.member.userId, userId),
+            eq(schema.member.organizationId, data.organizationId),
+          ),
+        )
+        .limit(1)
+
+      if (callerMembership?.role !== "owner") {
+        throw new ForbiddenError("Only organization owners can edit settings")
+      }
+
+      const [updated] = await tx
+        .update(schema.organization)
+        .set({
+          name: data.name.trim(),
+          slug: data.slug,
+          logo: data.logo ?? null,
+        })
+        .where(eq(schema.organization.id, data.organizationId))
+        .returning()
+
+      if (!updated) throw new NotFoundError("Organization not found")
+      log.info(
+        { userId, organizationId: data.organizationId, slug: updated.slug },
+        "organization settings updated",
+      )
+      return updated
+    })
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      throw new ConflictError("Organization with this slug already exists")
+    }
+    throw err
+  }
+}
+
+export async function leaveOrganization(
+  userId: string,
+  data: OrganizationMembershipInput,
+) {
+  const removed = await db.transaction(async (tx) => {
+    await tx
+      .select({ id: schema.organization.id })
+      .from(schema.organization)
+      .where(eq(schema.organization.id, data.organizationId))
+      .for("update")
+
+    const [membership] = await tx
+      .select({ id: schema.member.id, role: schema.member.role })
+      .from(schema.member)
+      .where(
+        and(
+          eq(schema.member.userId, userId),
+          eq(schema.member.organizationId, data.organizationId),
+        ),
+      )
+      .limit(1)
+
+    if (!membership)
+      throw new NotFoundError("Organization membership not found")
+    if (membership.role === "owner") {
+      const [ownerCount] = await tx
+        .select({ count: count(schema.member.id) })
+        .from(schema.member)
+        .where(
+          and(
+            eq(schema.member.organizationId, data.organizationId),
+            eq(schema.member.role, "owner"),
+          ),
+        )
+      if (Number(ownerCount?.count ?? 0) <= 1) {
+        throw new ForbiddenError(
+          "The sole owner cannot leave. Transfer ownership or delete the organization.",
+        )
+      }
+    }
+
+    await tx.delete(schema.member).where(eq(schema.member.id, membership.id))
+    return membership
+  })
+
+  try {
+    await clearActiveOrganizationPreference(userId, data.organizationId)
+    await db
+      .update(schema.session)
+      .set({ activeOrganizationId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.session.userId, userId),
+          eq(schema.session.activeOrganizationId, data.organizationId),
+        ),
+      )
+  } catch (cleanupErr) {
+    log.warn(
+      { err: cleanupErr, userId, organizationId: data.organizationId },
+      "Membership left but active organization cleanup failed",
+    )
+  }
+  log.info(
+    { userId, organizationId: data.organizationId, role: removed.role },
+    "organization membership left",
+  )
+  return { success: true }
+}
+
+export async function deleteOrganization(
+  userId: string,
+  data: OrganizationMembershipInput,
+) {
+  await db.transaction(async (tx) => {
+    const [membership] = await tx
+      .select({ role: schema.member.role })
+      .from(schema.member)
+      .where(
+        and(
+          eq(schema.member.userId, userId),
+          eq(schema.member.organizationId, data.organizationId),
+        ),
+      )
+      .limit(1)
+    if (membership?.role !== "owner") {
+      throw new ForbiddenError("Only organization owners can delete it")
+    }
+    const [deleted] = await tx
+      .delete(schema.organization)
+      .where(eq(schema.organization.id, data.organizationId))
+      .returning({ id: schema.organization.id })
+    if (!deleted) throw new NotFoundError("Organization not found")
+  })
+
+  try {
+    await clearActiveOrganizationPreference(userId, data.organizationId)
+    await db
+      .update(schema.session)
+      .set({ activeOrganizationId: null, updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.session.userId, userId),
+          eq(schema.session.activeOrganizationId, data.organizationId),
+        ),
+      )
+  } catch (cleanupErr) {
+    log.warn(
+      { err: cleanupErr, userId, organizationId: data.organizationId },
+      "Organization deleted but active organization cleanup failed",
+    )
+  }
+  log.info(
+    { userId, organizationId: data.organizationId },
+    "organization deleted",
+  )
+  return { success: true }
+}
+
 /**
  * Set active organization for the current user and session.
  */
@@ -598,7 +764,7 @@ export async function inviteMember(
   userName: string | null | undefined,
   data: InviteMemberInput,
 ) {
-  const { organizationId, email, role } = data
+  const { organizationId, email, role, note } = data
 
   const [callerMembership] = await db
     .select({
@@ -720,6 +886,7 @@ export async function inviteMember(
       role,
       acceptUrl,
       expiresInHours: 48,
+      personalNote: note,
     })
     emailSent = true
   } catch (err) {

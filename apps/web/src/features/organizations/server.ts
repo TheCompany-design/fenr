@@ -15,16 +15,19 @@ import {
   cancelInvitation,
   checkSlugAvailability,
   createOrganization,
+  deleteOrganization,
   getActiveOrganization,
   getInvitationDetails,
   getOrganizationInvitations,
   getOrganizationMembers,
   inviteMember,
+  leaveOrganization,
   listOrganizations,
   removeMember,
   resolveAppOrganizationAccess,
   setActiveOrganization,
   updateMemberRole,
+  updateOrganization,
 } from "./operations"
 import {
   type AcceptInvitationInput,
@@ -43,12 +46,16 @@ import {
   getOrganizationMembersSchema,
   type InviteMemberInput,
   inviteMemberSchema,
+  type OrganizationMembershipInput,
+  organizationMembershipSchema,
   type RemoveMemberInput,
   removeMemberSchema,
   type SetActiveOrganizationInput,
   setActiveOrganizationSchema,
   type UpdateMemberRoleInput,
+  type UpdateOrganizationInput,
   updateMemberRoleSchema,
+  updateOrganizationSchema,
 } from "./schemas"
 import type {
   ActiveOrganization,
@@ -177,6 +184,54 @@ export const setActiveOrganizationFn = createServerFn({ method: "POST" })
       },
     )
   })
+
+export const updateOrganizationFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: unknown): UpdateOrganizationInput =>
+      updateOrganizationSchema.parse(input),
+  )
+  .handler(async ({ data }) =>
+    withWideEvent("organizations", "updateOrganization", async (setContext) => {
+      const session = await ensureSession()
+      setContext({
+        userId: session.user.id,
+        organizationId: data.organizationId,
+      })
+      return updateOrganization(session.user.id, data)
+    }),
+  )
+
+export const leaveOrganizationFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: unknown): OrganizationMembershipInput =>
+      organizationMembershipSchema.parse(input),
+  )
+  .handler(async ({ data }) =>
+    withWideEvent("organizations", "leaveOrganization", async (setContext) => {
+      const session = await ensureSession()
+      setContext({
+        userId: session.user.id,
+        organizationId: data.organizationId,
+      })
+      return leaveOrganization(session.user.id, data)
+    }),
+  )
+
+export const deleteOrganizationFn = createServerFn({ method: "POST" })
+  .validator(
+    (input: unknown): OrganizationMembershipInput =>
+      organizationMembershipSchema.parse(input),
+  )
+  .handler(async ({ data }) =>
+    withWideEvent("organizations", "deleteOrganization", async (setContext) => {
+      const session = await ensureSession()
+      setContext({
+        userId: session.user.id,
+        organizationId: data.organizationId,
+      })
+      return deleteOrganization(session.user.id, data)
+    }),
+  )
 
 export const getOrganizationMembersFn = createServerFn({ method: "GET" })
   .validator(

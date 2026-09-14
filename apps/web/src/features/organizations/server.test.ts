@@ -9,17 +9,20 @@ import {
   cancelInvitation,
   checkSlugAvailability,
   createOrganization,
+  deleteOrganization,
   ForbiddenError,
   getActiveOrganization,
   getInvitationDetails,
   getOrganizationInvitations,
   getOrganizationMembers,
   inviteMember,
+  leaveOrganization,
   listOrganizations,
   NotFoundError,
   removeMember,
   setActiveOrganization,
   updateMemberRole,
+  updateOrganization,
 } from "./operations"
 import {
   invalidateOrganizationQueries,
@@ -1078,6 +1081,79 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         "invitations",
         "org-test",
       ])
+    })
+  })
+
+  describe("Workspace settings and membership lifecycle", () => {
+    it("allows only the owner to update organization settings", async () => {
+      const orgId = await ensureCreatedOrg()
+      const updated = await updateOrganization(testUserA.id, {
+        organizationId: orgId,
+        name: "Acme Laboratories Updated",
+        slug: "acme-labs-updated",
+        logo: null,
+      })
+
+      expect(updated.name).toBe("Acme Laboratories Updated")
+      expect(updated.slug).toBe("acme-labs-updated")
+
+      await expect(
+        updateOrganization(testUserB.id, {
+          organizationId: orgId,
+          name: "Unauthorized",
+          slug: "unauthorized-org",
+          logo: null,
+        }),
+      ).rejects.toThrow(ForbiddenError)
+    })
+
+    it("prevents the sole owner from leaving and removes a regular member", async () => {
+      const org = await createOrganization(testUserA.id, testSessionA.id, {
+        name: "Leave Lifecycle",
+        slug: "leave-lifecycle",
+      })
+
+      await db.insert(schema.member).values({
+        organizationId: org.id,
+        userId: testUserB.id,
+        role: "member",
+      })
+
+      await expect(
+        leaveOrganization(testUserA.id, { organizationId: org.id }),
+      ).rejects.toThrow(ForbiddenError)
+
+      await expect(
+        leaveOrganization(testUserB.id, { organizationId: org.id }),
+      ).resolves.toEqual({ success: true })
+
+      const remaining = await db
+        .select()
+        .from(schema.member)
+        .where(eq(schema.member.organizationId, org.id))
+      expect(remaining).toHaveLength(1)
+
+      await deleteOrganization(testUserA.id, { organizationId: org.id })
+    })
+
+    it("allows the owner to delete an organization but rejects members", async () => {
+      const org = await createOrganization(testUserA.id, testSessionA.id, {
+        name: "Delete Lifecycle",
+        slug: "delete-lifecycle",
+      })
+
+      await expect(
+        deleteOrganization(testUserB.id, { organizationId: org.id }),
+      ).rejects.toThrow(ForbiddenError)
+
+      await expect(
+        deleteOrganization(testUserA.id, { organizationId: org.id }),
+      ).resolves.toEqual({ success: true })
+
+      const deleted = await db.query.organization.findFirst({
+        where: eq(schema.organization.id, org.id),
+      })
+      expect(deleted).toBeUndefined()
     })
   })
 })
