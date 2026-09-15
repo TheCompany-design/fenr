@@ -95,7 +95,29 @@ Every form uses TanStack Form validated by a Zod schema (Standard Schema):
   `.output/`.
 - Tests live next to sources as `*.test.ts(x)` and run with plain `bun test`.
 
-### 7. Skills
+### 7. Git Hygiene & Commit Practices
+
+All changes must adhere to disciplined, atomic version control practices:
+
+- **Atomic Commits**: Break work into small, cohesive, independently verifiable
+  units. Never bundle unrelated changes (e.g. refactoring + feature + tooling)
+  into a single monolithic commit.
+- **Stage Deliberately**: Stage only the specific files and hunks that belong to
+  the atom of work being committed (`git add <files>`). Never blindly run
+  `git add .` or `git add -A` without inspecting git status and diffs.
+- **Verification Before Staging/Committing**: Before every commit, ensure the
+  code builds, typechecks, passes lint/formatting (`bun run check`), and passes
+  applicable tests (`bun test`). Never commit broken code.
+- **Conventional Commits**: Commit messages must follow the Conventional
+  Commits standard (`<type>(<scope>): <short summary>`):
+  - Types: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `perf`, `style`.
+  - Scopes: feature/package area (e.g. `stores`, `schemas`, `auth`, `organizations`, `routes`, `ui`, `tooling`).
+  - Imperative mood, lowercase, concise description, no trailing period.
+  - When helpful, include a body explaining the rationale and non-obvious design choices.
+- **Clean Working Tree**: Temporary scratch files, build artifacts, and
+  incidental changes must never be committed.
+
+### 8. Skills
 
 Load and follow these skills when the task matches them:
 
