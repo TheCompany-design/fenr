@@ -1,12 +1,8 @@
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
-  Cancel01Icon,
   CheckmarkCircle02Icon,
-  Copy01Icon,
-  Link01Icon,
   Loading03Icon,
-  RefreshIcon,
   Shield01Icon,
   SparklesIcon,
 } from "@hugeicons/core-free-icons"
@@ -26,22 +22,22 @@ import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { moduleLogger } from "@/lib/logger"
 import {
   type InviteMembersFormValues,
   inviteMembersFormSchema,
   type OrganizationRole,
-} from "../schemas"
+} from "@/lib/schemas/organizations"
+import { useInviteChips } from "../hooks/use-invite-chips"
+import {
+  ChipPill,
+  isValidEmail,
+  type QueuedInvite,
+  ROLE_DESCRIPTIONS,
+} from "./invite-chip"
+import { InviteLinkBar } from "./invite-link-bar"
 
-const log = moduleLogger("organizations")
-
-export interface QueuedInvite {
-  id: string
-  email: string
-  role: OrganizationRole
-  status: "pending" | "sending" | "success" | "error"
-  error?: string
-}
+export type { QueuedInvite }
+export { ChipPill }
 
 export interface InviteMembersFormProps {
   organizationId?: string
@@ -59,21 +55,6 @@ export interface InviteMembersFormProps {
   allowedRoles?: OrganizationRole[]
   defaultRole?: OrganizationRole
   defaultOpenRoleForEmail?: string
-}
-
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-  admin: "Manage workspace and people.",
-  member: "Create and edit projects.",
-  viewer: "Read-only access.",
-  owner: "Full workspace control.",
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const isValidEmail = (email: string) => EMAIL_RE.test(email.trim())
-
-const initials = (email: string) => {
-  const namePart = email.trim().split("@")[0] ?? ""
-  return namePart.slice(0, 2).toUpperCase() || "??"
 }
 
 const SPLIT_RE = /[\s,;]+/
@@ -113,15 +94,8 @@ export function InviteMembersForm({
     return initial
   }, [initialEmails, initialRole])
 
-  const [copied, setCopied] = React.useState(false)
-
-  const containerRef = React.useRef<HTMLDivElement>(null)
-  const inputRef = React.useRef<HTMLInputElement>(null)
   const submittingRef = React.useRef(false)
   const mountedRef = React.useRef(true)
-  const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  )
   const invitesRef = React.useRef(initialInvites)
 
   const form = useForm({
@@ -136,11 +110,7 @@ export function InviteMembersForm({
     onSubmit: async ({ value }) => {
       await submitInvites(value)
     },
-    onSubmitInvalid: ({ formApi }) => {
-      log.warn(
-        { errors: formApi.state.errors },
-        "Invite form validation failed",
-      )
+    onSubmitInvalid: () => {
       toast.error("Review the invitation form", {
         description:
           "Correct the highlighted invitation details and try again.",
@@ -163,9 +133,6 @@ export function InviteMembersForm({
     mountedRef.current = true
     return () => {
       mountedRef.current = false
-      if (copyTimeoutRef.current) {
-        clearTimeout(copyTimeoutRef.current)
-      }
     }
   }, [])
 
@@ -176,173 +143,25 @@ export function InviteMembersForm({
     }
   }, [allowedRoles, defaultRole, form])
 
-  const isAutoJoin = React.useCallback(
-    (email: string) => {
-      if (!workspaceDomain) return false
-      const trimmed = email.toLowerCase().trim()
-      if (!isValidEmail(trimmed)) return false
-      const domain = workspaceDomain.toLowerCase().replace(/^@/, "").trim()
-      if (!domain) return false
-      const emailDomain = trimmed.split("@")[1]
-      if (!emailDomain) return false
-      return emailDomain === domain || emailDomain.endsWith(`.${domain}`)
-    },
-    [workspaceDomain],
-  )
-
-  const stats = React.useMemo(() => {
-    const valid = invites.filter((c) => isValidEmail(c.email))
-    const autojoin = valid.filter((c) => isAutoJoin(c.email))
-    const sendable = valid.filter(
-      (c) => !isAutoJoin(c.email) && c.status !== "success",
-    )
-    const invalid = invites.length - valid.length
-    return {
-      total: invites.length,
-      sendable: sendable.length,
-      autojoin: autojoin.length,
-      invalid,
-    }
-  }, [invites, isAutoJoin])
-
-  const addEmails = React.useCallback(
-    (raw: string) => {
-      const parts = raw
-        .split(SPLIT_RE)
-        .map((s) => s.trim().replace(/^[,;]+|[,;]+$/g, ""))
-        .filter(Boolean)
-      if (parts.length === 0) return
-
-      form.setFieldValue("invites", (prev) => {
-        const seen = new Set(prev.map((c) => c.email.toLowerCase()))
-        const next = [...prev]
-        for (const email of parts) {
-          const key = email.toLowerCase()
-          if (seen.has(key)) continue
-          seen.add(key)
-          next.push({
-            id: crypto.randomUUID(),
-            email: key,
-            role: defaultRole,
-            status: "pending",
-          })
-        }
-        return next
-      })
-    },
-    [defaultRole, form.setFieldValue],
-  )
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing) return
-
-    if (
-      e.key === "Enter" ||
-      e.key === "," ||
-      e.key === ";" ||
-      e.key === "Tab"
-    ) {
-      const raw = (draft || e.currentTarget?.value || "").trim()
-      if (raw.length === 0) return
-      e.preventDefault()
-      addEmails(raw)
-      form.setFieldValue("draft", "")
-      if (e.currentTarget) {
-        e.currentTarget.value = ""
-      }
-    } else if (
-      e.key === "Backspace" &&
-      draft.length === 0 &&
-      (!e.currentTarget?.value || e.currentTarget.value.length === 0) &&
-      invites.length > 0
-    ) {
-      e.preventDefault()
-      form.setFieldValue("invites", (prev) => prev.slice(0, -1))
-    }
-  }
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const text = e.clipboardData?.getData("text") ?? ""
-    if (!text) return
-
-    if (SPLIT_RE.test(text) || isValidEmail(text.trim())) {
-      e.preventDefault()
-      const fullText = draft.trim() ? `${draft} ${text}` : text
-      addEmails(fullText)
-      form.setFieldValue("draft", "")
-      if (e.currentTarget) {
-        e.currentTarget.value = ""
-      }
-    }
-  }
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const raw = (draft || e.currentTarget?.value || "").trim()
-    if (raw.length === 0) return
-    addEmails(raw)
-    form.setFieldValue("draft", "")
-    if (e.currentTarget) {
-      e.currentTarget.value = ""
-    }
-  }
-
-  const handleContainerMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement
-    if (!target.closest("button, [role='button'], [data-role='trigger']")) {
-      e.preventDefault()
-      inputRef.current?.focus()
-    }
-  }
-
-  const handleRemoveInvite = (id: string) => {
-    form.setFieldValue("invites", (prev) => prev.filter((i) => i.id !== id))
-  }
-
-  const handleChangeRole = (id: string, role: OrganizationRole) => {
-    form.setFieldValue("invites", (prev) =>
-      prev.map((i) => (i.id === id ? { ...i, role } : i)),
-    )
-  }
-
-  const displayLink = React.useMemo(() => {
-    if (inviteLink) {
-      return inviteLink.replace(/^https?:\/\//, "")
-    }
-    const shortId = organizationId ? organizationId.slice(0, 8) : "join"
-    if (typeof window !== "undefined" && window.location?.host) {
-      return `${window.location.host}/invite/${shortId}`
-    }
-    return `fenr.app/invite/${shortId}`
-  }, [inviteLink, organizationId])
-
-  const handleCopyLink = React.useCallback(async () => {
-    try {
-      const fullUrl = inviteLink
-        ? inviteLink
-        : typeof window !== "undefined" && window.location?.origin
-          ? `${window.location.origin}/invite/${organizationId ?? "join"}`
-          : `https://fenr.app/invite/${organizationId ?? "join"}`
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(fullUrl)
-        if (!mountedRef.current) return
-        setCopied(true)
-        toast.success("Invite link copied to clipboard")
-        if (copyTimeoutRef.current) {
-          clearTimeout(copyTimeoutRef.current)
-        }
-        copyTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current) {
-            setCopied(false)
-          }
-        }, 1500)
-      } else {
-        toast.error("Clipboard access not available")
-      }
-    } catch (err) {
-      log.error({ err }, "Failed to copy invite link")
-      toast.error("Failed to copy link to clipboard")
-    }
-  }, [inviteLink, organizationId])
+  const {
+    inputRef,
+    containerRef,
+    stats,
+    isAutoJoin,
+    handleKeyDown,
+    handlePaste,
+    handleBlur,
+    handleContainerMouseDown,
+    removeInvite,
+    changeRole,
+  } = useInviteChips({
+    invites,
+    setInvites: (updater) => form.setFieldValue("invites", updater),
+    draft,
+    setDraft: (value) => form.setFieldValue("draft", value),
+    defaultRole,
+    workspaceDomain,
+  })
 
   const canContinueWithoutSending = React.useMemo(() => {
     return (
@@ -416,8 +235,7 @@ export function InviteMembersForm({
           ),
         )
       }
-    } catch (err) {
-      log.error({ err, inviteId: invite.id }, "Failed to retry invitation")
+    } catch {
       if (!mountedRef.current) return
       const message = "Failed to send invitation. Please try again."
       toast.error(message)
@@ -586,8 +404,7 @@ export function InviteMembersForm({
           description: "Please check the errors and try again.",
         })
       }
-    } catch (err) {
-      log.error({ err, count: payload.length }, "Failed to send invitations")
+    } catch {
       const message = "Could not send invitations. Please try again."
       toast.error("Invitation error", { description: message })
       if (!mountedRef.current) return
@@ -605,21 +422,24 @@ export function InviteMembersForm({
 
   return (
     <form
-      onSubmit={(event) => {
-        event.preventDefault()
+      onSubmit={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         void form.handleSubmit()
       }}
-      className={cn("flex min-w-0 max-w-full flex-col gap-5", className)}
+      className={cn("flex flex-col gap-4", className)}
+      noValidate
     >
-      {/* Header Row: Label & Default Role Selector */}
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <Label htmlFor="invite-email-input" className="font-medium text-sm">
+      {/* Recipient Header with Default Role Dropdown */}
+      <div className="flex items-center justify-between">
+        <Label
+          htmlFor="invite-email-input"
+          className="font-medium text-xs text-foreground select-none"
+        >
           Invitees
         </Label>
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="hidden font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em] sm:inline">
-            Default role
-          </span>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span>as</span>
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -691,8 +511,8 @@ export function InviteMembersForm({
                 isSubmitting={isSubmitting}
                 isAutoJoin={isAutoJoin(invite.email)}
                 defaultOpenRole={defaultOpenRoleForEmail === invite.email}
-                onRemove={() => handleRemoveInvite(invite.id)}
-                onRoleChange={(newRole) => handleChangeRole(invite.id, newRole)}
+                onRemove={() => removeInvite(invite.id)}
+                onRoleChange={(newRole) => changeRole(invite.id, newRole)}
                 onRetry={() => handleRetryFailed(invite)}
               />
             ))}
@@ -762,9 +582,12 @@ export function InviteMembersForm({
             </Label>
             <button
               type="button"
-              onClick={() => form.setFieldValue("showMessage", false)}
+              onClick={() => {
+                form.setFieldValue("showMessage", false)
+                form.setFieldValue("note", "")
+              }}
               disabled={isSubmitting}
-              className="font-mono text-[10px] text-muted-foreground uppercase tracking-[0.25em] hover:text-foreground transition-colors cursor-pointer disabled:pointer-events-none"
+              className="font-mono text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               Hide
             </button>
@@ -797,34 +620,11 @@ export function InviteMembersForm({
 
       {/* Action Footer */}
       <div className="flex min-w-0 flex-col items-stretch justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
-        <div className="flex items-center">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            data-testid="copy-link-btn"
-            className="group inline-flex items-center gap-2 rounded-md border border-dashed border-border/60 px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-border hover:text-foreground cursor-pointer"
-          >
-            <HugeiconsIcon
-              icon={copied ? CheckmarkCircle02Icon : Link01Icon}
-              size={14}
-              className={cn(
-                "shrink-0 transition-colors",
-                copied
-                  ? "text-foreground"
-                  : "opacity-60 group-hover:opacity-100",
-              )}
-            />
-            <span className="truncate max-w-[130px] sm:max-w-[190px]">
-              {displayLink}
-            </span>
-            <span className="flex items-center gap-1 opacity-60 group-hover:opacity-100 shrink-0">
-              <HugeiconsIcon icon={Copy01Icon} size={12} />
-              <span className="uppercase tracking-[0.2em]">
-                {copied ? "Copied" : "Copy link"}
-              </span>
-            </span>
-          </button>
-        </div>
+        <InviteLinkBar
+          inviteLink={inviteLink}
+          organizationId={organizationId}
+          isSubmitting={isSubmitting}
+        />
 
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {onSkip && (
@@ -914,168 +714,5 @@ export function InviteMembersForm({
         </div>
       </div>
     </form>
-  )
-}
-
-export function ChipPill({
-  invite,
-  allowedRoles,
-  isSubmitting,
-  isAutoJoin,
-  defaultOpenRole = false,
-  onRemove,
-  onRoleChange,
-  onRetry,
-}: {
-  invite: QueuedInvite
-  allowedRoles: OrganizationRole[]
-  isSubmitting: boolean
-  isAutoJoin: boolean
-  defaultOpenRole?: boolean
-  onRemove: () => void
-  onRoleChange: (role: OrganizationRole) => void
-  onRetry?: () => void
-}) {
-  const valid = isValidEmail(invite.email)
-  const isFailed = invite.status === "error"
-  const autoJoinActive = valid && isAutoJoin
-  const [roleOpen, setRoleOpen] = React.useState(defaultOpenRole)
-
-  return (
-    <div
-      data-testid={`chip-${invite.email}`}
-      className={cn(
-        "group inline-flex h-7 items-center gap-1.5 rounded-full border pl-1 pr-1 text-xs transition-colors select-none",
-        isFailed
-          ? "border-destructive/40 bg-destructive/5 text-destructive"
-          : autoJoinActive
-            ? "border-border bg-muted text-foreground"
-            : !valid
-              ? "border-border bg-secondary text-secondary-foreground"
-              : "border-border bg-foreground/[0.04] text-foreground",
-      )}
-    >
-      {/* 2-char initials pill */}
-      <span
-        className={cn(
-          "flex size-5 shrink-0 items-center justify-center rounded-full font-mono text-[9px] uppercase",
-          autoJoinActive
-            ? "bg-muted text-foreground font-semibold"
-            : "bg-foreground/[0.08] text-muted-foreground font-medium",
-        )}
-        aria-hidden="true"
-      >
-        {initials(invite.email)}
-      </span>
-
-      {/* Email text */}
-      <span className="truncate max-w-[150px] sm:max-w-[220px] font-mono text-xs">
-        {invite.email}
-      </span>
-
-      {/* Auto-join badge or invalid tag or inline role dropdown */}
-      {autoJoinActive ? (
-        <span
-          data-testid={`autojoin-badge-${invite.email}`}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 font-mono text-[9px] text-foreground font-medium uppercase tracking-[0.18em]"
-        >
-          <HugeiconsIcon icon={SparklesIcon} size={10} />
-          Auto-join
-        </span>
-      ) : !valid ? (
-        <span className="font-mono text-[9px] text-destructive uppercase tracking-[0.2em] font-medium">
-          Invalid
-        </span>
-      ) : (
-        <DropdownMenu open={roleOpen} onOpenChange={setRoleOpen}>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                disabled={isSubmitting || invite.status === "sending"}
-                aria-label={`Change role for ${invite.email}`}
-                data-testid={`role-trigger-${invite.email}`}
-                className="flex h-5 items-center gap-0.5 rounded-full px-1.5 font-mono text-[10px] text-muted-foreground uppercase tracking-[0.18em] transition-colors hover:bg-foreground/[0.06] hover:text-foreground disabled:pointer-events-none cursor-pointer"
-              >
-                <span>{invite.role}</span>
-                <HugeiconsIcon icon={ArrowDown01Icon} size={10} />
-              </button>
-            }
-          />
-          <DropdownMenuContent align="start" className="w-52 p-1">
-            {allowedRoles.map((r) => {
-              const active = r === invite.role
-              return (
-                <DropdownMenuItem
-                  key={r}
-                  onClick={() => onRoleChange(r)}
-                  data-testid={`role-option-${invite.email}-${r}`}
-                  className="flex items-start gap-2 py-1.5 cursor-pointer capitalize"
-                >
-                  <HugeiconsIcon
-                    icon={CheckmarkCircle02Icon}
-                    size={14}
-                    className={cn(
-                      "mt-0.5 shrink-0",
-                      active ? "opacity-100 text-primary" : "opacity-0",
-                    )}
-                  />
-                  <div className="flex flex-col">
-                    <span className="capitalize font-medium text-xs">{r}</span>
-                    <span className="text-muted-foreground text-[11px] leading-tight normal-case">
-                      {ROLE_DESCRIPTIONS[r] ?? `${r} role`}
-                    </span>
-                  </div>
-                </DropdownMenuItem>
-              )
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-
-      {/* Sending spinner */}
-      {invite.status === "sending" && (
-        <HugeiconsIcon
-          icon={Loading03Icon}
-          size={12}
-          className="animate-spin text-primary shrink-0"
-        />
-      )}
-
-      {/* Success check */}
-      {invite.status === "success" && (
-        <HugeiconsIcon
-          icon={CheckmarkCircle02Icon}
-          size={12}
-          className="text-foreground shrink-0"
-        />
-      )}
-
-      {/* Error / Retry button */}
-      {invite.status === "error" && (
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={isSubmitting}
-          aria-label={`Retry invitation to ${invite.email}`}
-          title={`Retry: ${invite.error ?? "Failed to send"}`}
-          className="flex items-center text-destructive hover:opacity-80 shrink-0 cursor-pointer disabled:pointer-events-none"
-        >
-          <HugeiconsIcon icon={RefreshIcon} size={12} />
-        </button>
-      )}
-
-      {/* Remove button */}
-      <button
-        type="button"
-        onClick={onRemove}
-        disabled={isSubmitting || invite.status === "sending"}
-        aria-label={`Remove ${invite.email}`}
-        data-testid={`remove-chip-${invite.email}`}
-        className="flex size-5 items-center justify-center rounded-full opacity-50 hover:bg-foreground/[0.08] hover:opacity-100 transition-all disabled:pointer-events-none cursor-pointer"
-      >
-        <HugeiconsIcon icon={Cancel01Icon} size={11} />
-      </button>
-    </div>
   )
 }
