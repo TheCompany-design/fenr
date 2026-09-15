@@ -181,9 +181,7 @@ describe("OrganizationMembers Component (Block 4)", () => {
 
   describe("actions and interactions", () => {
     it("handles invitation cancellation with confirmation", async () => {
-      const { useConfirmStore } = await import(
-        "@/components/feedback/confirm.store"
-      )
+      const { useConfirmStore } = await import("@/lib/stores/confirm.store")
       useConfirmStore.setState({ openConfirm: async () => true })
 
       queryClient.setQueryData(organizationKeys.members(testOrgId), {
@@ -246,9 +244,7 @@ describe("OrganizationMembers Component (Block 4)", () => {
     })
 
     it("prevents double-submitting while action is in-flight", async () => {
-      const { useConfirmStore } = await import(
-        "@/components/feedback/confirm.store"
-      )
+      const { useConfirmStore } = await import("@/lib/stores/confirm.store")
       useConfirmStore.setState({ openConfirm: async () => true })
 
       let resolveCancel: () => void = () => {}
