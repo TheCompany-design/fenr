@@ -340,7 +340,6 @@ export function OrganizationSettings({
                     </Button>
                     <Button
                       type="submit"
-                      onClick={() => void form.handleSubmit()}
                       disabled={
                         !isOwner || !isDirty || !canSubmit || submitting
                       }

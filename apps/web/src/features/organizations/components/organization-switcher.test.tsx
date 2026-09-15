@@ -166,6 +166,12 @@ describe("OrganizationSwitcher (Atom 8)", () => {
     expect(bodyHtml).toContain("member")
     expect(bodyHtml).toContain("fenr.app/beta-labs")
     expect(bodyHtml).toContain("Organizations")
+    expect(
+      document.querySelector('[data-testid="active-org-org-1"]'),
+    ).not.toBeNull()
+    expect(
+      document.querySelector('[data-testid="active-org-org-2"]'),
+    ).toBeNull()
 
     root.unmount()
     container.remove()

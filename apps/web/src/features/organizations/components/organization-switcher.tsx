@@ -75,12 +75,9 @@ export function OrganizationSwitcher({
       await invalidateOrganizationQueries(queryClient, orgId)
       await router.invalidate()
       setIsOpen(false)
-    } catch (err) {
+    } catch {
       toast.error("Failed to switch organization", {
-        description:
-          err instanceof Error
-            ? err.message
-            : "Could not switch organization. Please try again.",
+        description: "Could not switch organization. Please try again.",
       })
     } finally {
       setSwitchingId(null)
@@ -223,6 +220,8 @@ export function OrganizationSwitcher({
                               icon={Tick02Icon}
                               size={14}
                               className="text-primary shrink-0"
+                              data-testid={`active-org-${org.id}`}
+                              aria-label="Active organization"
                             />
                           ) : null}
                         </div>

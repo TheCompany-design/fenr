@@ -16,12 +16,14 @@ export function InviteLinkBar({
   isSubmitting = false,
 }: InviteLinkBarProps) {
   const [copied, setCopied] = React.useState(false)
+  const [mounted, setMounted] = React.useState(false)
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
   const mountedRef = React.useRef(true)
 
   React.useEffect(() => {
+    setMounted(true)
     mountedRef.current = true
     return () => {
       mountedRef.current = false
@@ -33,20 +35,20 @@ export function InviteLinkBar({
 
   const defaultLink = React.useMemo(() => {
     if (inviteLink) return inviteLink
-    if (typeof window !== "undefined") {
+    if (mounted && typeof window !== "undefined") {
       const origin = window.location.origin
       return organizationId
         ? `${origin}/invitations/accept?orgId=${organizationId}`
         : `${origin}/invitations/accept`
     }
     return "/invitations/accept"
-  }, [inviteLink, organizationId])
+  }, [inviteLink, organizationId, mounted])
 
   const displayLink = React.useMemo(() => {
     try {
       const url = new URL(
         defaultLink,
-        typeof window !== "undefined"
+        mounted && typeof window !== "undefined"
           ? window.location.origin
           : "https://fenr.dev",
       )
@@ -54,7 +56,7 @@ export function InviteLinkBar({
     } catch {
       return defaultLink
     }
-  }, [defaultLink])
+  }, [defaultLink, mounted])
 
   const handleCopyLink = React.useCallback(async () => {
     try {

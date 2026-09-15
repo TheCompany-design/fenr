@@ -74,7 +74,10 @@ export function InviteMembersForm({
   defaultRole: defaultRoleProp,
   defaultOpenRoleForEmail,
 }: InviteMembersFormProps) {
-  const initialRole = defaultRoleProp ?? allowedRoles[0] ?? "member"
+  const initialRole =
+    defaultRoleProp && allowedRoles.includes(defaultRoleProp)
+      ? defaultRoleProp
+      : (allowedRoles[0] ?? "member")
   const initialInvites = React.useMemo<QueuedInvite[]>(() => {
     if (!initialEmails || initialEmails.length === 0) return []
     const seen = new Set<string>()

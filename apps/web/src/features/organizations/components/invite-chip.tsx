@@ -49,7 +49,7 @@ export interface ChipPillProps {
   defaultOpenRole?: boolean
   onRemove: () => void
   onRoleChange: (role: OrganizationRole) => void
-  onRetry?: () => void
+  onRetry: () => void
 }
 
 export function ChipPill({

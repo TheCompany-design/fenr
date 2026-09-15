@@ -310,7 +310,7 @@ describe("Organization Domain Components (Atom 7)", () => {
         ),
       )
 
-      expect(html).not.toContain("Invite Teammates")
+      expect(html).not.toContain("Invite teammates")
     })
   })
 })

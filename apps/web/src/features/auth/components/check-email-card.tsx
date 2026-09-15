@@ -25,7 +25,10 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
+import { moduleLogger } from "@/lib/logger"
 import { AuthErrorBanner } from "./auth-error-banner"
+
+const log = moduleLogger("auth:check-email")
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -111,9 +114,13 @@ export function CheckEmailCard({
       })
 
       if (result.error) {
+        log.error(
+          { err: result.error, resendCount },
+          "Failed to resend magic link",
+        )
         if (!isMountedRef.current) return
         toast.error("Failed to resend magic link", {
-          description: result.error.message || "Please try again shortly.",
+          description: "Please try again shortly.",
         })
         return
       }
@@ -128,7 +135,8 @@ export function CheckEmailCard({
       toast.success("Magic link resent", {
         description: "A fresh sign-in link has been sent to your email.",
       })
-    } catch {
+    } catch (err) {
+      log.error({ err, resendCount }, "Network error during magic link resend")
       if (!isMountedRef.current) return
       toast.error("Network error", {
         description:

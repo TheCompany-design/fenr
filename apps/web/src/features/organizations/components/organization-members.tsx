@@ -181,12 +181,9 @@ export function OrganizationMembers({
           description: "The change was saved. Refresh the page to see it.",
         })
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to update role", {
-        description:
-          err instanceof Error
-            ? err.message
-            : "Could not update member role. Please try again.",
+        description: "Could not update member role. Please try again.",
       })
     } finally {
       releaseAction(memberId)
@@ -222,7 +219,9 @@ export function OrganizationMembers({
       try {
         await invalidateOrganizationQueries(queryClient, organizationId)
       } catch {
-        // Best-effort cache invalidation
+        toast.warning(isSelf ? "You left the organization" : "Member removed", {
+          description: "The change was saved. Refresh the page to see it.",
+        })
       }
       if (isSelf) {
         try {
@@ -234,12 +233,9 @@ export function OrganizationMembers({
           })
         }
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to remove member", {
-        description:
-          err instanceof Error
-            ? err.message
-            : "Could not remove member. Please try again.",
+        description: "Could not remove member. Please try again.",
       })
     } finally {
       releaseAction(memberId)
@@ -275,12 +271,9 @@ export function OrganizationMembers({
           description: "The change was saved. Refresh the page to see it.",
         })
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to cancel invitation", {
-        description:
-          err instanceof Error
-            ? err.message
-            : "Could not revoke invitation. Please try again.",
+        description: "Could not revoke invitation. Please try again.",
       })
     } finally {
       releaseAction(invitationId)
