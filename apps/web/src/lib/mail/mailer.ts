@@ -34,7 +34,14 @@ export function maskEmail(email: string): string {
   if (!email || typeof email !== "string") {
     return ""
   }
-  const trimmed = email.trim()
+  let trimmed = ""
+  const raw = email.trim()
+  for (let i = 0; i < raw.length; i++) {
+    const code = raw.charCodeAt(i)
+    if (code >= 32 && code !== 127) {
+      trimmed += raw[i]
+    }
+  }
   const atIndex = trimmed.lastIndexOf("@")
   if (atIndex <= 0 || atIndex === trimmed.length - 1) {
     return "***"

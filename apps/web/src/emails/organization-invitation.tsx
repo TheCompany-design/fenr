@@ -48,8 +48,8 @@ export function OrganizationInvitationEmail({
               <strong style={emailStyles.boldText}>{inviterName}</strong>
               {" has invited you to join "}
               <strong style={emailStyles.boldText}>{organizationName}</strong>
-              {" as a "}
-              <strong style={emailStyles.boldText}>{role}</strong>.
+              {" with the "}
+              <strong style={emailStyles.boldText}>{role}</strong> role.
             </Text>
             {personalNote ? (
               <Section>
@@ -67,7 +67,7 @@ export function OrganizationInvitationEmail({
               </Button>
             </Section>
             <Text style={emailStyles.paragraph}>
-              {`This invitation will expire in ${expiresInHours} hours.`}
+              {`This invitation will expire in ${expiresInHours} ${expiresInHours === 1 ? "hour" : "hours"}.`}
             </Text>
             <Hr style={emailStyles.hr} />
             <Text style={emailStyles.fallbackNotice}>

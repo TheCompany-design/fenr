@@ -47,6 +47,13 @@ describe("Mailer Service", () => {
       expect(maskEmail("user@")).toBe("***")
       expect(maskEmail("   user@example.com   ")).toBe("u***r@example.com")
     })
+
+    it("strips CRLF and control characters defensively from masked email", () => {
+      expect(maskEmail("user@example.com\r\ninjected")).toBe(
+        "u***r@example.cominjected",
+      )
+      expect(maskEmail("user\x00@example.com")).toBe("u***r@example.com")
+    })
   })
 
   describe("validateRecipientEmail", () => {
