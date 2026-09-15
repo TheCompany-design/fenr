@@ -231,7 +231,7 @@ The implementer must **not declare the block complete simply because the happy p
 
 After implementation, assign multiple review agents to independently inspect the work.
 
-Reviewers behave as adversaries attempting to find ways the implementation can fail. They do not perform stylistic review or rubber-stamp. Each reviewer inspects the code against the full review framework (`.pi/agents/review-framework.md`) through their assigned lens and reports:
+Reviewers behave as adversaries attempting to find ways the implementation can fail. They do not perform stylistic review or rubber-stamp. Each reviewer inspects the code against the full review framework (`.agents/agents/review-framework.md`) through their assigned lens and reports:
 
 * The specific issue.
 * The concrete scenario in which it manifests.
@@ -247,7 +247,7 @@ If any reviewer discovers a blocking issue, the block returns to the implementer
 
 # Mandatory Review Dimensions
 
-Every reviewer must consider the following dimensions (full detail in `.pi/agents/review-framework.md`).
+Every reviewer must consider the following dimensions (full detail in `.agents/agents/review-framework.md`).
 
 ## 1. Defensive Programming
 Look for assumptions the code makes about inputs, state, dependencies, and external systems. Verify that malformed, missing, unexpected, stale, or invalid values cannot cause crashes, panics, corrupted state, or undefined behavior. Focus areas: optional/null values, type conversions, empty collections, array/index access, parsing, user input, external API responses, filesystem/network operations, database results, configuration, environment variables. Do not add defensive complexity where the type system or architecture already provides the guarantee.

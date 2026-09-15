@@ -94,6 +94,7 @@ export function setupTestDOM() {
       ) {
         return
       }
+      throw reason
     })
   }
 }
