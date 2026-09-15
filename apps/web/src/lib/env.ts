@@ -37,7 +37,7 @@ export type ServerEnv = z.infer<typeof serverEnvSchema>
 export function parseServerEnv(
   env: Record<string, unknown | undefined> = process.env,
 ) {
-  const rawEncryption = env.SMTP_ENCRYPTION ?? env.SMTP_ENCTYPTION
+  const rawEncryption = env.SMTP_ENCRYPTION
   const encryption = rawEncryption === "" ? undefined : rawEncryption
 
   const raw = {

@@ -21,6 +21,14 @@ export function safeRedirectPath(value: unknown): string {
   ) {
     return FALLBACK_PATH
   }
+
+  try {
+    const url = new URL(value, "http://localhost")
+    if (url.origin !== "http://localhost") return FALLBACK_PATH
+  } catch {
+    return FALLBACK_PATH
+  }
+
   return value
 }
 
@@ -30,6 +38,7 @@ export function safeAppRedirectPath(value: unknown): string {
 
   try {
     const url = new URL(path, "http://localhost")
+    if (url.origin !== "http://localhost") return FALLBACK_PATH
     const pathname = url.pathname.toLowerCase()
 
     if (

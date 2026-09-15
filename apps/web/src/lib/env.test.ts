@@ -102,7 +102,7 @@ describe("Server Environment Validation (SMTP & Mailer)", () => {
     expect(emptyPassword.success).toBe(false)
   })
 
-  it("transparently falls back from SMTP_ENCTYPTION typo to SMTP_ENCRYPTION", () => {
+  it("does not accept misspelled SMTP_ENCTYPTION as SMTP_ENCRYPTION", () => {
     const result = parseServerEnv({
       ...baseValidEnv,
       SMTP_ENCTYPTION: "tls",
@@ -110,20 +110,7 @@ describe("Server Environment Validation (SMTP & Mailer)", () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.SMTP_ENCRYPTION).toBe("tls")
-    }
-  })
-
-  it("prioritizes correctly spelled SMTP_ENCRYPTION over SMTP_ENCTYPTION when both present", () => {
-    const result = parseServerEnv({
-      ...baseValidEnv,
-      SMTP_ENCRYPTION: "ssl",
-      SMTP_ENCTYPTION: "tls",
-    })
-
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.SMTP_ENCRYPTION).toBe("ssl")
+      expect(result.data.SMTP_ENCRYPTION).toBeUndefined()
     }
   })
 
@@ -169,6 +156,12 @@ describe("Server Environment Validation (SMTP & Mailer)", () => {
       SMTP_PORT: -1,
     })
     expect(negativePort.success).toBe(false)
+
+    const zeroPort = parseServerEnv({
+      ...baseValidEnv,
+      SMTP_PORT: 0,
+    })
+    expect(zeroPort.success).toBe(false)
 
     const floatPort = parseServerEnv({
       ...baseValidEnv,

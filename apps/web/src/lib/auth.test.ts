@@ -79,16 +79,35 @@ describe("Better Auth Configuration & Plugins", () => {
     const sessionHooks = auth.options.databaseHooks?.session
 
     it("handles null/undefined session objects defensively across all hooks", async () => {
+      const createBefore = sessionHooks?.create?.before
+      const createAfter = sessionHooks?.create?.after
+      const updateAfter = sessionHooks?.update?.after
+      const deleteAfter = sessionHooks?.delete?.after
+
+      expect(typeof createBefore).toBe("function")
+      expect(typeof createAfter).toBe("function")
+      expect(typeof updateAfter).toBe("function")
+      expect(typeof deleteAfter).toBe("function")
+
+      if (
+        typeof createBefore !== "function" ||
+        typeof createAfter !== "function" ||
+        typeof updateAfter !== "function" ||
+        typeof deleteAfter !== "function"
+      ) {
+        throw new Error("Expected session database hooks to be functions")
+      }
+
       // @ts-expect-error - testing defensive null guard
-      const beforeRes = await sessionHooks?.create?.before?.(null)
+      const beforeRes = await createBefore(null)
       expect(beforeRes?.data).toBeNull()
 
       // @ts-expect-error - testing defensive null guard
-      await expect(sessionHooks?.create?.after?.(null)).resolves.toBeUndefined()
+      await expect(createAfter(null)).resolves.toBeUndefined()
       // @ts-expect-error - testing defensive null guard
-      await expect(sessionHooks?.update?.after?.(null)).resolves.toBeUndefined()
+      await expect(updateAfter(null)).resolves.toBeUndefined()
       // @ts-expect-error - testing defensive null guard
-      await expect(sessionHooks?.delete?.after?.(null)).resolves.toBeUndefined()
+      await expect(deleteAfter(null)).resolves.toBeUndefined()
     })
 
     it("auto-resolves active organization on session.create.before when missing", async () => {

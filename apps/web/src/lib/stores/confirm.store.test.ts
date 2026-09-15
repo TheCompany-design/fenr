@@ -97,4 +97,69 @@ describe("confirm store", () => {
     useConfirmStore.getState().reset()
     expect(useConfirmStore.getState().isOpen).toBe(false)
   })
+
+  it("does not resolve confirmation true when onConfirm throws", async () => {
+    let settled = false
+    const promise = useConfirmStore.getState().openConfirm({
+      title: "Failing action",
+      onConfirm: async () => {
+        throw new Error("Action failed")
+      },
+    })
+    void promise.then(() => {
+      settled = true
+    })
+
+    await expect(useConfirmStore.getState().handleConfirm()).rejects.toThrow(
+      "Action failed",
+    )
+    expect(settled).toBe(false)
+    expect(useConfirmStore.getState().isLoading).toBe(false)
+  })
+
+  it("resolves false and closes dialog even if onCancel throws", async () => {
+    const promise = useConfirmStore.getState().openConfirm({
+      title: "Throwing cancel",
+      onCancel: () => {
+        throw new Error("Cancel error")
+      },
+    })
+
+    expect(() => useConfirmStore.getState().handleCancel()).toThrow(
+      "Cancel error",
+    )
+    const result = await promise
+    expect(result).toBe(false)
+    expect(useConfirmStore.getState().isOpen).toBe(false)
+  })
+
+  it("guards against concurrent execution while loading", async () => {
+    let confirmCalls = 0
+    let releasePromise: () => void = () => {}
+    const inFlight = new Promise<void>((resolve) => {
+      releasePromise = resolve
+    })
+
+    useConfirmStore.getState().openConfirm({
+      title: "Slow action",
+      onConfirm: async () => {
+        confirmCalls++
+        await inFlight
+      },
+    })
+
+    const firstConfirm = useConfirmStore.getState().handleConfirm()
+    expect(useConfirmStore.getState().isLoading).toBe(true)
+
+    // Second confirm and cancel should be ignored while loading
+    await useConfirmStore.getState().handleConfirm()
+    useConfirmStore.getState().handleCancel()
+
+    expect(confirmCalls).toBe(1)
+    expect(useConfirmStore.getState().isOpen).toBe(true)
+
+    releasePromise()
+    await firstConfirm
+    expect(useConfirmStore.getState().isOpen).toBe(false)
+  })
 })

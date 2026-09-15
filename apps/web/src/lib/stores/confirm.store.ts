@@ -101,16 +101,20 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   },
 
   handleConfirm: async () => {
-    const { onConfirm, _resolve } = get()
+    const { onConfirm, _resolve, isLoading } = get()
+    if (isLoading) return
+
     if (onConfirm) {
+      set({ isLoading: true })
       try {
-        set({ isLoading: true })
         await onConfirm()
-      } finally {
         set({ isLoading: false, isOpen: false })
         if (_resolve) {
           _resolve(true)
         }
+      } catch (err) {
+        set({ isLoading: false })
+        throw err
       }
     } else {
       set({ isOpen: false })
@@ -121,13 +125,18 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   },
 
   handleCancel: () => {
-    const { onCancel, _resolve } = get()
-    set({ isOpen: false, isLoading: false })
-    if (onCancel) {
-      onCancel()
-    }
-    if (_resolve) {
-      _resolve(false)
+    const { onCancel, _resolve, isLoading } = get()
+    if (isLoading) return
+
+    try {
+      if (onCancel) {
+        onCancel()
+      }
+    } finally {
+      set({ isOpen: false, isLoading: false })
+      if (_resolve) {
+        _resolve(false)
+      }
     }
   },
 
