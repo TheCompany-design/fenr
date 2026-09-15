@@ -54,7 +54,12 @@ function Button({
   children,
   ...props
 }: ButtonProps) {
-  if (asChild && isValidElement(children)) {
+  if (asChild) {
+    if (!isValidElement(children)) {
+      throw new Error(
+        "Button with 'asChild' requires a single valid React element as a child.",
+      )
+    }
     return (
       <ButtonPrimitive
         data-slot="button"

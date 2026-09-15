@@ -22,8 +22,8 @@ describe("AuthShell Component", () => {
     expect(html).toContain("size-2 rounded-full bg-foreground")
 
     // Atmospheric lighting & grid
-    expect(html).toContain("radial-gradient(900px 600px at 50% 50%")
-    expect(html).toContain("bg-[size:40px_40px]")
+    expect(html).toContain("auth-radial-glow")
+    expect(html).toContain("auth-grid-pattern")
     expect(html).toContain("blur-3xl")
 
     // Bottom quote and default eyebrow

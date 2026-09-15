@@ -30,7 +30,7 @@ export function AuthShell({
         {/* Delicate background grid */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,color-mix(in_srgb,var(--border)_45%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_srgb,var(--border)_45%,transparent)_1px,transparent_1px)] bg-[size:40px_40px] opacity-30 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]"
+          className="pointer-events-none absolute inset-0 auth-grid-pattern opacity-30"
         />
 
         {/* Atmospheric radial glow */}
@@ -42,11 +42,7 @@ export function AuthShell({
         {/* Subtle radial gradient lighting */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(900px 600px at 50% 50%, transparent 45%, color-mix(in srgb, var(--background) 88%, transparent) 92%)",
-          }}
+          className="pointer-events-none absolute inset-0 auth-radial-glow"
         />
 
         {/* Branding header with dot indicator and monospace uppercase tracking */}

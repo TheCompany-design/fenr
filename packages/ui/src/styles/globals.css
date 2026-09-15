@@ -152,3 +152,31 @@
     cursor: pointer;
   }
 }
+
+@utility auth-grid-pattern {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--border) 45%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--border) 45%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+  mask-image: radial-gradient(
+    ellipse 60% 50% at 50% 50%,
+    #000 70%,
+    transparent 100%
+  );
+}
+
+@utility auth-radial-glow {
+  background: radial-gradient(
+    900px 600px at 50% 50%,
+    transparent 45%,
+    color-mix(in srgb, var(--background) 88%, transparent) 92%
+  );
+}
