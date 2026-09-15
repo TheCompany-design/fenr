@@ -55,7 +55,10 @@ export async function resolveUserActiveOrganization(
       )
       .where(eq(schema.member.userId, userId)),
     db
-      .select({ organizationId: schema.userActiveOrganization.organizationId })
+      .select({
+        organizationId: schema.userActiveOrganization.organizationId,
+        updatedAt: schema.userActiveOrganization.updatedAt,
+      })
       .from(schema.userActiveOrganization)
       .where(eq(schema.userActiveOrganization.userId, userId))
       .limit(1),
@@ -74,7 +77,7 @@ export async function resolveUserActiveOrganization(
       }
     }
 
-    // Stale preference: clean it up atomically targeting only the stale organizationId
+    // Stale preference: clean it up atomically targeting only the stale organizationId and updatedAt
     try {
       await db
         .delete(schema.userActiveOrganization)
@@ -85,6 +88,7 @@ export async function resolveUserActiveOrganization(
               schema.userActiveOrganization.organizationId,
               preference.organizationId,
             ),
+            eq(schema.userActiveOrganization.updatedAt, preference.updatedAt),
           ),
         )
     } catch (err) {
@@ -144,44 +148,54 @@ export async function setActiveOrganizationPreference(
     )
   }
 
-  // Invariant verification: ensure user is a valid member of the target organization
-  const [membership] = await db
-    .select({ id: schema.member.id })
-    .from(schema.member)
-    .where(
-      and(
-        eq(schema.member.userId, userId),
-        eq(schema.member.organizationId, organizationId),
-      ),
-    )
-    .limit(1)
+  // Invariant verification: ensure user is a valid member of the target organization atomically
+  await db.transaction(async (tx) => {
+    const [membership] = await tx
+      .select({ id: schema.member.id })
+      .from(schema.member)
+      .where(
+        and(
+          eq(schema.member.userId, userId),
+          eq(schema.member.organizationId, organizationId),
+        ),
+      )
+      .limit(1)
 
-  if (!membership) {
-    throw new Error(
-      `Cannot set active organization: user ${userId} is not a member of organization ${organizationId}`,
-    )
-  }
+    if (!membership) {
+      throw new Error(
+        `Cannot set active organization: user ${userId} is not a member of organization ${organizationId}`,
+      )
+    }
 
-  await db
-    .insert(schema.userActiveOrganization)
-    .values({
-      userId,
-      organizationId,
-      updatedAt,
-    })
-    .onConflictDoUpdate({
-      target: schema.userActiveOrganization.userId,
-      set: {
+    const [updated] = await tx
+      .insert(schema.userActiveOrganization)
+      .values({
+        userId,
         organizationId,
         updatedAt,
-      },
-      where: sql`${schema.userActiveOrganization.updatedAt} <= excluded.updated_at`,
-    })
+      })
+      .onConflictDoUpdate({
+        target: schema.userActiveOrganization.userId,
+        set: {
+          organizationId,
+          updatedAt,
+        },
+        where: sql`${schema.userActiveOrganization.updatedAt} <= excluded.updated_at`,
+      })
+      .returning()
 
-  log.info(
-    { userId, organizationId },
-    "user active organization preference updated",
-  )
+    if (updated) {
+      log.info(
+        { userId, organizationId },
+        "user active organization preference updated",
+      )
+    } else {
+      log.info(
+        { userId, organizationId },
+        "user active organization preference update skipped due to newer existing record",
+      )
+    }
+  })
 }
 
 /**

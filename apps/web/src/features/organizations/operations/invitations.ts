@@ -159,10 +159,17 @@ export async function inviteMember(
           expiresAt,
           inviterId: userId,
         })
-        .where(eq(schema.invitation.id, existingInvite.id))
+        .where(
+          and(
+            eq(schema.invitation.id, existingInvite.id),
+            eq(schema.invitation.status, "pending"),
+          ),
+        )
         .returning()
 
-      if (!updated) throw new Error("Failed to update invitation")
+      if (!updated) {
+        throw new ConflictError("Invitation is no longer pending")
+      }
       invitationRecord = updated
     } else {
       const [created] = await db

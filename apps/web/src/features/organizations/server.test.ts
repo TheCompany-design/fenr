@@ -1067,20 +1067,8 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         fakeQueryClient as unknown as QueryClient,
         "org-test",
       )
-      expect(invalidatedKeys.length).toBe(5)
+      expect(invalidatedKeys.length).toBe(1)
       expect(invalidatedKeys).toContainEqual(["organizations"])
-      expect(invalidatedKeys).toContainEqual(["organizations", "list"])
-      expect(invalidatedKeys).toContainEqual(["organizations", "active"])
-      expect(invalidatedKeys).toContainEqual([
-        "organizations",
-        "members",
-        "org-test",
-      ])
-      expect(invalidatedKeys).toContainEqual([
-        "organizations",
-        "invitations",
-        "org-test",
-      ])
     })
   })
 
@@ -1096,6 +1084,12 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(updated.name).toBe("Acme Laboratories Updated")
       expect(updated.slug).toBe("acme-labs-updated")
+
+      await db.insert(schema.member).values({
+        organizationId: orgId,
+        userId: testUserB.id,
+        role: "member",
+      })
 
       await expect(
         updateOrganization(testUserB.id, {
@@ -1140,6 +1134,12 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       const org = await createOrganization(testUserA.id, testSessionA.id, {
         name: "Delete Lifecycle",
         slug: "delete-lifecycle",
+      })
+
+      await db.insert(schema.member).values({
+        organizationId: org.id,
+        userId: testUserB.id,
+        role: "member",
       })
 
       await expect(

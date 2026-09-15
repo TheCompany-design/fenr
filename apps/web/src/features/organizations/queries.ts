@@ -108,21 +108,7 @@ export function slugAvailabilityQueryOptions(slug?: string | null) {
  */
 export async function invalidateOrganizationQueries(
   queryClient: QueryClient,
-  organizationId?: string,
+  _organizationId?: string,
 ) {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: organizationKeys.all }),
-    queryClient.invalidateQueries({ queryKey: organizationKeys.lists() }),
-    queryClient.invalidateQueries({ queryKey: organizationKeys.active() }),
-    organizationId
-      ? queryClient.invalidateQueries({
-          queryKey: organizationKeys.members(organizationId),
-        })
-      : Promise.resolve(),
-    organizationId
-      ? queryClient.invalidateQueries({
-          queryKey: organizationKeys.invitations(organizationId),
-        })
-      : Promise.resolve(),
-  ])
+  await queryClient.invalidateQueries({ queryKey: organizationKeys.all })
 }
