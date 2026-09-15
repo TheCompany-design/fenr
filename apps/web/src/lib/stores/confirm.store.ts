@@ -101,39 +101,38 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   },
 
   handleConfirm: async () => {
-    const { onConfirm, _resolve, isLoading } = get()
-    if (isLoading) return
-
+    const { onConfirm, _resolve } = get()
     if (onConfirm) {
       try {
         set({ isLoading: true })
         await onConfirm()
-        _resolve?.(true)
-        set({ isOpen: false, isLoading: false, _resolve: undefined })
-      } catch (error) {
-        set({ isLoading: false })
-        throw error
+      } finally {
+        set({ isLoading: false, isOpen: false })
+        if (_resolve) {
+          _resolve(true)
+        }
       }
     } else {
-      _resolve?.(true)
-      set({ isOpen: false, isLoading: false, _resolve: undefined })
+      set({ isOpen: false })
+      if (_resolve) {
+        _resolve(true)
+      }
     }
   },
 
   handleCancel: () => {
-    const { onCancel, _resolve, isLoading } = get()
-    if (isLoading) return // Prevent dismissing while async mutation is in-flight
-
-    try {
-      onCancel?.()
-    } finally {
-      _resolve?.(false)
-      set({ isOpen: false, isLoading: false, _resolve: undefined })
+    const { onCancel, _resolve } = get()
+    set({ isOpen: false, isLoading: false })
+    if (onCancel) {
+      onCancel()
+    }
+    if (_resolve) {
+      _resolve(false)
     }
   },
 
-  setLoading: (loading: boolean) => {
-    set({ isLoading: loading })
+  setLoading: (isLoading: boolean) => {
+    set({ isLoading })
   },
 
   reset: () => {

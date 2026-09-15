@@ -1,8 +1,8 @@
 /**
  * Theme mode store (light / dark / system).
  *
- * Fenr convention: global state lives in Zustand stores. The persisted
- * `mode` is the user's *preference*; the actually-applied theme (the
+ * Fenr convention: global state lives in Zustand stores under apps/web/src/lib/stores/.
+ * The persisted `mode` is the user's *preference*; the actually-applied theme (the
  * `dark` class on <html>) is applied imperatively by:
  *
  *   1. the FOUC-prevention inline script in `__root.tsx` (pre-hydration,

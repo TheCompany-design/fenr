@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware"
 
 /**
  * Fenr convention: ALL global state — in-memory, session or local — lives in
- * Zustand stores. This demo shows the persisted (localStorage) variant.
+ * Zustand stores under apps/web/src/lib/stores/. This demo shows the persisted (localStorage) variant.
  *
  * - localStorage:  `createJSONStorage(() => localStorage)`
  * - sessionStorage: `createJSONStorage(() => sessionStorage)`
