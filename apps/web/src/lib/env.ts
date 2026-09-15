@@ -7,7 +7,7 @@
  */
 import { z } from "zod"
 
-const serverEnvSchema = z.object({
+export const serverEnvSchema = z.object({
   DATABASE_URL: z
     .string()
     .min(1)
@@ -23,9 +23,32 @@ const serverEnvSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),
+  EMAIL_FROM: z.string().default("Fenr <no-reply@fenr.app>"),
+  SMTP_MAILER: z.string().default("smtp"),
+  SMTP_HOST: z.string().min(1),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_USER: z.string().min(1),
+  SMTP_PASSWORD: z.string().min(1),
+  SMTP_ENCRYPTION: z.enum(["tls", "ssl", "starttls", "none"]).optional(),
 })
 
-const parsed = serverEnvSchema.safeParse(process.env)
+export type ServerEnv = z.infer<typeof serverEnvSchema>
+
+export function parseServerEnv(
+  env: Record<string, unknown | undefined> = process.env,
+) {
+  const rawEncryption = env.SMTP_ENCRYPTION
+  const encryption = rawEncryption === "" ? undefined : rawEncryption
+
+  const raw = {
+    ...env,
+    ...(rawEncryption !== undefined ? { SMTP_ENCRYPTION: encryption } : {}),
+  }
+
+  return serverEnvSchema.safeParse(raw)
+}
+
+const parsed = parseServerEnv(process.env)
 
 if (!parsed.success) {
   const issues = parsed.error.issues.map(

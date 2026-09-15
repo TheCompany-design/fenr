@@ -27,6 +27,11 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "home", title: "Home", icon: Home01Icon, to: "/" },
-  { id: "settings", title: "Settings", icon: Settings01Icon, disabled: true },
+  {
+    id: "settings",
+    title: "Settings",
+    icon: Settings01Icon,
+    to: "/settings",
+  },
   { id: "document", title: "Document", icon: Doc01Icon, to: "/document" },
 ]

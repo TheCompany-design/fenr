@@ -12,16 +12,21 @@
  * refetched by shell chrome.
  */
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
-
+import { AppErrorComponent } from "@/components/shell/app-error"
 import { AppShell } from "@/components/shell/app-shell"
+import { resolveAppOrganizationAccessFn } from "@/features/organizations"
 import { safeRedirectPath } from "@/lib/redirect"
 import { getSession } from "@/lib/session"
 import { getSidebarOpen } from "@/lib/ui-prefs"
 
 function GuardLayout() {
-  const { session, sidebarOpen } = Route.useRouteContext()
+  const { session, sidebarOpen, activeOrganization } = Route.useRouteContext()
   return (
-    <AppShell defaultOpen={sidebarOpen} user={session.user}>
+    <AppShell
+      defaultOpen={sidebarOpen}
+      user={session.user}
+      activeOrganization={activeOrganization}
+    >
       <Outlet />
     </AppShell>
   )
@@ -41,7 +46,31 @@ export const Route = createFileRoute("/_app")({
         search: { redirect: safeRedirectPath(location.href) },
       })
     }
-    return { session, sidebarOpen }
+
+    const access = await resolveAppOrganizationAccessFn()
+
+    if (access.status === "no_organizations") {
+      throw redirect({ to: "/onboarding", search: { step: "naming" } })
+    }
+    if (access.status === "choose_organization") {
+      throw redirect({
+        to: "/choose-organization",
+        search: { redirect: safeRedirectPath(location.href) },
+      })
+    }
+
+    return {
+      session: {
+        ...session,
+        session: {
+          ...session.session,
+          activeOrganizationId: access.activeOrganization.organization.id,
+        },
+      },
+      sidebarOpen,
+      activeOrganization: access.activeOrganization,
+    }
   },
   component: GuardLayout,
+  errorComponent: AppErrorComponent,
 })

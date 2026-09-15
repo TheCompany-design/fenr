@@ -32,7 +32,6 @@ import { cn } from "@workspace/ui/lib/utils"
 import { m, useReducedMotion } from "motion/react"
 import type { NavItem } from "./nav-config"
 import { NAV_ITEMS } from "./nav-config"
-import type { SessionUser } from "./user-menu"
 
 function Brand() {
   const { state, isMobile } = useSidebar()
@@ -151,11 +150,9 @@ export function useActiveNavId(): string | null {
   return null
 }
 
-export interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  user?: SessionUser | null
-}
+export type AppSidebarProps = React.ComponentProps<typeof Sidebar>
 
-export function AppSidebar({ user, ...props }: AppSidebarProps) {
+export function AppSidebar(props: AppSidebarProps) {
   const activeId = useActiveNavId()
 
   return (

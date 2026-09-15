@@ -29,6 +29,8 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -69,6 +71,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.25 0.05 75);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -104,6 +108,8 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.25 0.05 75);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -145,4 +151,32 @@
   [role="radio"]:not([aria-disabled="true"]):not([data-disabled]) {
     cursor: pointer;
   }
+}
+
+@utility auth-grid-pattern {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in srgb, var(--border) 45%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--border) 45%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 40px 40px;
+  mask-image: radial-gradient(
+    ellipse 60% 50% at 50% 50%,
+    #000 70%,
+    transparent 100%
+  );
+}
+
+@utility auth-radial-glow {
+  background: radial-gradient(
+    900px 600px at 50% 50%,
+    transparent 45%,
+    color-mix(in srgb, var(--background) 88%, transparent) 92%
+  );
 }

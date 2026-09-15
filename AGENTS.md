@@ -95,7 +95,29 @@ Every form uses TanStack Form validated by a Zod schema (Standard Schema):
   `.output/`.
 - Tests live next to sources as `*.test.ts(x)` and run with plain `bun test`.
 
-### 7. Skills
+### 7. Git Hygiene & Commit Practices
+
+All changes must adhere to disciplined, atomic version control practices:
+
+- **Atomic Commits**: Break work into small, cohesive, independently verifiable
+  units. Never bundle unrelated changes (e.g. refactoring + feature + tooling)
+  into a single monolithic commit.
+- **Stage Deliberately**: Stage only the specific files and hunks that belong to
+  the atom of work being committed (`git add <files>`). Never blindly run
+  `git add .` or `git add -A` without inspecting git status and diffs.
+- **Verification Before Staging/Committing**: Before every commit, ensure the
+  code builds, typechecks, passes lint/formatting (`bun run check`), and passes
+  applicable tests (`bun test`). Never commit broken code.
+- **Conventional Commits**: Commit messages must follow the Conventional
+  Commits standard (`<type>(<scope>): <short summary>`):
+  - Types: `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `perf`, `style`.
+  - Scopes: feature/package area (e.g. `stores`, `schemas`, `auth`, `organizations`, `routes`, `ui`, `tooling`).
+  - Imperative mood, lowercase, concise description, no trailing period.
+  - When helpful, include a body explaining the rationale and non-obvious design choices.
+- **Clean Working Tree**: Temporary scratch files, build artifacts, and
+  incidental changes must never be committed.
+
+### 8. Skills
 
 Load and follow these skills when the task matches them:
 
@@ -178,14 +200,14 @@ Each block must:
 
 Do not allow a large feature to become one enormous implementation/review cycle. Decompose it into the smallest meaningful units that can be independently implemented, tested, reviewed, and committed.
 
-This repository ships project-scoped agents for exactly this loop (discovered automatically by pi-subagents from `.pi/agents/`):
+This repository ships project-scoped agents for exactly this loop (discovered automatically by pi-subagents from `.agents/agents/`):
 
-- `implementer` — primary implementer (`.pi/agents/implementer.md`)
+- `implementer` — primary implementer (`.agents/agents/implementer.md`)
 - `correctness-reviewer` — defensive programming, error paths, edge cases, state, data integrity
 - `concurrency-reviewer` — races, cancellation, resources, idempotency, contracts
 - `quality-reviewer` — security, validation boundaries, tests, maintainability, UX error messaging, observability
 
-Shared rubric read by all reviewers: `.pi/agents/review-framework.md`.
+Shared rubric read by all reviewers: `.agents/agents/review-framework.md`.
 
 **Orchestration requirement:** these are project-scope agents resolved from the working directory. Any session or subagent run that orchestrates this workflow MUST execute with cwd = this repository root (`bizos/`). Launched from a parent workspace directory, the agents will not be discovered.
 
@@ -209,7 +231,7 @@ The implementer must **not declare the block complete simply because the happy p
 
 After implementation, assign multiple review agents to independently inspect the work.
 
-Reviewers behave as adversaries attempting to find ways the implementation can fail. They do not perform stylistic review or rubber-stamp. Each reviewer inspects the code against the full review framework (`.pi/agents/review-framework.md`) through their assigned lens and reports:
+Reviewers behave as adversaries attempting to find ways the implementation can fail. They do not perform stylistic review or rubber-stamp. Each reviewer inspects the code against the full review framework (`.agents/agents/review-framework.md`) through their assigned lens and reports:
 
 * The specific issue.
 * The concrete scenario in which it manifests.
@@ -225,7 +247,7 @@ If any reviewer discovers a blocking issue, the block returns to the implementer
 
 # Mandatory Review Dimensions
 
-Every reviewer must consider the following dimensions (full detail in `.pi/agents/review-framework.md`).
+Every reviewer must consider the following dimensions (full detail in `.agents/agents/review-framework.md`).
 
 ## 1. Defensive Programming
 Look for assumptions the code makes about inputs, state, dependencies, and external systems. Verify that malformed, missing, unexpected, stale, or invalid values cannot cause crashes, panics, corrupted state, or undefined behavior. Focus areas: optional/null values, type conversions, empty collections, array/index access, parsing, user input, external API responses, filesystem/network operations, database results, configuration, environment variables. Do not add defensive complexity where the type system or architecture already provides the guarantee.

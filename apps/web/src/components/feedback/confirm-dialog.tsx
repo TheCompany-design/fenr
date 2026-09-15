@@ -13,7 +13,7 @@ import {
 } from "@workspace/ui/components/center-morph-modal"
 import { cn } from "@workspace/ui/lib/utils"
 import { useCallback } from "react"
-import { useConfirmStore } from "./confirm.store"
+import { useConfirmStore } from "@/lib/stores/confirm.store"
 
 /**
  * Global confirmation modal component.

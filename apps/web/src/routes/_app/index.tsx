@@ -18,24 +18,12 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 import { DashboardOverview } from "@/features/dashboard/components/dashboard-overview"
+import { dashboardPostsQueryOptions } from "@/features/dashboard/queries"
 import { DemoForm, useDemoStore } from "@/features/demo"
-
-/**
- * Demo query fetch — in Fenr, ALL data fetching goes through TanStack Query.
- * The loader prefetches on the server; the integration hydrates it on the client.
- */
-async function fetchPosts() {
-  const res = await fetch("https://jsonplaceholder.typicode.com/posts?_limit=3")
-  if (!res.ok) throw new Error(`Failed to fetch posts: ${res.status}`)
-  return res.json() as Promise<Array<{ id: number; title: string }>>
-}
 
 export const Route = createFileRoute("/_app/")({
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData({
-      queryKey: ["posts"],
-      queryFn: fetchPosts,
-    }),
+    context.queryClient.ensureQueryData(dashboardPostsQueryOptions()),
   component: App,
 })
 
@@ -43,10 +31,7 @@ function App() {
   const { session } = Route.useRouteContext()
   const user = session.user
 
-  const { data: posts } = useSuspenseQuery({
-    queryKey: ["posts"],
-    queryFn: fetchPosts,
-  })
+  const { data: posts } = useSuspenseQuery(dashboardPostsQueryOptions())
 
   const count = useDemoStore((s) => s.count)
   const increment = useDemoStore((s) => s.increment)

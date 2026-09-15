@@ -16,6 +16,10 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
+import {
+  type ActiveOrganization,
+  OrganizationSwitcher,
+} from "@/features/organizations"
 
 import { AppSidebar } from "./app-sidebar"
 
@@ -23,11 +27,13 @@ export function AppShell({
   children,
   user,
   defaultOpen = true,
+  activeOrganization,
 }: {
   children: React.ReactNode
   user: SessionUser
   /** Initial sidebar state, restored from the sidebar_state cookie on SSR. */
   defaultOpen?: boolean
+  activeOrganization?: ActiveOrganization | null
 }) {
   return (
     // delay={0}: Base UI tooltips default to a 600ms open delay — nav
@@ -36,27 +42,30 @@ export function AppShell({
     <LazyMotion features={domAnimation}>
       <TooltipProvider delay={0}>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar user={user} />
+          <AppSidebar />
           <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
-            <ScrollArea className="h-full w-full">
-              <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between pointer-events-none px-4 pt-3 pb-1">
-                {/* Free-standing left items */}
-                <div className="pointer-events-auto flex items-center gap-2">
-                  <SidebarTrigger
-                    aria-label="Toggle navigation"
-                    className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-                  />
-                </div>
+            <header className="relative z-30 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md pointer-events-none">
+              {/* Free-standing left items */}
+              <div className="pointer-events-auto flex items-center gap-2">
+                <SidebarTrigger
+                  aria-label="Toggle navigation"
+                  className="size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                />
+                <OrganizationSwitcher activeOrganization={activeOrganization} />
+              </div>
 
-                {/* Free-standing right items */}
-                <div className="pointer-events-auto flex items-center gap-2">
-                  <UserMenu
-                    user={user}
-                    className="size-9 rounded-full border border-border/60 bg-background/80 backdrop-blur-md shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-                  />
-                </div>
-              </header>
-              <main className="flex flex-1 flex-col">{children}</main>
+              {/* Free-standing right items */}
+              <div className="pointer-events-auto flex items-center gap-2">
+                <UserMenu
+                  user={user}
+                  className="size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                />
+              </div>
+            </header>
+            <ScrollArea className="min-h-0 flex-1 w-full">
+              <main className="flex h-full min-h-0 flex-1 flex-col">
+                {children}
+              </main>
             </ScrollArea>
           </SidebarInset>
         </SidebarProvider>

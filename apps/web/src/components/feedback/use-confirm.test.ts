@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "bun:test"
-import { useConfirmStore } from "./confirm.store"
+import { useConfirmStore } from "@/lib/stores/confirm.store"
 import { useConfirm } from "./use-confirm"
 
 describe("useConfirm hook", () => {

@@ -31,5 +31,7 @@ const client = postgres(DATABASE_URL, {
 
 export const db = drizzle(client, { schema })
 
+export * from "drizzle-orm"
+export * from "./schema/index"
 export { schema }
 export type Database = typeof db

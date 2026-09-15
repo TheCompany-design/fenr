@@ -104,7 +104,7 @@ export function UserProfileHeader({ user }: { user?: SessionUser | null }) {
         </div>
       </div>
 
-      <span className="shrink-0 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 font-medium text-[11px] text-blue-600 dark:border-blue-400/30 dark:bg-blue-400/10 dark:text-blue-400">
+      <span className="shrink-0 rounded-full border border-border bg-muted px-2.5 py-0.5 font-medium text-[11px] text-foreground">
         {tier}
       </span>
     </div>
@@ -171,7 +171,7 @@ export function UsageWidget({
                     "h-3.5 w-1 origin-bottom rounded-full transition-all duration-300",
                     isFilled
                       ? percent >= 85
-                        ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                        ? "bg-warning"
                         : "bg-primary"
                       : "bg-muted/40",
                     isPeak && "animate-pulse",
@@ -196,7 +196,9 @@ export function UsageWidget({
             }
             className={cn(
               "flex items-center gap-1 font-semibold text-xs",
-              percent >= 85 ? "text-amber-500" : "text-muted-foreground",
+              percent >= 85
+                ? "text-warning-foreground"
+                : "text-muted-foreground",
             )}
           >
             {percent >= 85 && (
@@ -710,9 +712,7 @@ export function UserMenuItems({
             }
           }}
           onClick={() => {
-            toast.info("Invite teammates", {
-              description: "Collaboration invitations coming soon.",
-            })
+            navigate({ to: "/settings/members" })
             onClose?.()
           }}
           className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
@@ -890,7 +890,7 @@ export function UserMenuItems({
                           </div>
 
                           {isSelected && (
-                            <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs dark:bg-blue-500">
+                            <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
                               <HugeiconsIcon
                                 icon={Tick02Icon}
                                 size={10}
@@ -994,7 +994,7 @@ export function UserCard({
               <div className="flex min-w-0 flex-col leading-tight">
                 <span className="flex items-center gap-1 font-semibold text-foreground text-sm tracking-tight">
                   <span className="truncate">{displayName}</span>
-                  <span className="text-amber-500">🌾</span>
+                  <span className="text-muted-foreground">🌾</span>
                 </span>
                 <span className="truncate font-medium text-[11px] text-muted-foreground">
                   {tierName}

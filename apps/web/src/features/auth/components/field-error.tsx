@@ -1,7 +1,7 @@
 import type { AnyFieldApi } from "@tanstack/react-form"
 
 /** Shared inline field-error renderer for TanStack Form fields. */
-export function FieldError({ field }: { field: AnyFieldApi }) {
+export function FieldError({ field, id }: { field: AnyFieldApi; id?: string }) {
   const { isTouched, isValidating, errors } = field.state.meta
   if (!isTouched || isValidating || errors.length === 0) return null
 
@@ -15,7 +15,7 @@ export function FieldError({ field }: { field: AnyFieldApi }) {
         ? first.message
         : ((first?.message as string | undefined) ?? "Invalid value")
   return (
-    <p className="text-destructive text-sm" role="alert">
+    <p id={id} className="text-destructive text-sm" role="alert">
       {message}
     </p>
   )

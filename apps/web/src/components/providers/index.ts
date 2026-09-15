@@ -6,5 +6,5 @@ export {
   THEME_STORAGE_KEY,
   type ThemeMode,
   useThemeStore,
-} from "./theme.store"
+} from "@/lib/stores/theme.store"
 export { ThemeSync } from "./theme-sync"

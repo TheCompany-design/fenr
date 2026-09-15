@@ -1,6 +1,9 @@
 import { useCallback } from "react"
 import { toast } from "sonner"
-import { type ConfirmOptions, useConfirmStore } from "./confirm.store"
+import {
+  type ConfirmOptions,
+  useConfirmStore,
+} from "@/lib/stores/confirm.store"
 
 /**
  * Reusable hook for triggering user confirmation dialogs across the application.
@@ -64,4 +67,4 @@ export function useConfirm() {
   return confirm
 }
 
-export type { ConfirmOptions, ConfirmVariant } from "./confirm.store"
+export type { ConfirmOptions, ConfirmVariant } from "@/lib/stores/confirm.store"
