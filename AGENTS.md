@@ -200,14 +200,14 @@ Each block must:
 
 Do not allow a large feature to become one enormous implementation/review cycle. Decompose it into the smallest meaningful units that can be independently implemented, tested, reviewed, and committed.
 
-This repository ships project-scoped agents for exactly this loop (discovered automatically by pi-subagents from `.pi/agents/`):
+This repository ships project-scoped agents for exactly this loop (discovered automatically by pi-subagents from `.agents/agents/`):
 
-- `implementer` — primary implementer (`.pi/agents/implementer.md`)
+- `implementer` — primary implementer (`.agents/agents/implementer.md`)
 - `correctness-reviewer` — defensive programming, error paths, edge cases, state, data integrity
 - `concurrency-reviewer` — races, cancellation, resources, idempotency, contracts
 - `quality-reviewer` — security, validation boundaries, tests, maintainability, UX error messaging, observability
 
-Shared rubric read by all reviewers: `.pi/agents/review-framework.md`.
+Shared rubric read by all reviewers: `.agents/agents/review-framework.md`.
 
 **Orchestration requirement:** these are project-scope agents resolved from the working directory. Any session or subagent run that orchestrates this workflow MUST execute with cwd = this repository root (`bizos/`). Launched from a parent workspace directory, the agents will not be discovered.
 
