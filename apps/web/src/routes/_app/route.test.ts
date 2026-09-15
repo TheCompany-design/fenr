@@ -78,8 +78,10 @@ mock.module("@/features/organizations", () => ({
   },
 }))
 
+import { AppErrorComponent } from "@/components/shell/app-error"
+
 // Import routes after mock.module so they use the mocked session and server functions
-const { Route: AppRoute, AppErrorComponent } = await import("./route")
+const { Route: AppRoute } = await import("./route")
 const { Route: ChooseOrgRoute } = await import("@/routes/choose-organization")
 const { Route: OnboardingRoute } = await import("@/routes/onboarding")
 

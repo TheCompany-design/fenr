@@ -30,7 +30,6 @@ import {
   organizationInvitationsQueryOptions,
   organizationMembersQueryOptions,
 } from "@/features/organizations"
-import { moduleLogger } from "@/lib/logger"
 
 const SETTINGS_SECTIONS = [
   { id: "general", label: "General", icon: Building01Icon, to: "/settings" },
@@ -47,8 +46,6 @@ const SETTINGS_SECTIONS = [
     to: "/settings/danger",
   },
 ] as const
-
-const log = moduleLogger("settings-shell")
 
 export const Route = createFileRoute("/_app/settings")({
   loader: async ({ context }) => {
@@ -196,8 +193,7 @@ function SettingsErrorComponent({ reset }: ErrorComponentProps) {
     try {
       await router.invalidate()
       reset()
-    } catch (err) {
-      log.error({ err }, "Failed to reload settings on retry")
+    } catch {
       toast.error("Retry failed", {
         description: "Could not reload settings. Please try again.",
       })
