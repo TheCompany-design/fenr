@@ -19,7 +19,7 @@ import {
   isReservedSlug,
   isValidSlugFormat,
   normalizeSlug,
-} from "../schemas"
+} from "@/lib/schemas/organizations"
 import { checkSlugAvailabilityFn } from "../server"
 
 export interface OrganizationFormProps {
@@ -50,8 +50,7 @@ export function OrganizationForm({
       slug: defaultValues?.slug ?? "",
     } as CreateOrganizationInput,
     validators: {
-      onBlur: createOrganizationSchema,
-      onSubmit: createOrganizationSchema,
+      onChange: createOrganizationSchema,
     },
     onSubmit: async ({ value }) => {
       const normalized = normalizeSlug(value.slug)

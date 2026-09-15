@@ -9,26 +9,6 @@ import { createServerFn } from "@tanstack/react-start"
 
 import { withWideEvent } from "@/lib/logger"
 import { maskEmail } from "@/lib/mail"
-import { ensureSession } from "@/lib/session"
-import {
-  acceptInvitation,
-  cancelInvitation,
-  checkSlugAvailability,
-  createOrganization,
-  deleteOrganization,
-  getActiveOrganization,
-  getInvitationDetails,
-  getOrganizationInvitations,
-  getOrganizationMembers,
-  inviteMember,
-  leaveOrganization,
-  listOrganizations,
-  removeMember,
-  resolveAppOrganizationAccess,
-  setActiveOrganization,
-  updateMemberRole,
-  updateOrganization,
-} from "./operations"
 import {
   type AcceptInvitationInput,
   acceptInvitationSchema,
@@ -56,7 +36,27 @@ import {
   type UpdateOrganizationInput,
   updateMemberRoleSchema,
   updateOrganizationSchema,
-} from "./schemas"
+} from "@/lib/schemas/organizations"
+import { ensureSession } from "@/lib/session"
+import {
+  acceptInvitation,
+  cancelInvitation,
+  checkSlugAvailability,
+  createOrganization,
+  deleteOrganization,
+  getActiveOrganization,
+  getInvitationDetails,
+  getOrganizationInvitations,
+  getOrganizationMembers,
+  inviteMember,
+  leaveOrganization,
+  listOrganizations,
+  removeMember,
+  resolveAppOrganizationAccess,
+  setActiveOrganization,
+  updateMemberRole,
+  updateOrganization,
+} from "./operations"
 import type {
   ActiveOrganization,
   AppOrganizationAccess,

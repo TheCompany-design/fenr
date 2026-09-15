@@ -7,13 +7,10 @@ import {
 import * as React from "react"
 import { toast } from "sonner"
 
-import { moduleLogger } from "@/lib/logger"
+import type { CreateOrganizationInput } from "@/lib/schemas/organizations"
 import { invalidateOrganizationQueries } from "../queries"
-import type { CreateOrganizationInput } from "../schemas"
 import { createOrganizationFn } from "../server"
 import { OrganizationForm } from "./organization-form"
-
-const log = moduleLogger("organizations")
 
 export interface CreateOrganizationDialogProps {
   open: boolean
@@ -36,13 +33,11 @@ export function CreateOrganizationDialog({
     try {
       createdOrg = await createOrganizationFn({ data: values })
     } catch (err) {
-      log.error(
-        { err, name: values.name, slug: values.slug },
-        "Failed to create organization",
-      )
-      toast.error("Failed to create organization", {
-        description: "The organization could not be created. Please try again.",
-      })
+      const description =
+        err instanceof Error
+          ? err.message
+          : "The organization could not be created. Please try again."
+      toast.error("Failed to create organization", { description })
       setIsSubmitting(false)
       return
     }
@@ -56,11 +51,8 @@ export function CreateOrganizationDialog({
     try {
       await invalidateOrganizationQueries(queryClient, createdOrg.id)
       await router.invalidate()
-    } catch (refreshErr) {
-      log.warn(
-        { err: refreshErr, orgId: createdOrg.id },
-        "Failed to refresh queries after organization creation",
-      )
+    } catch {
+      // Best-effort cache invalidation
     } finally {
       setIsSubmitting(false)
     }

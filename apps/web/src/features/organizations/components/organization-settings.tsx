@@ -26,11 +26,12 @@ import { Separator } from "@workspace/ui/components/separator"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
-
-import { useConfirmStore } from "@/components/feedback/confirm.store"
-import { moduleLogger } from "@/lib/logger"
+import {
+  type OrganizationRole,
+  updateOrganizationSchema,
+} from "@/lib/schemas/organizations"
+import { useConfirmStore } from "@/lib/stores/confirm.store"
 import { invalidateOrganizationQueries } from "../queries"
-import { type OrganizationRole, updateOrganizationSchema } from "../schemas"
 import {
   type ActiveOrganization,
   deleteOrganizationFn,
@@ -40,8 +41,6 @@ import {
 } from "../server"
 import { InviteMembersForm } from "./invite-members-form"
 import { OrganizationMembers } from "./organization-members"
-
-const log = moduleLogger("organizations")
 
 export interface OrganizationSettingsProps {
   activeOrganization: ActiveOrganization
@@ -94,20 +93,12 @@ export function OrganizationSettings({
         try {
           await invalidateOrganizationQueries(queryClient, org.id)
           await router.invalidate()
-        } catch (refreshErr) {
-          log.warn(
-            { err: refreshErr, organizationId: org.id },
-            "Workspace settings saved but refresh failed",
-          )
+        } catch {
           toast.warning("Workspace settings saved", {
             description: "Refresh the page to see the latest workspace data.",
           })
         }
-      } catch (err) {
-        log.error(
-          { err, organizationId: org.id },
-          "Failed to update workspace settings",
-        )
+      } catch {
         toast.error("Could not save workspace settings", {
           description: "Check the values and try again.",
         })
@@ -140,15 +131,11 @@ export function OrganizationSettings({
       toast.success("You left the organization")
       try {
         await invalidateOrganizationQueries(queryClient, org.id)
-      } catch (refreshErr) {
-        log.warn(
-          { err: refreshErr, organizationId: org.id },
-          "Organization left but refresh failed",
-        )
+      } catch {
+        // Best-effort cache invalidation
       }
       await router.navigate({ to: "/", replace: true })
     } catch (err) {
-      log.error({ err, organizationId: org.id }, "Failed to leave organization")
       toast.error("Could not leave organization", {
         description: err instanceof Error ? err.message : "Please try again.",
       })
@@ -169,18 +156,11 @@ export function OrganizationSettings({
       toast.success("Organization deleted")
       try {
         await invalidateOrganizationQueries(queryClient, org.id)
-      } catch (refreshErr) {
-        log.warn(
-          { err: refreshErr, organizationId: org.id },
-          "Organization deleted but refresh failed",
-        )
+      } catch {
+        // Best-effort cache invalidation
       }
       await router.navigate({ to: "/", replace: true })
     } catch (err) {
-      log.error(
-        { err, organizationId: org.id },
-        "Failed to delete organization",
-      )
       toast.error("Could not delete organization", {
         description: err instanceof Error ? err.message : "Please try again.",
       })
@@ -194,7 +174,7 @@ export function OrganizationSettings({
       const results = await Promise.all(
         invites.map(async (invite) => {
           try {
-            await inviteMemberFn({
+            const res = await inviteMemberFn({
               data: {
                 organizationId: org.id,
                 email: invite.email,
@@ -202,6 +182,14 @@ export function OrganizationSettings({
                 note: invite.note,
               },
             })
+            if (!res.emailSent) {
+              toast.warning(
+                `Invitation created for ${invite.email}, but email could not be delivered`,
+                {
+                  description: "Please copy the invite link to share manually.",
+                },
+              )
+            }
             return { email: invite.email, success: true }
           } catch (err) {
             return {
@@ -217,11 +205,8 @@ export function OrganizationSettings({
       )
       try {
         await invalidateOrganizationQueries(queryClient, org.id)
-      } catch (refreshErr) {
-        log.warn(
-          { err: refreshErr, organizationId: org.id },
-          "Invitations sent but organization refresh failed",
-        )
+      } catch {
+        // Best-effort cache invalidation
       }
       return results
     },

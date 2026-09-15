@@ -17,7 +17,6 @@ import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
 
-import { moduleLogger } from "@/lib/logger"
 import {
   invalidateOrganizationQueries,
   organizationListQueryOptions,
@@ -26,8 +25,6 @@ import type { ActiveOrganization } from "../server"
 import { setActiveOrganizationFn } from "../server"
 import { CreateOrganizationDialog } from "./create-organization-dialog"
 import { OrganizationAvatar } from "./organization-avatar"
-
-const log = moduleLogger("organizations")
 
 export interface OrganizationSwitcherProps {
   activeOrganization?: ActiveOrganization | null
@@ -50,18 +47,16 @@ export function OrganizationSwitcher({
     data: organizations = [],
     isLoading,
     isError,
-    error,
     refetch,
   } = useQuery(organizationListQueryOptions())
 
   React.useEffect(() => {
     if (isError) {
-      log.error({ err: error }, "Failed to load organizations")
       toast.error("Failed to load organizations", {
         description: "Could not retrieve your organization list.",
       })
     }
-  }, [isError, error])
+  }, [isError])
 
   const activeId = activeOrganization?.organization.id
   const displayName =
@@ -81,9 +76,11 @@ export function OrganizationSwitcher({
       await router.invalidate()
       setIsOpen(false)
     } catch (err) {
-      log.error({ err, orgId, orgName }, "Failed to switch organization")
       toast.error("Failed to switch organization", {
-        description: "Could not switch organization. Please try again.",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Could not switch organization. Please try again.",
       })
     } finally {
       setSwitchingId(null)
@@ -143,7 +140,7 @@ export function OrganizationSwitcher({
             <Separator className="my-1" />
 
             {/* Organizations List */}
-            <ScrollArea className="max-h-64 overflow-y-auto">
+            <ScrollArea className="max-h-64">
               {isLoading ? (
                 <div className="flex items-center justify-center py-6 text-xs text-muted-foreground gap-2">
                   <HugeiconsIcon
