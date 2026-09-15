@@ -92,7 +92,13 @@ describe("OnboardingPage Component (Block 3)", () => {
       routeTree: rootRoute.addChildren([route]),
       history: createMemoryHistory({
         initialEntries: [
-          `/onboarding${search.step ? `?step=${search.step}` : ""}${search.orgId ? `&orgId=${search.orgId}` : ""}`,
+          (() => {
+            const params = new URLSearchParams()
+            if (search.step) params.set("step", search.step)
+            if (search.orgId) params.set("orgId", search.orgId)
+            const qs = params.toString()
+            return `/onboarding${qs ? `?${qs}` : ""}`
+          })(),
         ],
       }),
       context: {
@@ -152,7 +158,7 @@ describe("OnboardingPage Component (Block 3)", () => {
     expect(container.textContent).toContain("Step 03 / 3")
     expect(container.textContent).toContain("You're set")
     expect(container.textContent).toContain("Workspace")
-    expect(container.textContent).toContain("Members")
+    expect(container.textContent).toContain("Invitations")
     expect(container.textContent).toContain("Slug")
     expect(container.textContent).toContain("Launch Workspace")
 

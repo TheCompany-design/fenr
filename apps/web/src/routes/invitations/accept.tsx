@@ -106,16 +106,27 @@ function InvitationAcceptPage() {
     setIsSigningOut(true)
     try {
       await signOut()
-      queryClient.clear()
-      const redirectUrl = invitationId
-        ? `/invitations/accept?id=${encodeURIComponent(invitationId)}`
-        : "/invitations/accept"
+    } catch {
+      toast.error("Could not sign out", { description: "Please try again." })
+      isSigningOutRef.current = false
+      setIsSigningOut(false)
+      return
+    }
+
+    queryClient.clear()
+    const redirectUrl = invitationId
+      ? `/invitations/accept?id=${encodeURIComponent(invitationId)}`
+      : "/invitations/accept"
+
+    try {
       await navigate({
         to: "/auth/sign-in",
         search: { redirect: redirectUrl },
       })
     } catch {
-      toast.error("Could not sign out", { description: "Please try again." })
+      toast.error("Signed out, but navigation failed", {
+        description: "Please reload the page to continue.",
+      })
     } finally {
       isSigningOutRef.current = false
       setIsSigningOut(false)
@@ -132,12 +143,10 @@ function InvitationAcceptPage() {
       result = await acceptInvitationFn({
         data: { invitationId },
       })
-    } catch (err) {
+    } catch {
       toast.error("Could not accept invitation", {
         description:
-          err instanceof Error
-            ? err.message
-            : "We were unable to accept this invitation. Please try again or request a new link.",
+          "We were unable to accept this invitation. Please try again or request a new link.",
       })
       await queryClient.invalidateQueries({
         queryKey: organizationKeys.invitationDetails(invitationId),

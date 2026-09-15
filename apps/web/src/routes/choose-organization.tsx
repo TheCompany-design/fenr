@@ -96,6 +96,19 @@ function ChooseOrganizationRoute() {
 
     try {
       await setActiveOrganizationFn({ data: { organizationId } })
+    } catch {
+      if (!isMountedRef.current) return
+      toast.error("Failed to select organization", {
+        description: "Could not switch active organization. Please try again.",
+      })
+      isSelectingRef.current = false
+      if (isMountedRef.current) {
+        setSelectingId(null)
+      }
+      return
+    }
+
+    try {
       await invalidateOrganizationQueries(queryClient, organizationId)
       void router.invalidate().catch(() => {
         // Invalidation best-effort
@@ -107,8 +120,8 @@ function ChooseOrganizationRoute() {
       await navigate({ href: target })
     } catch {
       if (!isMountedRef.current) return
-      toast.error("Failed to select organization", {
-        description: "Could not switch active organization. Please try again.",
+      toast.warning("Organization selected, but navigation failed", {
+        description: "Please reload the page or navigate to your workspace.",
       })
     } finally {
       isSelectingRef.current = false

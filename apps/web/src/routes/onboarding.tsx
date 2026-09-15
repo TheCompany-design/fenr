@@ -207,12 +207,10 @@ function OnboardingPage() {
       toast.success("Workspace created", {
         description: `Welcome to ${org.name}!`,
       })
-    } catch (err) {
-      const description =
-        err instanceof Error
-          ? err.message
-          : "The workspace could not be created. Please try again."
-      toast.error("Could not create workspace", { description })
+    } catch {
+      toast.error("Could not create workspace", {
+        description: "The workspace could not be created. Please try again.",
+      })
       isCreatingRef.current = false
       setIsCreating(false)
       return
@@ -317,20 +315,17 @@ function OnboardingPage() {
     setIsEntering(true)
     try {
       const targetOrgId = search.orgId ?? currentOrg?.id
-      if (targetOrgId) {
-        try {
-          await setActiveOrganizationFn({
-            data: { organizationId: targetOrgId },
-          })
-        } catch {
-          // Best-effort set active organization
-        }
+      if (!targetOrgId) {
+        throw new Error("No workspace was selected")
       }
+      await setActiveOrganizationFn({
+        data: { organizationId: targetOrgId },
+      })
       await invalidateOrganizationQueries(queryClient, targetOrgId)
       await navigate({ to: "/" })
     } catch {
-      toast.error("Navigation failed", {
-        description: "Please reload the page or navigate to your workspace.",
+      toast.error("Could not launch workspace", {
+        description: "We couldn't activate this workspace. Please try again.",
       })
     } finally {
       isEnteringRef.current = false
@@ -453,7 +448,7 @@ function OnboardingPage() {
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {displayInvitedCount === 0
                 ? "Quiet for now — when you're ready, invite people from workspace settings."
-                : `We've sent ${displayInvitedCount} invite${displayInvitedCount === 1 ? "" : "s"}. They'll show up in members once accepted.`}
+                : `You've created ${displayInvitedCount} invitation${displayInvitedCount === 1 ? "" : "s"}. Invitees will show up in members once accepted.`}
             </p>
           </header>
 
@@ -462,7 +457,7 @@ function OnboardingPage() {
               label="Workspace"
               value={currentOrg?.name ?? "Untitled"}
             />
-            <FactCard label="Members" value={String(displayInvitedCount + 1)} />
+            <FactCard label="Invitations" value={String(displayInvitedCount)} />
             <FactCard
               label="Slug"
               value={currentOrg?.slug ? `/${currentOrg.slug}` : "—"}
