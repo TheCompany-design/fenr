@@ -35,7 +35,6 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 
 import {
   acceptInvitationFn,
@@ -45,18 +44,11 @@ import {
   organizationKeys,
 } from "@/features/organizations"
 import { signOut } from "@/lib/auth-client"
-import { moduleLogger } from "@/lib/logger"
+import {
+  type InvitationAcceptSearch,
+  invitationAcceptSearchSchema,
+} from "@/lib/schemas/search"
 import { getSession } from "@/lib/session"
-
-const log = moduleLogger("invitation-accept")
-
-export const invitationAcceptSearchSchema = z.object({
-  id: z.string().optional().catch(undefined),
-})
-
-export type InvitationAcceptSearch = z.infer<
-  typeof invitationAcceptSearchSchema
->
 
 export const Route = createFileRoute("/invitations/accept")({
   validateSearch: (search: Record<string, unknown>): InvitationAcceptSearch =>
@@ -122,8 +114,7 @@ function InvitationAcceptPage() {
         to: "/auth/sign-in",
         search: { redirect: redirectUrl },
       })
-    } catch (err) {
-      log.error({ err }, "Sign out failed")
+    } catch {
       toast.error("Could not sign out", { description: "Please try again." })
     } finally {
       isSigningOutRef.current = false
@@ -142,10 +133,11 @@ function InvitationAcceptPage() {
         data: { invitationId },
       })
     } catch (err) {
-      log.error({ err, invitationId }, "Failed to accept invitation")
       toast.error("Could not accept invitation", {
         description:
-          "We were unable to accept this invitation. Please try again or request a new link.",
+          err instanceof Error
+            ? err.message
+            : "We were unable to accept this invitation. Please try again or request a new link.",
       })
       await queryClient.invalidateQueries({
         queryKey: organizationKeys.invitationDetails(invitationId),
@@ -164,11 +156,7 @@ function InvitationAcceptPage() {
       await invalidateOrganizationQueries(queryClient, result.organizationId)
       await router.invalidate()
       await navigate({ to: "/" })
-    } catch (postAcceptError) {
-      log.error(
-        { err: postAcceptError, organizationId: result.organizationId },
-        "Failed during post-acceptance invalidation or navigation",
-      )
+    } catch {
       try {
         await navigate({ to: "/" })
       } catch {

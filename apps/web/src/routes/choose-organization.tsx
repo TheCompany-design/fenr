@@ -33,22 +33,15 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 
 import {
   invalidateOrganizationQueries,
   organizationListQueryOptions,
   setActiveOrganizationFn,
 } from "@/features/organizations"
-import { moduleLogger } from "@/lib/logger"
 import { safeAppRedirectPath, safeRedirectPath } from "@/lib/redirect"
+import { chooseOrganizationSearchSchema } from "@/lib/schemas/search"
 import { getSession } from "@/lib/session"
-
-const log = moduleLogger("choose-organization")
-
-const chooseOrganizationSearchSchema = z.object({
-  redirect: z.string().optional(),
-})
 
 export const Route = createFileRoute("/choose-organization")({
   validateSearch: (search) => chooseOrganizationSearchSchema.parse(search),
@@ -104,20 +97,16 @@ function ChooseOrganizationRoute() {
     try {
       await setActiveOrganizationFn({ data: { organizationId } })
       await invalidateOrganizationQueries(queryClient, organizationId)
-      void router.invalidate().catch((err) => {
-        log.warn(
-          { err, organizationId },
-          "Failed to invalidate router after setting active organization",
-        )
+      void router.invalidate().catch(() => {
+        // Invalidation best-effort
       })
 
       if (!isMountedRef.current) return
 
       const target = safeAppRedirectPath(redirectParam)
       await navigate({ href: target })
-    } catch (err) {
+    } catch {
       if (!isMountedRef.current) return
-      log.error({ err, organizationId }, "Failed to select active organization")
       toast.error("Failed to select organization", {
         description: "Could not switch active organization. Please try again.",
       })

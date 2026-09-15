@@ -19,7 +19,6 @@ import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 
 import { AuthShell } from "@/features/auth/components/auth-shell"
 import {
@@ -32,32 +31,22 @@ import {
   organizationInvitationsQueryOptions,
   organizationListQueryOptions,
 } from "@/features/organizations/queries"
-import type {
-  CreateOrganizationInput,
-  OrganizationRole,
-} from "@/features/organizations/schemas"
 import {
   createOrganizationFn,
   inviteMemberFn,
   setActiveOrganizationFn,
 } from "@/features/organizations/server"
 import { signOut } from "@/lib/auth-client"
-import { moduleLogger } from "@/lib/logger"
 import { safeRedirectPath } from "@/lib/redirect"
+import type {
+  CreateOrganizationInput,
+  OrganizationRole,
+} from "@/lib/schemas/organizations"
+import {
+  type OnboardingSearch,
+  onboardingSearchSchema,
+} from "@/lib/schemas/search"
 import { getSession } from "@/lib/session"
-
-const log = moduleLogger("onboarding")
-
-export const onboardingSearchSchema = z.object({
-  step: z
-    .enum(["naming", "invites", "welcome"])
-    .optional()
-    .default("naming")
-    .catch("naming"),
-  orgId: z.string().uuid().optional().catch(undefined),
-})
-
-export type OnboardingSearch = z.infer<typeof onboardingSearchSchema>
 
 export const Route = createFileRoute("/onboarding")({
   validateSearch: (search: Record<string, unknown>): OnboardingSearch =>
@@ -181,14 +170,12 @@ function OnboardingPage() {
     try {
       const res = await signOut()
       if (res?.error) {
-        log.error({ err: res.error }, "Sign out failed")
         toast.error("Couldn't sign out", { description: "Please try again." })
         return
       }
       queryClient.clear()
       await navigate({ to: "/auth/sign-in" })
-    } catch (err) {
-      log.error({ err }, "Sign out failed")
+    } catch {
       toast.error("Couldn't sign out", { description: "Please try again." })
     } finally {
       isSigningOutRef.current = false
@@ -204,8 +191,8 @@ function OnboardingPage() {
         await navigate({
           search: { step: "invites", orgId: createdOrg.id },
         })
-      } catch (retryErr) {
-        log.error({ err: retryErr }, "Failed to navigate to invites on retry")
+      } catch {
+        // Navigation failure
       }
       return
     }
@@ -221,10 +208,6 @@ function OnboardingPage() {
         description: `Welcome to ${org.name}!`,
       })
     } catch (err) {
-      log.error(
-        { err, name: values.name, slug: values.slug },
-        "Failed to create workspace",
-      )
       const description =
         err instanceof Error
           ? err.message
@@ -240,11 +223,7 @@ function OnboardingPage() {
       await navigate({
         search: { step: "invites", orgId: org.id },
       })
-    } catch (postCreateErr) {
-      log.error(
-        { err: postCreateErr, orgId: org.id },
-        "Error during post-creation invalidation or navigation",
-      )
+    } catch {
       try {
         await navigate({
           search: { step: "invites", orgId: org.id },
@@ -271,7 +250,7 @@ function OnboardingPage() {
 
     const settledResults = await Promise.allSettled(
       invites.map(async (invite) => {
-        await inviteMemberFn({
+        const res = await inviteMemberFn({
           data: {
             organizationId: orgId,
             email: invite.email,
@@ -279,7 +258,7 @@ function OnboardingPage() {
             note: invite.note,
           },
         })
-        return invite.email
+        return { email: invite.email, emailSent: res.emailSent }
       }),
     )
 
@@ -287,12 +266,17 @@ function OnboardingPage() {
       settledResults.map((settled, index) => {
         const invite = invites[index]
         if (settled.status === "fulfilled") {
+          if (!settled.value.emailSent) {
+            toast.warning(
+              `Invitation created for ${invite.email}, but email could not be delivered`,
+              {
+                description:
+                  "Please copy and share the invitation link manually.",
+              },
+            )
+          }
           return { email: invite.email, success: true }
         }
-        log.warn(
-          { email: invite.email, err: settled.reason },
-          "Failed to send onboarding invite",
-        )
         return {
           email: invite.email,
           success: false,
@@ -338,17 +322,13 @@ function OnboardingPage() {
           await setActiveOrganizationFn({
             data: { organizationId: targetOrgId },
           })
-        } catch (setErr) {
-          log.warn(
-            { err: setErr, targetOrgId },
-            "Failed to explicitly set active organization",
-          )
+        } catch {
+          // Best-effort set active organization
         }
       }
       await invalidateOrganizationQueries(queryClient, targetOrgId)
       await navigate({ to: "/" })
-    } catch (err) {
-      log.error({ err }, "Navigation to workspace failed")
+    } catch {
       toast.error("Navigation failed", {
         description: "Please reload the page or navigate to your workspace.",
       })

@@ -16,10 +16,10 @@ mock.module("@/lib/session", () => ({
   },
 }))
 
+import { onboardingSearchSchema } from "@/lib/schemas/search"
+
 // Import Route after mock.module
-const { onboardingSearchSchema, Route: OnboardingRoute } = await import(
-  "./onboarding"
-)
+const { Route: OnboardingRoute } = await import("./onboarding")
 
 type BeforeLoadCaller = (opts: {
   location: { href: string; pathname?: string }
