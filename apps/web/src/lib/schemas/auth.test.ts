@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { emailSchema, magicLinkSchema } from "./auth.schema"
+import { emailSchema, magicLinkSchema } from "./auth"
 
 describe("emailSchema", () => {
   test("accepts a valid email", () => {
