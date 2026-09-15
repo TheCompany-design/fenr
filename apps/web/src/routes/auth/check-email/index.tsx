@@ -5,19 +5,13 @@
  * Missing email bounces back to /auth/sign-in.
  */
 import { createFileRoute, redirect } from "@tanstack/react-router"
-import { z } from "zod"
 
 import { CheckEmailCard } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
-
-const searchSchema = z.object({
-  email: z.string().default(""),
-  redirect: z.string().optional(),
-  error: z.string().optional(),
-})
+import { authCheckEmailSearchSchema } from "@/lib/schemas/search"
 
 export const Route = createFileRoute("/auth/check-email/")({
-  validateSearch: (search) => searchSchema.parse(search),
+  validateSearch: (search) => authCheckEmailSearchSchema.parse(search),
   beforeLoad: ({ search }) => {
     if (!search.email?.trim()) {
       throw redirect({

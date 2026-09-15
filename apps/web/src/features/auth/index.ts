@@ -1,4 +1,9 @@
 export {
+  emailSchema,
+  type MagicLinkValues,
+  magicLinkSchema,
+} from "@/lib/schemas/auth"
+export {
   AuthErrorBanner,
   type AuthErrorBannerProps,
 } from "./components/auth-error-banner"
@@ -8,11 +13,7 @@ export { FieldError } from "./components/field-error"
 export { MagicLinkForm } from "./components/magic-link-form"
 export { OAuthButtons } from "./components/oauth-buttons"
 export {
-  emailSchema,
-  type MagicLinkValues,
-  magicLinkSchema,
-} from "./schemas/auth.schema"
-export {
   type AuthErrorMessage,
   getAuthErrorMessage,
 } from "./utils/error-messages"
+export { getAuthTagline } from "./utils/tagline"

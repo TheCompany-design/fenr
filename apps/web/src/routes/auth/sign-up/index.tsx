@@ -5,17 +5,13 @@
  * Entering an email automatically creates and verifies the account.
  */
 import { createFileRoute, Link } from "@tanstack/react-router"
-import { z } from "zod"
 
 import { AuthHeader, MagicLinkForm } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
-
-const searchSchema = z.object({
-  redirect: z.string().optional(),
-})
+import { authSignUpSearchSchema } from "@/lib/schemas/search"
 
 export const Route = createFileRoute("/auth/sign-up/")({
-  validateSearch: (search) => searchSchema.parse(search),
+  validateSearch: (search) => authSignUpSearchSchema.parse(search),
   component: SignUpPage,
 })
 

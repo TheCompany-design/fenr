@@ -5,24 +5,35 @@
  * The `redirect` search param is validated against open-redirects.
  */
 import { createFileRoute } from "@tanstack/react-router"
-import { z } from "zod"
+import { useEffect } from "react"
+import { toast } from "sonner"
 
-import { AuthErrorBanner, AuthHeader, MagicLinkForm } from "@/features/auth"
+import {
+  AuthErrorBanner,
+  AuthHeader,
+  getAuthErrorMessage,
+  MagicLinkForm,
+} from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
-
-const searchSchema = z.object({
-  redirect: z.string().optional(),
-  error: z.string().optional(),
-})
+import { authSignInSearchSchema } from "@/lib/schemas/search"
 
 export const Route = createFileRoute("/auth/sign-in/")({
-  validateSearch: (search) => searchSchema.parse(search),
+  validateSearch: (search) => authSignInSearchSchema.parse(search),
   component: SignInPage,
 })
 
 function SignInPage() {
   const { redirect: redirectToParam, error } = Route.useSearch()
   const redirectTo = safeRedirectPath(redirectToParam)
+
+  useEffect(() => {
+    if (error) {
+      const errInfo = getAuthErrorMessage(error)
+      toast.error(errInfo.title, {
+        description: errInfo.description,
+      })
+    }
+  }, [error])
 
   return (
     <>

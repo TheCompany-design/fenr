@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test"
-
-import { getAuthTagline } from "./route"
+import { getAuthTagline } from "@/features/auth"
 
 describe("Auth Layout Route", () => {
   describe("getAuthTagline", () => {
