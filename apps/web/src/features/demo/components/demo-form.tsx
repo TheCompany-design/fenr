@@ -9,11 +9,12 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
-import { demoFormSchema } from "../schemas/demo-form.schema"
+import { toast } from "sonner"
+import { demoFormSchema } from "@/lib/schemas/demo"
 
 /**
  * Fenr convention: ALL forms use TanStack Form + Zod (Standard Schema).
- * Schemas are colocated in features/<name>/schemas and passed directly as validators.
+ * Schemas live in apps/web/src/lib/schemas/ and are passed directly as validators.
  */
 export function DemoForm() {
   const form = useForm({
@@ -23,11 +24,12 @@ export function DemoForm() {
       message: "",
     },
     validators: {
-      onBlur: demoFormSchema,
-      onSubmit: demoFormSchema,
+      onChange: demoFormSchema,
     },
     onSubmit: async ({ value }) => {
-      console.info("form submitted", value)
+      toast.success("Demo form submitted", {
+        description: `Name: ${value.name}, Email: ${value.email}`,
+      })
     },
   })
 
