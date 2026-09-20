@@ -126,10 +126,113 @@ describe("Outbound JWT Token Provider (acquireOutboundJwt)", () => {
     const controller = new AbortController()
     controller.abort(new Error("Pre-aborted token acquisition"))
 
-    expect(
+    await expect(
       acquireOutboundJwt(mockAuthContract, {
         signal: controller.signal,
       }),
     ).rejects.toThrow(HttpClientError)
+  })
+
+  it("rejects token acquisition when session lacks active organization context", async () => {
+    auth.api.getSession = mock(async () => ({
+      user: {
+        id: "user_123",
+        email: "user@test.dev",
+        name: "User",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      session: {
+        id: "sess_123",
+        userId: "user_123",
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        token: "tok_123",
+        activeOrganizationId: null,
+        ipAddress: null,
+        userAgent: null,
+      },
+    })) as unknown as typeof auth.api.getSession
+
+    const testHeaders = new Headers({
+      cookie: "better-auth.session_token=test",
+    })
+    try {
+      await acquireOutboundJwt(mockAuthContract, { headersSource: testHeaders })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("UNAUTHENTICATED")
+      expect(httpErr.status).toBe(401)
+      expect(httpErr.message).toContain("Tenant context required")
+    }
+  })
+
+  it("propagates 502 SERVICE_UNREACHABLE when auth getSession fails", async () => {
+    auth.api.getSession = mock(async () => {
+      throw new Error("PostgreSQL connection refused")
+    }) as unknown as typeof auth.api.getSession
+
+    const testHeaders = new Headers({
+      cookie: "better-auth.session_token=test",
+    })
+    try {
+      await acquireOutboundJwt(mockAuthContract, { headersSource: testHeaders })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("SERVICE_UNREACHABLE")
+      expect(httpErr.status).toBe(502)
+      expect(httpErr.cause).toBeDefined()
+    }
+  })
+
+  it("propagates 502 SERVICE_UNREACHABLE when signJWT fails", async () => {
+    auth.api.getSession = mock(async () => ({
+      user: {
+        id: "user_123",
+        email: "user@test.dev",
+        name: "User",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      session: {
+        id: "sess_123",
+        userId: "user_123",
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        token: "tok_123",
+        activeOrganizationId: "org_123",
+        ipAddress: null,
+        userAgent: null,
+      },
+    })) as unknown as typeof auth.api.getSession
+
+    const originalSignJWT = auth.api.signJWT
+    auth.api.signJWT = mock(async () => {
+      throw new Error("Key signing failure")
+    }) as unknown as typeof auth.api.signJWT
+
+    const testHeaders = new Headers({
+      cookie: "better-auth.session_token=test",
+    })
+    try {
+      await acquireOutboundJwt(mockAuthContract, { headersSource: testHeaders })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("SERVICE_UNREACHABLE")
+      expect(httpErr.status).toBe(502)
+      expect(httpErr.cause).toBeDefined()
+    } finally {
+      auth.api.signJWT = originalSignJWT
+    }
   })
 })
