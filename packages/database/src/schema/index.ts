@@ -6,6 +6,7 @@
  */
 
 export * from "./auth/account"
+export * from "./auth/jwks"
 export * from "./auth/session"
 export * from "./auth/user"
 export * from "./auth/verification"
