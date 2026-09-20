@@ -55,9 +55,10 @@ function ChartContainer({
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id ?? uniqueId.replace(/:/g, "")}`
+  const contextValue = React.useMemo(() => ({ config }), [config])
 
   return (
-    <ChartContext.Provider value={{ config }}>
+    <ChartContext.Provider value={contextValue}>
       <div
         data-slot="chart"
         data-chart={chartId}
@@ -114,6 +115,63 @@ ${colorConfig
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
+function ChartTooltipLabel({
+  config,
+  payload,
+  label,
+  labelFormatter,
+  labelClassName,
+  labelKey,
+  hideLabel,
+}: {
+  config: ChartConfig
+  payload: NonNullable<
+    RechartsPrimitive.DefaultTooltipContentProps<
+      TooltipValueType,
+      TooltipNameType
+    >["payload"]
+  >
+  label?: unknown
+  labelFormatter?: (
+    label: unknown,
+    payload: NonNullable<
+      RechartsPrimitive.DefaultTooltipContentProps<
+        TooltipValueType,
+        TooltipNameType
+      >["payload"]
+    >,
+  ) => React.ReactNode
+  labelClassName?: string
+  labelKey?: string
+  hideLabel?: boolean
+}) {
+  if (hideLabel || !payload.length) {
+    return null
+  }
+
+  const [item] = payload
+  const key = `${labelKey ?? item?.dataKey ?? item?.name ?? "value"}`
+  const itemConfig = getPayloadConfigFromPayload(config, item, key)
+  const value =
+    !labelKey && typeof label === "string"
+      ? (config[label]?.label ?? label)
+      : itemConfig?.label
+
+  if (labelFormatter) {
+    return (
+      <div className={cn("font-medium", labelClassName)}>
+        {labelFormatter(value, payload)}
+      </div>
+    )
+  }
+
+  if (!value) {
+    return null
+  }
+
+  return <div className={cn("font-medium", labelClassName)}>{value}</div>
+}
+
 function ChartTooltipContent({
   active,
   payload,
@@ -144,47 +202,22 @@ function ChartTooltipContent({
   >) {
   const { config } = useChart()
 
-  const tooltipLabel = React.useMemo(() => {
-    if (hideLabel || !payload?.length) {
-      return null
-    }
-
-    const [item] = payload
-    const key = `${labelKey ?? item?.dataKey ?? item?.name ?? "value"}`
-    const itemConfig = getPayloadConfigFromPayload(config, item, key)
-    const value =
-      !labelKey && typeof label === "string"
-        ? (config[label]?.label ?? label)
-        : itemConfig?.label
-
-    if (labelFormatter) {
-      return (
-        <div className={cn("font-medium", labelClassName)}>
-          {labelFormatter(value, payload)}
-        </div>
-      )
-    }
-
-    if (!value) {
-      return null
-    }
-
-    return <div className={cn("font-medium", labelClassName)}>{value}</div>
-  }, [
-    label,
-    labelFormatter,
-    payload,
-    hideLabel,
-    labelClassName,
-    config,
-    labelKey,
-  ])
-
   if (!active || !payload?.length) {
     return null
   }
 
   const nestLabel = payload.length === 1 && indicator !== "dot"
+  const tooltipLabel = (
+    <ChartTooltipLabel
+      config={config}
+      payload={payload}
+      label={label}
+      labelFormatter={labelFormatter}
+      labelClassName={labelClassName}
+      labelKey={labelKey}
+      hideLabel={hideLabel}
+    />
+  )
 
   return (
     <div
@@ -201,11 +234,11 @@ function ChartTooltipContent({
             const key = `${nameKey ?? item.name ?? item.dataKey ?? "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color ?? item.payload?.fill ?? item.color
+            const itemKey = `${key}-${String(item.dataKey ?? item.name ?? "val")}`
 
             return (
               <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: payload index used as fallback
-                key={index}
+                key={itemKey}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                   indicator === "dot" && "items-center",
@@ -297,14 +330,14 @@ function ChartLegendContent({
     >
       {payload
         .filter((item) => item.type !== "none")
-        .map((item, index) => {
+        .map((item) => {
           const key = `${nameKey ?? item.dataKey ?? "value"}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
+          const itemKey = `${key}-${String(item.dataKey ?? item.value ?? "val")}`
 
           return (
             <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: payload index used as fallback
-              key={index}
+              key={itemKey}
               className={cn(
                 "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground",
               )}
