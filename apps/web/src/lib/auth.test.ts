@@ -23,12 +23,13 @@ describe("Better Auth Configuration & Plugins", () => {
       expect(auth.options.secret).toBeDefined()
     })
 
-    it("has magic-link, organization, and tanstackStartCookies plugins configured in correct order", () => {
+    it("has magic-link, organization, jwt, and tanstackStartCookies plugins configured in correct order", () => {
       const plugins = auth.options.plugins || []
       const pluginIds = plugins.map((p) => p.id)
 
       expect(pluginIds).toContain("magic-link")
       expect(pluginIds).toContain("organization")
+      expect(pluginIds).toContain("jwt")
       expect(pluginIds).toContain("tanstack-start-cookies")
 
       // Invariant: tanstackStartCookies must be strictly the last plugin
@@ -50,6 +51,67 @@ describe("Better Auth Configuration & Plugins", () => {
     it("has magic link API endpoints registered", () => {
       expect(auth.api.signInMagicLink).toBeDefined()
       expect(auth.api.magicLinkVerify).toBeDefined()
+    })
+
+    it("has JWT API endpoints registered and correctly configured", () => {
+      expect(auth.api.getToken).toBeDefined()
+      expect(auth.api.getJwks).toBeDefined()
+      expect(auth.api.signJWT).toBeDefined()
+      expect(auth.api.verifyJWT).toBeDefined()
+
+      const jwtPlugin = (auth.options.plugins || []).find((p) => p.id === "jwt")
+      expect(jwtPlugin).toBeDefined()
+      expect(
+        (
+          jwtPlugin as {
+            options?: { jwt?: { audience?: string; issuer?: string } }
+          }
+        )?.options?.jwt?.audience,
+      ).toBe("nabu")
+      expect(
+        (
+          jwtPlugin as {
+            options?: { jwt?: { audience?: string; issuer?: string } }
+          }
+        )?.options?.jwt?.issuer,
+      ).toBe(auth.options.baseURL)
+    })
+
+    it("mints and verifies JWTs with expected issuer, audience, and asymmetric signing", async () => {
+      const signRes = await auth.api.signJWT({
+        body: {
+          payload: {
+            sub: "test-user-id",
+            email: "bot@fenr.dev",
+          },
+        },
+      })
+      expect(signRes?.token).toBeDefined()
+      expect(typeof signRes?.token).toBe("string")
+
+      const verifyRes = await auth.api.verifyJWT({
+        body: {
+          token: signRes?.token ?? "",
+        },
+      })
+      expect(verifyRes?.payload).toBeDefined()
+      expect(verifyRes?.payload?.sub).toBe("test-user-id")
+      expect(verifyRes?.payload?.email).toBe("bot@fenr.dev")
+      expect(verifyRes?.payload?.aud).toBe("nabu")
+      expect(verifyRes?.payload?.iss).toBe(auth.options.baseURL)
+    })
+
+    it("serves public JWKS keys matching the EdDSA / Ed25519 contract", async () => {
+      const jwks = await auth.api.getJwks()
+      expect(jwks?.keys).toBeDefined()
+      expect(Array.isArray(jwks?.keys)).toBe(true)
+      expect(jwks.keys.length).toBeGreaterThan(0)
+      const firstKey = jwks.keys[0]
+      expect(firstKey.alg).toBe("EdDSA")
+      expect(firstKey.crv).toBe("Ed25519")
+      expect(firstKey.kty).toBe("OKP")
+      expect(typeof firstKey.x).toBe("string")
+      expect(typeof firstKey.kid).toBe("string")
     })
   })
 

@@ -21,8 +21,16 @@ mock.module("@/lib/session", () => ({
 }))
 
 const mockSignOut = mock(async () => ({}))
+const actualAuthClient = await import("@/lib/auth-client")
 mock.module("@/lib/auth-client", () => ({
+  ...actualAuthClient,
   signOut: mockSignOut,
+  authClient: new Proxy(actualAuthClient.authClient, {
+    get(target, prop, receiver) {
+      if (prop === "signOut") return mockSignOut
+      return Reflect.get(target, prop, receiver)
+    },
+  }),
 }))
 
 const mockSetActiveOrg = mock(async () => ({}))

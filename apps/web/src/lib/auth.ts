@@ -12,7 +12,7 @@
 import { db, schema } from "@workspace/database"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { magicLink, organization } from "better-auth/plugins"
+import { jwt, magicLink, organization } from "better-auth/plugins"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 
 import { serverEnv } from "./env"
@@ -184,6 +184,24 @@ export const auth = betterAuth({
           acceptUrl,
           expiresInHours: 48,
         })
+      },
+    }),
+
+    jwt({
+      jwt: {
+        issuer: serverEnv.BETTER_AUTH_URL,
+        audience: "nabu",
+        expirationTime: "15m",
+        definePayload: ({ user, session }) => ({
+          sub: user.id,
+          email: user.email,
+          activeOrganizationId:
+            (session as { activeOrganizationId?: string | null })
+              .activeOrganizationId ?? undefined,
+        }),
+      },
+      jwks: {
+        jwksPath: "/jwks",
       },
     }),
 
