@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
-
+import { HttpClientError } from "@/lib/http"
 import {
   dispatchAgentTask,
   getNabuSystemStatus,
   matchInflowReconciliation,
-  NabuClientError,
 } from "./client"
 
 describe("Nabu HTTP Client", () => {
@@ -15,43 +14,58 @@ describe("Nabu HTTP Client", () => {
   })
 
   describe("getNabuSystemStatus", () => {
-    it("returns parsed system status on success", async () => {
-      globalThis.fetch = mock(async () =>
-        Response.json({
+    it("returns parsed system status on success and attaches bearer token", async () => {
+      let capturedAuth: string | null = null
+      globalThis.fetch = mock(async (_url, init) => {
+        const headers = new Headers(init?.headers)
+        capturedAuth = headers.get("Authorization")
+        return Response.json({
           status: "online",
           version: "0.1.0",
           database: "connected",
           timestamp: "1726856400",
-        }),
-      ) as unknown as typeof fetch
+        })
+      }) as unknown as typeof fetch
 
-      const result = await getNabuSystemStatus()
+      const result = await getNabuSystemStatus({ token: "test-nabu-token" })
       expect(result.status).toBe("online")
       expect(result.version).toBe("0.1.0")
       expect(result.database).toBe("connected")
+      expect(String(capturedAuth)).toBe("Bearer test-nabu-token")
     })
 
-    it("throws NabuClientError when response is not ok", async () => {
+    it("throws HttpClientError with UNAUTHENTICATED when called without a session or token", async () => {
+      await expect(getNabuSystemStatus()).rejects.toThrow(HttpClientError)
+    })
+
+    it("throws HttpClientError when response is not ok", async () => {
       globalThis.fetch = mock(async () =>
         Response.json({ error: "internal server error" }, { status: 500 }),
       ) as unknown as typeof fetch
 
-      expect(getNabuSystemStatus()).rejects.toThrow(NabuClientError)
+      expect(getNabuSystemStatus({ token: "test-token" })).rejects.toThrow(
+        HttpClientError,
+      )
     })
 
-    it("throws NabuClientError on invalid response schema", async () => {
+    it("throws HttpClientError on invalid response schema", async () => {
       globalThis.fetch = mock(async () =>
         Response.json({ invalid: "data" }),
       ) as unknown as typeof fetch
 
-      expect(getNabuSystemStatus()).rejects.toThrow(NabuClientError)
+      expect(getNabuSystemStatus({ token: "test-token" })).rejects.toThrow(
+        HttpClientError,
+      )
     })
   })
 
   describe("matchInflowReconciliation", () => {
-    it("validates input and returns parsed match result", async () => {
+    it("validates input, injects token, and returns parsed match result", async () => {
+      let capturedAuth: string | null = null
       globalThis.fetch = mock(async (_url, init) => {
         expect(init?.method).toBe("POST")
+        const headers = new Headers(init?.headers)
+        capturedAuth = headers.get("Authorization")
         const body = JSON.parse(init?.body as string)
         expect(body.reference).toBe("INV-2026-004")
 
@@ -66,16 +80,20 @@ describe("Nabu HTTP Client", () => {
         })
       }) as unknown as typeof fetch
 
-      const result = await matchInflowReconciliation({
-        transaction_id: "tx_01",
-        amount: 1500,
-        reference: "INV-2026-004",
-        sender_name: "Acme Corp",
-      })
+      const result = await matchInflowReconciliation(
+        {
+          transaction_id: "tx_01",
+          amount: 1500,
+          reference: "INV-2026-004",
+          sender_name: "Acme Corp",
+        },
+        { token: "reconciliation-jwt" },
+      )
 
       expect(result.match_status).toBe("confident")
       expect(result.confidence_score).toBe(0.96)
       expect(result.invoice_number).toBe("INV-2026-004")
+      expect(String(capturedAuth)).toBe("Bearer reconciliation-jwt")
     })
 
     it("rejects invalid input before making network request", async () => {
@@ -99,9 +117,12 @@ describe("Nabu HTTP Client", () => {
   })
 
   describe("dispatchAgentTask", () => {
-    it("dispatches task payload and returns result", async () => {
+    it("dispatches task payload, attaches bearer token, and returns result", async () => {
+      let capturedAuth: string | null = null
       globalThis.fetch = mock(async (_url, init) => {
         expect(init?.method).toBe("POST")
+        const headers = new Headers(init?.headers)
+        capturedAuth = headers.get("Authorization")
         const body = JSON.parse(init?.body as string)
         expect(body.prompt).toBe("Scan overdue accounts")
 
@@ -115,14 +136,18 @@ describe("Nabu HTTP Client", () => {
         })
       }) as unknown as typeof fetch
 
-      const result = await dispatchAgentTask({
-        prompt: "Scan overdue accounts",
-        task_type: "receivables_audit",
-        dry_run: true,
-      })
+      const result = await dispatchAgentTask(
+        {
+          prompt: "Scan overdue accounts",
+          task_type: "receivables_audit",
+          dry_run: true,
+        },
+        { token: "dispatch-jwt" },
+      )
 
       expect(result.status).toBe("completed")
       expect(result.items_analyzed).toBe(5)
+      expect(String(capturedAuth)).toBe("Bearer dispatch-jwt")
     })
   })
 })
