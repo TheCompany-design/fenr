@@ -45,12 +45,23 @@ const mockMagicLink = mock(
   }),
 )
 
+const actualAuthClient = await import("@/lib/auth-client")
 mock.module("@/lib/auth-client", () => ({
-  authClient: {
-    signIn: {
-      magicLink: mockMagicLink,
+  ...actualAuthClient,
+  authClient: new Proxy(actualAuthClient.authClient, {
+    get(target, prop, receiver) {
+      if (prop === "signIn") {
+        const orig = target.signIn
+        return new Proxy(orig, {
+          get(fnTarget, fnProp, fnReceiver) {
+            if (fnProp === "magicLink") return mockMagicLink
+            return Reflect.get(fnTarget, fnProp, fnReceiver)
+          },
+        })
+      }
+      return Reflect.get(target, prop, receiver)
     },
-  },
+  }),
 }))
 
 const { CheckEmailCard } = await import("./check-email-card")
