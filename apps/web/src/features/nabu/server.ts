@@ -20,16 +20,27 @@ import {
   matchInflowReconciliation,
 } from "./client"
 
+export class OrganizationRequiredError extends Error {
+  constructor(message = "Active organization required") {
+    super(message)
+    this.name = "OrganizationRequiredError"
+  }
+}
+
 export const getNabuSystemStatusFn = createServerFn({ method: "GET" }).handler(
   async () => {
-    return withWideEvent("nabu", "getSystemStatus", async (setContext) => {
-      const session = await ensureSession()
-      setContext({
-        userId: session.user.id,
-        organizationId: session.session.activeOrganizationId,
-      })
-      return getNabuSystemStatus()
-    })
+    return withWideEvent(
+      "nabu",
+      "getSystemStatus",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+        })
+        return getNabuSystemStatus({ requestId })
+      },
+    )
   },
 )
 
@@ -39,13 +50,16 @@ export const matchInflowReconciliationFn = createServerFn({ method: "POST" })
     return withWideEvent(
       "nabu",
       "matchInflowReconciliation",
-      async (setContext) => {
+      async (setContext, requestId) => {
         const session = await ensureSession()
+        if (!session.session.activeOrganizationId) {
+          throw new OrganizationRequiredError()
+        }
         setContext({
           userId: session.user.id,
           organizationId: session.session.activeOrganizationId,
         })
-        return matchInflowReconciliation(data)
+        return matchInflowReconciliation(data, { requestId })
       },
     )
   })
@@ -53,12 +67,19 @@ export const matchInflowReconciliationFn = createServerFn({ method: "POST" })
 export const dispatchAgentTaskFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => createAgentTaskInputSchema.parse(input))
   .handler(async ({ data }) => {
-    return withWideEvent("nabu", "dispatchAgentTask", async (setContext) => {
-      const session = await ensureSession()
-      setContext({
-        userId: session.user.id,
-        organizationId: session.session.activeOrganizationId,
-      })
-      return dispatchAgentTask(data)
-    })
+    return withWideEvent(
+      "nabu",
+      "dispatchAgentTask",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        if (!session.session.activeOrganizationId) {
+          throw new OrganizationRequiredError()
+        }
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+        })
+        return dispatchAgentTask(data, { requestId })
+      },
+    )
   })

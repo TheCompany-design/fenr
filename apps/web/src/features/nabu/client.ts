@@ -1,140 +1,72 @@
 /**
- * Nabu Server HTTP Client.
+ * Nabu Server HTTP Client Adapter.
  *
  * SERVER-ONLY: Communicates from Fenr server runtime (TanStack Start BFF)
- * to the thebookofnabu agent runtime.
+ * to the thebookofnabu agent runtime using the central typed HTTP transport.
+ * All requests automatically carry a Better Auth-signed JWT with audience "nabu".
  */
 
-import { serverEnv } from "@/lib/env"
 import {
-  type AgentTaskResult,
-  agentTaskResultSchema,
-  type CreateAgentTaskInput,
-  createAgentTaskInputSchema,
-  type NabuSystemStatus,
-  nabuSystemStatusSchema,
-  type ReconciliationMatchInput,
-  type ReconciliationMatchResult,
-  reconciliationMatchInputSchema,
-  reconciliationMatchResultSchema,
+  type ExecuteRequestOptions,
+  executeRequest,
+  HttpClientError,
+  nabuEndpoints,
+} from "@/lib/http"
+import type {
+  AgentTaskResult,
+  CreateAgentTaskInput,
+  NabuSystemStatus,
+  ReconciliationMatchInput,
+  ReconciliationMatchResult,
 } from "@/lib/schemas/nabu"
 
-export class NabuClientError extends Error {
-  readonly status: number
-  readonly code: string
-  readonly details?: unknown
-
+export class NabuClientError extends HttpClientError {
   constructor(
     message: string,
     status = 500,
     code = "NABU_ERROR",
     details?: unknown,
   ) {
-    super(message)
-    this.name = "NabuClientError"
-    this.status = status
-    this.code = code
-    this.details = details
-  }
-}
-
-interface RequestOptions extends RequestInit {
-  timeoutMs?: number
-  requestId?: string
-}
-
-async function requestNabu<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const baseUrl = serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")
-  const url = `${baseUrl}${path.startsWith("/") ? path : `/${path}`}`
-  const timeoutMs = options.timeoutMs ?? 10_000
-
-  const headers = new Headers(options.headers)
-  if (!headers.has("Accept")) {
-    headers.set("Accept", "application/json")
-  }
-  if (options.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json")
-  }
-  if (options.requestId && !headers.has("X-Request-Id")) {
-    headers.set("X-Request-Id", options.requestId)
-  }
-
-  let response: Response
-  try {
-    response = await fetch(url, {
-      ...options,
-      headers,
-      signal: AbortSignal.timeout(timeoutMs),
+    super(message, {
+      status,
+      code:
+        code === "NABU_TIMEOUT" || code === "TIMEOUT"
+          ? "TIMEOUT"
+          : code === "NABU_UNREACHABLE" || code === "SERVICE_UNREACHABLE"
+            ? "SERVICE_UNREACHABLE"
+            : code === "NABU_VALIDATION_ERROR" || code === "VALIDATION_ERROR"
+              ? "VALIDATION_ERROR"
+              : code === "NABU_MALFORMED_RESPONSE" ||
+                  code === "MALFORMED_RESPONSE"
+                ? "MALFORMED_RESPONSE"
+                : "HTTP_ERROR",
+      service: "nabu",
+      details,
     })
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "TimeoutError") {
-      throw new NabuClientError(
-        `Nabu service timed out after ${timeoutMs}ms`,
-        504,
-        "NABU_TIMEOUT",
-      )
-    }
-    throw new NabuClientError(
-      `Unable to reach Nabu service at ${baseUrl}: ${error instanceof Error ? error.message : String(error)}`,
-      503,
-      "NABU_UNREACHABLE",
-      error,
-    )
+    this.name = "NabuClientError"
   }
+}
 
-  if (!response.ok) {
-    let errorPayload: unknown
-    try {
-      errorPayload = await response.json()
-    } catch {
-      errorPayload = await response.text().catch(() => null)
-    }
-
-    throw new NabuClientError(
-      `Nabu service returned HTTP ${response.status}`,
-      response.status,
-      "NABU_HTTP_ERROR",
-      errorPayload,
-    )
-  }
-
+async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return (await response.json()) as T
+    return await fn()
   } catch (err) {
-    throw new NabuClientError(
-      "Failed to parse response JSON from Nabu service",
-      502,
-      "NABU_MALFORMED_RESPONSE",
-      err,
-    )
+    if (err instanceof HttpClientError) {
+      throw new NabuClientError(err.message, err.status, err.code, err.details)
+    }
+    throw err
   }
 }
 
 /**
  * Retrieves the current system and engine status from thebookofnabu.
  */
-export async function getNabuSystemStatus(options?: {
-  requestId?: string
-}): Promise<NabuSystemStatus> {
-  const raw = await requestNabu<unknown>("/api/v1/system/status", {
-    method: "GET",
-    requestId: options?.requestId,
-  })
-
-  const parsed = nabuSystemStatusSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new NabuClientError(
-      "Nabu system status response failed validation",
-      502,
-      "NABU_VALIDATION_ERROR",
-      parsed.error.issues,
-    )
-  }
-
-  return parsed.data
+export async function getNabuSystemStatus(
+  options?: ExecuteRequestOptions<void>,
+): Promise<NabuSystemStatus> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.systemStatus, options),
+  )
 }
 
 /**
@@ -142,27 +74,14 @@ export async function getNabuSystemStatus(options?: {
  */
 export async function matchInflowReconciliation(
   input: ReconciliationMatchInput,
-  options?: { requestId?: string },
+  options?: Omit<ExecuteRequestOptions<ReconciliationMatchInput>, "input">,
 ): Promise<ReconciliationMatchResult> {
-  const validatedInput = reconciliationMatchInputSchema.parse(input)
-
-  const raw = await requestNabu<unknown>("/api/v1/reconciliation/match", {
-    method: "POST",
-    body: JSON.stringify(validatedInput),
-    requestId: options?.requestId,
-  })
-
-  const parsed = reconciliationMatchResultSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new NabuClientError(
-      "Nabu reconciliation match response failed validation",
-      502,
-      "NABU_VALIDATION_ERROR",
-      parsed.error.issues,
-    )
-  }
-
-  return parsed.data
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.matchReconciliation, {
+      ...options,
+      input,
+    }),
+  )
 }
 
 /**
@@ -170,25 +89,12 @@ export async function matchInflowReconciliation(
  */
 export async function dispatchAgentTask(
   input: CreateAgentTaskInput,
-  options?: { requestId?: string },
+  options?: Omit<ExecuteRequestOptions<CreateAgentTaskInput>, "input">,
 ): Promise<AgentTaskResult> {
-  const validatedInput = createAgentTaskInputSchema.parse(input)
-
-  const raw = await requestNabu<unknown>("/api/v1/agent/tasks", {
-    method: "POST",
-    body: JSON.stringify(validatedInput),
-    requestId: options?.requestId,
-  })
-
-  const parsed = agentTaskResultSchema.safeParse(raw)
-  if (!parsed.success) {
-    throw new NabuClientError(
-      "Nabu agent task response failed validation",
-      502,
-      "NABU_VALIDATION_ERROR",
-      parsed.error.issues,
-    )
-  }
-
-  return parsed.data
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.dispatchTask, {
+      ...options,
+      input,
+    }),
+  )
 }

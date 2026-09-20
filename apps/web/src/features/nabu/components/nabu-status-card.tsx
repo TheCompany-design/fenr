@@ -4,7 +4,7 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery } from "@tanstack/react-query"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -14,14 +14,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import { useState } from "react"
 import { toast } from "sonner"
 
-import {
-  dispatchAgentTaskFn,
-  matchInflowReconciliationFn,
-  nabuSystemStatusQueryOptions,
-} from "../index"
+import { nabuSystemStatusQueryOptions } from "../queries"
+import { dispatchAgentTaskFn, matchInflowReconciliationFn } from "../server"
 
 export function NabuStatusCard() {
   const {
@@ -30,14 +26,10 @@ export function NabuStatusCard() {
     isError,
     refetch,
   } = useQuery(nabuSystemStatusQueryOptions())
-  const [isMatching, setIsMatching] = useState(false)
-  const [isDispatching, setIsDispatching] = useState(false)
 
-  const handleTestReconciliation = async () => {
-    if (isMatching) return
-    setIsMatching(true)
-    try {
-      const result = await matchInflowReconciliationFn({
+  const matchMutation = useMutation({
+    mutationFn: async () => {
+      return matchInflowReconciliationFn({
         data: {
           transaction_id: `tx_${Date.now()}`,
           amount: 1500,
@@ -46,43 +38,45 @@ export function NabuStatusCard() {
           sender_name: "Acme Studio",
         },
       })
+    },
+    onSuccess: (result) => {
       toast.success(
         `Matched: ${result.invoice_number} (${result.match_status})`,
         {
           description: result.reasons.join(" • "),
         },
       )
-    } catch (err) {
+    },
+    onError: () => {
       toast.error("Reconciliation failed", {
-        description: err instanceof Error ? err.message : String(err),
+        description:
+          "Unable to connect to the Nabu engine. Please verify the service is running and try again.",
       })
-    } finally {
-      setIsMatching(false)
-    }
-  }
+    },
+  })
 
-  const handleDispatchTask = async () => {
-    if (isDispatching) return
-    setIsDispatching(true)
-    try {
-      const result = await dispatchAgentTaskFn({
+  const dispatchMutation = useMutation({
+    mutationFn: async () => {
+      return dispatchAgentTaskFn({
         data: {
           prompt: "Scan overdue invoices and prepare reconciliation report",
           task_type: "receivables_audit",
           dry_run: true,
         },
       })
+    },
+    onSuccess: (result) => {
       toast.success("Agent task completed", {
         description: `${result.summary} (analyzed ${result.items_analyzed} items in ${result.execution_time_ms}ms)`,
       })
-    } catch (err) {
+    },
+    onError: () => {
       toast.error("Agent task failed", {
-        description: err instanceof Error ? err.message : String(err),
+        description:
+          "Unable to dispatch agent task to the Nabu engine. Please verify the service is running and try again.",
       })
-    } finally {
-      setIsDispatching(false)
-    }
-  }
+    },
+  })
 
   return (
     <Card className="flex flex-col justify-between">
@@ -106,48 +100,53 @@ export function NabuStatusCard() {
               Checking
             </Badge>
           ) : isError ? (
-            <Badge variant="destructive" className="font-normal">
-              Offline
-            </Badge>
+            <Badge variant="destructive">Offline</Badge>
           ) : (
-            <Badge variant="secondary" className="gap-1 font-normal">
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                size={12}
-                className="text-primary"
-              />
-              v{status?.version ?? "0.1.0"}
+            <Badge
+              variant="secondary"
+              className="gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            >
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={12} />
+              {status?.status ?? "Unknown"}
             </Badge>
           )}
         </div>
         <CardDescription>
-          Live communication between Fenr and the Rust agent runtime.
+          Sub-ledger reconciliation and operational agent runtime
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="flex flex-col gap-3">
-        <div className="rounded-md border border-border/50 bg-muted/40 p-2.5 text-xs">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>Database Connection:</span>
-            <span className="font-medium text-foreground capitalize">
-              {status?.database ?? (isError ? "disconnected" : "pending")}
-            </span>
+      <CardContent className="space-y-4">
+        {status ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">Version</span>
+              <span className="font-mono font-medium">{status.version}</span>
+            </div>
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">Database</span>
+              <span className="font-mono font-medium capitalize">
+                {status.database}
+              </span>
+            </div>
           </div>
-          <div className="mt-1 flex items-center justify-between text-muted-foreground">
-            <span>Target Port:</span>
-            <span className="font-mono text-foreground">5050 (Axum)</span>
-          </div>
-        </div>
+        ) : (
+          <p className="text-muted-foreground text-xs">
+            Nabu provides automated sub-ledger reconciliation and operational
+            agent runs. Click below to test reconciliation or dispatch an agent
+            task.
+          </p>
+        )}
 
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleTestReconciliation}
-            disabled={isMatching}
+            onClick={() => matchMutation.mutate()}
+            disabled={matchMutation.isPending}
             className="flex-1 text-xs"
           >
-            {isMatching ? (
+            {matchMutation.isPending ? (
               <>
                 <HugeiconsIcon
                   icon={Loading03Icon}
@@ -164,11 +163,11 @@ export function NabuStatusCard() {
           <Button
             variant="default"
             size="sm"
-            onClick={handleDispatchTask}
-            disabled={isDispatching}
+            onClick={() => dispatchMutation.mutate()}
+            disabled={dispatchMutation.isPending}
             className="flex-1 text-xs"
           >
-            {isDispatching ? (
+            {dispatchMutation.isPending ? (
               <>
                 <HugeiconsIcon
                   icon={Loading03Icon}
