@@ -4,6 +4,7 @@ import {
   dispatchAgentTask,
   getNabuSystemStatus,
   matchInflowReconciliation,
+  NabuClientError,
 } from "./client"
 
 describe("Nabu HTTP Client", () => {
@@ -35,7 +36,15 @@ describe("Nabu HTTP Client", () => {
     })
 
     it("throws HttpClientError with UNAUTHENTICATED when called without a session or token", async () => {
-      await expect(getNabuSystemStatus()).rejects.toThrow(HttpClientError)
+      try {
+        await getNabuSystemStatus()
+        expect(true).toBe(false)
+      } catch (err) {
+        expect(err).toBeInstanceOf(NabuClientError)
+        const nabuErr = err as NabuClientError
+        expect(nabuErr.code).toBe("UNAUTHENTICATED")
+        expect(nabuErr.status).toBe(401)
+      }
     })
 
     it("throws HttpClientError when response is not ok", async () => {
@@ -43,9 +52,9 @@ describe("Nabu HTTP Client", () => {
         Response.json({ error: "internal server error" }, { status: 500 }),
       ) as unknown as typeof fetch
 
-      expect(getNabuSystemStatus({ token: "test-token" })).rejects.toThrow(
-        HttpClientError,
-      )
+      await expect(
+        getNabuSystemStatus({ token: "test-token" }),
+      ).rejects.toThrow(HttpClientError)
     })
 
     it("throws HttpClientError on invalid response schema", async () => {
@@ -53,9 +62,9 @@ describe("Nabu HTTP Client", () => {
         Response.json({ invalid: "data" }),
       ) as unknown as typeof fetch
 
-      expect(getNabuSystemStatus({ token: "test-token" })).rejects.toThrow(
-        HttpClientError,
-      )
+      await expect(
+        getNabuSystemStatus({ token: "test-token" }),
+      ).rejects.toThrow(HttpClientError)
     })
   })
 
@@ -103,7 +112,7 @@ describe("Nabu HTTP Client", () => {
         return Response.json({})
       }) as unknown as typeof fetch
 
-      expect(
+      await expect(
         matchInflowReconciliation({
           transaction_id: "",
           amount: -10,

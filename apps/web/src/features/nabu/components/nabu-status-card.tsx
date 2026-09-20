@@ -50,7 +50,7 @@ export function NabuStatusCard() {
     onError: () => {
       toast.error("Reconciliation failed", {
         description:
-          "Unable to connect to the Nabu engine. Please verify the service is running and try again.",
+          "Nabu could not complete the reconciliation. Please try again. If the problem continues, contact support.",
       })
     },
   })
@@ -73,7 +73,7 @@ export function NabuStatusCard() {
     onError: () => {
       toast.error("Agent task failed", {
         description:
-          "Unable to dispatch agent task to the Nabu engine. Please verify the service is running and try again.",
+          "Nabu could not complete the agent task. Please try again. If the problem continues, contact support.",
       })
     },
   })
@@ -100,7 +100,7 @@ export function NabuStatusCard() {
               Checking
             </Badge>
           ) : isError ? (
-            <Badge variant="destructive">Offline</Badge>
+            <Badge variant="destructive">Unavailable</Badge>
           ) : (
             <Badge
               variant="secondary"
