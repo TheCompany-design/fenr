@@ -79,17 +79,55 @@ export async function acquireOutboundJwt(
   }
 
   if (headers) {
-    // Resolve session and sign a JWT with active user identity and tenant context
+    let session: Awaited<ReturnType<typeof auth.api.getSession>>
     try {
-      const session = await auth.api.getSession({ headers })
-      if (session?.user?.id) {
-        const signRes = await auth.api.signJWT({
+      session = await auth.api.getSession({ headers })
+    } catch (err) {
+      log.error(
+        {
+          err: err instanceof Error ? err.message : String(err),
+          service: authContract.service,
+        },
+        "failed to fetch session from authentication service",
+      )
+      throw new HttpClientError(
+        `Failed to verify session for ${authContract.service} due to authentication service error`,
+        {
+          code: "SERVICE_UNREACHABLE",
+          status: 502,
+          service: authContract.service,
+          cause: err,
+        },
+      )
+    }
+
+    if (session?.user?.id) {
+      if (!session.session?.activeOrganizationId) {
+        log.warn(
+          {
+            userId: session.user.id,
+            service: authContract.service,
+          },
+          "outbound token acquisition rejected: missing active organization context",
+        )
+        throw new HttpClientError(
+          `Tenant context required: active organization context is missing for ${authContract.service}`,
+          {
+            code: "UNAUTHENTICATED",
+            status: 401,
+            service: authContract.service,
+          },
+        )
+      }
+
+      let signRes: { token?: string } | null = null
+      try {
+        signRes = await auth.api.signJWT({
           body: {
             payload: {
               sub: session.user.id,
               email: session.user.email,
-              activeOrganizationId:
-                session.session.activeOrganizationId ?? undefined,
+              activeOrganizationId: session.session.activeOrganizationId,
             },
             overrideOptions: {
               jwt: {
@@ -98,17 +136,36 @@ export async function acquireOutboundJwt(
             },
           },
         })
-        if (signRes?.token) {
-          return signRes.token
-        }
+      } catch (err) {
+        log.error(
+          {
+            err: err instanceof Error ? err.message : String(err),
+            service: authContract.service,
+          },
+          "failed to sign outbound JWT",
+        )
+        throw new HttpClientError(
+          `Failed to mint authorization token for ${authContract.service} due to signing service error`,
+          {
+            code: "SERVICE_UNREACHABLE",
+            status: 502,
+            service: authContract.service,
+            cause: err,
+          },
+        )
       }
-    } catch (err) {
-      log.warn(
+
+      if (signRes?.token) {
+        return signRes.token
+      }
+
+      throw new HttpClientError(
+        `Failed to mint authorization token for ${authContract.service}: empty token returned`,
         {
-          err: err instanceof Error ? err.message : String(err),
+          code: "SERVICE_UNREACHABLE",
+          status: 502,
           service: authContract.service,
         },
-        "failed to mint JWT from active session",
       )
     }
   }
