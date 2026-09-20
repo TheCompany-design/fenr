@@ -26,6 +26,19 @@ import type {
 
 const log = moduleLogger("http")
 
+function getServiceBaseUrl(service: string): string {
+  if (service === SERVICES.NABU) {
+    return serverEnv.NABU_SERVER_URL
+  }
+  throw new HttpClientError(
+    `Unknown service "${service}" in endpoint registry`,
+    {
+      code: "CLIENT_CONFIGURATION_ERROR",
+      service,
+    },
+  )
+}
+
 /**
  * Resolves the absolute URL for a given service and endpoint definition.
  */
@@ -38,27 +51,41 @@ function resolveEndpointUrl<TInput>(
       ? endpoint.path(input as TInput)
       : endpoint.path
 
-  if (
-    resolvedPath.startsWith("http://") ||
-    resolvedPath.startsWith("https://")
-  ) {
+  const isAbsolute =
+    resolvedPath.startsWith("http://") || resolvedPath.startsWith("https://")
+
+  if (endpoint.auth.type === "authenticated") {
+    const baseUrl = getServiceBaseUrl(endpoint.service)
+    const expectedOrigin = new URL(baseUrl).origin
+
+    if (isAbsolute) {
+      const resolvedOrigin = new URL(resolvedPath).origin
+      if (resolvedOrigin !== expectedOrigin) {
+        throw new HttpClientError(
+          `Security violation: authenticated request to ${endpoint.service} attempted to send credentials to unauthorized origin: ${resolvedOrigin}`,
+          {
+            code: "CLIENT_CONFIGURATION_ERROR",
+            service: endpoint.service,
+            path: resolvedPath,
+          },
+        )
+      }
+      return resolvedPath
+    }
+
+    const cleanBase = baseUrl.replace(/\/+$/, "")
+    const cleanPath = resolvedPath.startsWith("/")
+      ? resolvedPath
+      : `/${resolvedPath}`
+    return `${cleanBase}${cleanPath}`
+  }
+
+  // Public endpoints may specify arbitrary absolute URLs (e.g. third-party APIs)
+  if (isAbsolute) {
     return resolvedPath
   }
 
-  let baseUrl = ""
-  if (endpoint.service === SERVICES.NABU) {
-    baseUrl = serverEnv.NABU_SERVER_URL
-  } else {
-    throw new HttpClientError(
-      `Unknown service "${endpoint.service}" in endpoint registry`,
-      {
-        code: "CLIENT_CONFIGURATION_ERROR",
-        service: endpoint.service,
-        path: resolvedPath,
-      },
-    )
-  }
-
+  const baseUrl = getServiceBaseUrl(endpoint.service)
   const cleanBase = baseUrl.replace(/\/+$/, "")
   const cleanPath = resolvedPath.startsWith("/")
     ? resolvedPath
@@ -98,7 +125,7 @@ export async function executeRequest<
 
   // 1. Validate Input Schema if defined
   let validatedInput = options.input
-  if (endpoint.inputSchema && options.input !== undefined) {
+  if (endpoint.inputSchema) {
     const inputParse = endpoint.inputSchema.safeParse(options.input)
     if (!inputParse.success) {
       log.warn(
@@ -127,12 +154,25 @@ export async function executeRequest<
   const targetUrl = resolveEndpointUrl(endpoint, validatedInput)
 
   // 3. Prepare headers
-  const headers = new Headers(
-    options.headers as Record<string, string> | undefined,
-  )
+  const headers = new Headers()
+  if (options.headers) {
+    for (const [key, value] of Object.entries(options.headers)) {
+      if (key.toLowerCase() === "authorization") {
+        continue
+      }
+      if (value !== undefined) {
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            headers.append(key, item)
+          }
+        } else {
+          headers.set(key, value)
+        }
+      }
+    }
+  }
 
-  // Disallow caller from supplying or spoofing Authorization
-  headers.delete("Authorization")
+  // Unconditionally ensure no caller-supplied authorization header
   headers.delete("authorization")
 
   if (!headers.has("Accept")) {
@@ -153,7 +193,6 @@ export async function executeRequest<
     headers.set("Authorization", `Bearer ${token}`)
   } else {
     // Explicit public endpoint: ensure no Authorization header is ever sent
-    headers.delete("Authorization")
     headers.delete("authorization")
   }
 
@@ -205,6 +244,7 @@ export async function executeRequest<
   }
 
   let response: Response
+  let rawText = ""
   try {
     response = await fetch(targetUrl, {
       method: endpoint.method,
@@ -212,6 +252,9 @@ export async function executeRequest<
       body,
       signal: controller.signal,
     })
+
+    // Consume response body within the timeout and cancellation window
+    rawText = await response.text()
   } catch (err: unknown) {
     const durationMs = Date.now() - startTime
 
@@ -301,11 +344,14 @@ export async function executeRequest<
 
   // 7. Non-2xx Response Handling
   if (!response.ok) {
-    let errorPayload: unknown
-    try {
-      errorPayload = await response.json()
-    } catch {
-      errorPayload = await response.text().catch(() => null)
+    let errorPayload: unknown = null
+    const trimmedErrorText = rawText.trim()
+    if (trimmedErrorText.length > 0) {
+      try {
+        errorPayload = JSON.parse(trimmedErrorText)
+      } catch {
+        errorPayload = rawText
+      }
     }
 
     const logContext = {
@@ -315,7 +361,6 @@ export async function executeRequest<
       status: response.status,
       durationMs,
       requestId,
-      details: errorPayload,
     }
     const logMsg = `outbound request returned HTTP ${response.status}`
     if (response.status >= 500) {
@@ -339,15 +384,16 @@ export async function executeRequest<
 
   // 8. Parse JSON payload (safely handling 204 No Content / empty bodies)
   let rawData: unknown
+  const trimmedText = rawText.trim()
   if (
     response.status === 204 ||
     response.status === 205 ||
-    response.headers.get("content-length") === "0"
+    trimmedText.length === 0
   ) {
     rawData = undefined
   } else {
     try {
-      rawData = await response.json()
+      rawData = JSON.parse(trimmedText)
     } catch (err) {
       log.error(
         {
