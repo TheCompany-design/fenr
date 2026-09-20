@@ -18,7 +18,9 @@ Fenr acts as the Identity Provider (IdP) and Authorization Server for private do
 | **Issuer (`iss`)** | `BETTER_AUTH_URL` | e.g. `http://localhost:3000` or production URL |
 | **Audience (`aud`)** | `nabu` | Strictly enforced audience claim |
 | **Validity / Expiry (`exp`)** | 15 minutes (`15m`) | Bounded short lifetime; minted per request/session context |
-| **Subject (`sub`)** | User UUID or Session ID | Identifies the authenticated caller context |
+| **Subject (`sub`)** | User UUID | Identifies the authenticated caller context |
+| **Email (`email`)** | User email address | Authenticated user email |
+| **Tenant (`activeOrganizationId`)** | Organization UUID | Multi-tenant context and isolation boundary |
 | **Header `kid`** | UUIDv7 Key ID | Corresponds to the active key in Fenr's JWKS |
 
 ---
@@ -44,7 +46,7 @@ Fenr acts as the Identity Provider (IdP) and Authorization Server for private do
   ```
 
 ### 2. Token Minting Endpoint (Fenr Server-Side Internal)
-- **Method**: Internal Better Auth Server API (`auth.api.getToken` or `auth.api.signJWT`)
+- **Method**: Internal Better Auth Server API (`auth.api.signJWT`)
 - **Execution Boundary**: Server-side only (never exposed or called from client browser code)
 
 ---
@@ -54,7 +56,7 @@ Fenr acts as the Identity Provider (IdP) and Authorization Server for private do
 When Nabu receives an inbound request from Fenr:
 
 1. **Extract Authorization Header**:
-   Read `Authorization: Bearer <token>`. If missing or not starting with `Bearer `, reject with `401 Unauthorized`.
+   Read `Authorization: Bearer <token>`. Match the `Bearer` authentication scheme case-insensitively; if the header is missing, uses another scheme, or has no token, reject with `401 Unauthorized`.
 2. **Decode Header & Locate Key**:
    Inspect the JWT header for `alg: "EdDSA"` and the `kid` claim.
 3. **Lookup Public Key**:
@@ -66,7 +68,8 @@ When Nabu receives an inbound request from Fenr:
 5. **Validate Claims**:
    - `iss`: Must exactly match configured Fenr base URL (`BETTER_AUTH_URL`).
    - `aud`: Must match `"nabu"`.
-   - `exp`: Current time must be before `exp` timestamp.
-   - `nbf` (if present): Current time must be after `nbf`.
+   - `exp`: Current time must be before `exp` timestamp (allowing standard clock skew tolerance, e.g. 30s leeway).
+   - `nbf` (if present): Current time must be after `nbf` (allowing standard clock skew tolerance, e.g. 30s leeway).
+   - `activeOrganizationId`: Required tenant claim to scope database/ledger operations and prevent cross-tenant confused-deputy access.
 6. **Key Rotation & Refresh**:
-   Nabu must cache keys with a sensible TTL (e.g. 1 hour) and refresh eagerly when an unrecognized `kid` is received, allowing zero-downtime key rotation by Fenr.
+   Nabu must cache keys with a sensible TTL (e.g. 1 hour). When an unrecognized `kid` is received, Nabu may refresh eagerly from Fenr's JWKS endpoint using single-flight request coalescing and a cooldown period (e.g. 5–10s) to prevent cache stampedes against Fenr's JWKS endpoint.
