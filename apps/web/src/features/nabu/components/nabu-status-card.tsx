@@ -4,7 +4,7 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -20,6 +20,7 @@ import { nabuSystemStatusQueryOptions } from "../queries"
 import { dispatchAgentTaskFn, matchInflowReconciliationFn } from "../server"
 
 export function NabuStatusCard() {
+  const queryClient = useQueryClient()
   const {
     data: status,
     isLoading,
@@ -40,6 +41,9 @@ export function NabuStatusCard() {
       })
     },
     onSuccess: (result) => {
+      queryClient.invalidateQueries({
+        queryKey: nabuSystemStatusQueryOptions().queryKey,
+      })
       toast.success(
         `Matched: ${result.invoice_number} (${result.match_status})`,
         {
@@ -66,6 +70,9 @@ export function NabuStatusCard() {
       })
     },
     onSuccess: (result) => {
+      queryClient.invalidateQueries({
+        queryKey: nabuSystemStatusQueryOptions().queryKey,
+      })
       toast.success("Agent task completed", {
         description: `${result.summary} (analyzed ${result.items_analyzed} items in ${result.execution_time_ms}ms)`,
       })

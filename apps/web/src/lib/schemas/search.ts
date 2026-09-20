@@ -6,11 +6,9 @@ import { z } from "zod"
  * Centralized under src/lib/schemas/ per AGENTS.md.
  */
 
-export const authLayoutSearchSchema = z
-  .object({
-    redirect: z.string().optional(),
-  })
-  .passthrough()
+export const authLayoutSearchSchema = z.looseObject({
+  redirect: z.string().optional(),
+})
 export type AuthLayoutSearch = z.infer<typeof authLayoutSearchSchema>
 
 export const authSignInSearchSchema = z.object({
