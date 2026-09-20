@@ -249,7 +249,12 @@ export function MemberRow({
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuGroup>
                 <DropdownMenuItem
-                  render={<a href={`mailto:${member.user.email}`} />}
+                  render={
+                    <a
+                      href={`mailto:${member.user.email}`}
+                      aria-label={`Send email to ${member.user.email}`}
+                    />
+                  }
                   className="flex items-center gap-2 cursor-pointer"
                 >
                   <HugeiconsIcon icon={Mail01Icon} size={14} />

@@ -166,14 +166,8 @@ export function InviteMembersForm({
     workspaceDomain,
   })
 
-  const canContinueWithoutSending = React.useMemo(() => {
-    return (
-      stats.sendable === 0 &&
-      stats.invalid === 0 &&
-      invites.length > 0 &&
-      invites.every((i) => isAutoJoin(i.email) || i.status === "success")
-    )
-  }, [stats.sendable, stats.invalid, invites, isAutoJoin])
+  const canContinueWithoutSending =
+    stats.sendable === 0 && stats.invalid === 0 && stats.total > 0
 
   const handleRetryFailed = async (invite: QueuedInvite) => {
     if (submittingRef.current) return
@@ -497,6 +491,7 @@ export function InviteMembersForm({
       {/* Interactive Chip / Tag Container */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: Clicking container focuses input */}
       <div
+        role="presentation"
         ref={containerRef}
         onMouseDown={handleContainerMouseDown}
         className={cn(

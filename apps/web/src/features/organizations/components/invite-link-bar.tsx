@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import { toast } from "sonner"
+import { useIsMounted } from "@/hooks/use-is-mounted"
 
 export interface InviteLinkBarProps {
   inviteLink?: string
@@ -16,14 +17,13 @@ export function InviteLinkBar({
   isSubmitting = false,
 }: InviteLinkBarProps) {
   const [copied, setCopied] = React.useState(false)
-  const [mounted, setMounted] = React.useState(false)
+  const mounted = useIsMounted()
   const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   )
   const mountedRef = React.useRef(true)
 
   React.useEffect(() => {
-    setMounted(true)
     mountedRef.current = true
     return () => {
       mountedRef.current = false

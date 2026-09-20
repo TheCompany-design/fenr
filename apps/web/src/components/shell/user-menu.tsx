@@ -67,7 +67,7 @@ import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
 import { type ThemeMode, useThemeStore } from "@/components/providers"
 import { signOut } from "@/lib/auth-client"
-import { initialsOf, type SessionUser } from "./user-utils"
+import { initialsOf, type SessionUser, useIsMounted } from "./user-utils"
 
 export type { SessionUser }
 
@@ -270,8 +270,7 @@ export function UserMenuItems({
 
   const mode = useThemeStore((s) => s.mode)
   const setMode = useThemeStore((s) => s.setMode)
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const mounted = useIsMounted()
   const effectiveMode = mounted ? mode : "system"
 
   const navigate = useNavigate()
@@ -817,23 +816,22 @@ export function UserMenuItems({
       </div>
 
       {/* Floating Theme Submenu rendered via Portal with data-animated-dropdown-subcontent */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <AnimatePresence>
-            {isThemeSubmenuOpen && submenuCoords && (
-              <div
-                data-animated-dropdown-subcontent=""
-                style={{
-                  position: "fixed",
-                  left: submenuCoords.left,
-                  top: submenuCoords.top,
-                  zIndex: 120,
-                }}
-                className="pointer-events-auto [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.18))] before:absolute before:-inset-2 before:content-[''] before:-z-10"
-                onPointerEnter={openThemeSubmenu}
-                onPointerLeave={scheduleCloseThemeSubmenu}
-              >
+      {mounted && typeof document !== "undefined"
+        ? createPortal(
+            <AnimatePresence>
+              {isThemeSubmenuOpen && submenuCoords ? (
                 <m.div
+                  key="theme-submenu"
+                  data-animated-dropdown-subcontent=""
+                  style={{
+                    position: "fixed",
+                    left: submenuCoords.left,
+                    top: submenuCoords.top,
+                    zIndex: 120,
+                  }}
+                  className="pointer-events-auto [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.18))] before:absolute before:-inset-2 before:content-[''] before:-z-10"
+                  onPointerEnter={openThemeSubmenu}
+                  onPointerLeave={scheduleCloseThemeSubmenu}
                   initial={
                     reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
                   }
@@ -842,72 +840,77 @@ export function UserMenuItems({
                     reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
                   }
                   transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-                  className="flex w-44 flex-col gap-0.5 rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-md outline-none"
-                  onMouseLeave={() => setActiveThemeId(null)}
                 >
-                  {THEME_OPTIONS.map(
-                    ({ icon: OptionIcon, label, mode: optionMode }) => {
-                      const isSelected = effectiveMode === optionMode
-                      const isHovered = activeThemeId === optionMode
+                  <div
+                    role="menu"
+                    aria-label="Theme options"
+                    className="flex w-44 flex-col gap-0.5 rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-md outline-none"
+                    onMouseLeave={() => setActiveThemeId(null)}
+                  >
+                    {THEME_OPTIONS.map(
+                      ({ icon: OptionIcon, label, mode: optionMode }) => {
+                        const isSelected = effectiveMode === optionMode
+                        const isHovered = activeThemeId === optionMode
 
-                      return (
-                        <button
-                          key={optionMode}
-                          type="button"
-                          role="menuitem"
-                          onFocus={() => setActiveThemeId(optionMode)}
-                          onPointerMove={(e) => {
-                            if (e.pointerType !== "touch") {
-                              setActiveThemeId(optionMode)
-                            }
-                          }}
-                          onPointerDown={(e) => {
-                            e.stopPropagation()
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setMode(optionMode)
-                          }}
-                          className="group/theme-item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-foreground text-sm outline-none select-none transition-colors active:scale-[0.98]"
-                        >
-                          {isHovered && (
-                            <m.span
-                              layoutId={`${themeMenuId}-glider`}
-                              className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
-                              transition={
-                                reduce ? { duration: 0 } : SPRING_LAYOUT
+                        return (
+                          <button
+                            key={optionMode}
+                            type="button"
+                            role="menuitem"
+                            onFocus={() => setActiveThemeId(optionMode)}
+                            onPointerMove={(e) => {
+                              if (e.pointerType !== "touch") {
+                                setActiveThemeId(optionMode)
                               }
-                            />
-                          )}
-
-                          <div className="flex items-center gap-2.5">
-                            <HugeiconsIcon
-                              className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/theme-item:text-foreground"
-                              icon={OptionIcon}
-                              size={16}
-                            />
-                            <span>{label}</span>
-                          </div>
-
-                          {isSelected && (
-                            <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
-                              <HugeiconsIcon
-                                icon={Tick02Icon}
-                                size={10}
-                                strokeWidth={3}
+                            }}
+                            onPointerDown={(e) => {
+                              e.stopPropagation()
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMode(optionMode)
+                            }}
+                            className="group/theme-item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-foreground text-sm outline-none select-none transition-colors active:scale-[0.98]"
+                          >
+                            {isHovered && (
+                              <m.span
+                                layoutId={`${themeMenuId}-glider`}
+                                className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+                                transition={
+                                  reduce ? { duration: 0 } : SPRING_LAYOUT
+                                }
                               />
-                            </span>
-                          )}
-                        </button>
-                      )
-                    },
-                  )}
+                            )}
+
+                            <div className="flex items-center gap-2.5">
+                              <HugeiconsIcon
+                                className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/theme-item:text-foreground"
+                                icon={OptionIcon}
+                                size={16}
+                              />
+                              <span>{label}</span>
+                            </div>
+
+                            {isSelected && (
+                              <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                                <HugeiconsIcon
+                                  icon={Tick02Icon}
+                                  size={10}
+                                  strokeWidth={3}
+                                />
+                              </span>
+                            )}
+                          </button>
+                        )
+                      },
+                    )}
+                  </div>
                 </m.div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
+              ) : null}
+            </AnimatePresence>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from "react"
-
 export interface SessionUser {
   name: string
   email: string
@@ -37,11 +35,4 @@ export function initialsOf(user?: SessionUser | null): string {
   return initials || "?"
 }
 
-const emptySubscribe = () => () => {}
-export function useIsMounted(): boolean {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false,
-  )
-}
+export { useIsMounted } from "@/hooks/use-is-mounted"
