@@ -353,26 +353,28 @@ export function UserMenuItems({
   }, [])
 
   const onShortcutKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => {})
-  onShortcutKeyDownRef.current = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === ",") {
-      e.preventDefault()
-      toast.info("Preferences", {
-        description: "System preferences and appearance.",
-      })
-      onClose?.()
+  useEffect(() => {
+    onShortcutKeyDownRef.current = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault()
+        toast.info("Preferences", {
+          description: "System preferences and appearance.",
+        })
+        onClose?.()
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        toast.info("Command menu", {
+          description: "Press ⌘K anytime to open the command palette.",
+        })
+        onClose?.()
+      }
+      if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "l") {
+        e.preventDefault()
+        promptSignOut()
+      }
     }
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault()
-      toast.info("Command menu", {
-        description: "Press ⌘K anytime to open the command palette.",
-      })
-      onClose?.()
-    }
-    if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === "l") {
-      e.preventDefault()
-      promptSignOut()
-    }
-  }
+  })
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
