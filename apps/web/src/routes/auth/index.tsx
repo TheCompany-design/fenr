@@ -6,12 +6,10 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { z } from "zod"
 
-const searchSchema = z
-  .object({
-    redirect: z.string().optional(),
-    error: z.string().optional(),
-  })
-  .passthrough()
+const searchSchema = z.looseObject({
+  redirect: z.string().optional(),
+  error: z.string().optional(),
+})
 
 export const Route = createFileRoute("/auth/")({
   validateSearch: (search) => searchSchema.parse(search),

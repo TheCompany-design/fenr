@@ -53,6 +53,7 @@ import { getSession } from "@/lib/session"
 export const Route = createFileRoute("/invitations/accept")({
   validateSearch: (search: Record<string, unknown>): InvitationAcceptSearch =>
     invitationAcceptSearchSchema.parse(search),
+  loaderDeps: ({ search }) => ({ id: search.id }),
   beforeLoad: async ({ search }) => {
     const session = await getSession()
     if (!session) {
@@ -66,7 +67,6 @@ export const Route = createFileRoute("/invitations/accept")({
     }
     return { session }
   },
-  loaderDeps: ({ search }) => ({ id: search.id }),
   loader: async ({ context, deps }) => {
     if (deps.id?.trim()) {
       await context.queryClient
