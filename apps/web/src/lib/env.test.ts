@@ -43,7 +43,20 @@ describe("Server Environment Validation (SMTP & Mailer)", () => {
       expect(result.data.EMAIL_FROM).toBe("Fenr <no-reply@fenr.app>")
       expect(result.data.SMTP_MAILER).toBe("smtp")
       expect(result.data.SMTP_PORT).toBe(587)
+      expect(result.data.NABU_SERVER_URL).toBe("http://127.0.0.1:5050")
       expect(result.data.SMTP_ENCRYPTION).toBeUndefined()
+    }
+  })
+
+  it("accepts a custom valid NABU_SERVER_URL", () => {
+    const result = parseServerEnv({
+      ...baseValidEnv,
+      NABU_SERVER_URL: "http://localhost:5050",
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.NABU_SERVER_URL).toBe("http://localhost:5050")
     }
   })
 
