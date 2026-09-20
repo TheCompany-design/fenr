@@ -20,6 +20,7 @@ export const serverEnvSchema = z.object({
     .string()
     .min(32, "BETTER_AUTH_SECRET must be at least 32 characters"),
   BETTER_AUTH_URL: z.url(),
+  NABU_SERVER_URL: z.url().default("http://127.0.0.1:5050"),
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace"])
     .default("info"),

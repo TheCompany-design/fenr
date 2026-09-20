@@ -18,6 +18,7 @@ describe("Mail Transport", () => {
     DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/fenr",
     BETTER_AUTH_SECRET: "mock-secret-key-that-is-at-least-32-chars-long",
     BETTER_AUTH_URL: "http://localhost:3000",
+    NABU_SERVER_URL: "http://127.0.0.1:5050",
     LOG_LEVEL: "info",
     EMAIL_FROM: "Fenr <no-reply@fenr.app>",
     SMTP_MAILER: "smtp",
