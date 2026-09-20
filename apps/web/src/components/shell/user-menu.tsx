@@ -54,14 +54,7 @@ import {
 } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
 import { AnimatePresence, m, useReducedMotion } from "motion/react"
-import {
-  useCallback,
-  useEffect,
-  useEffectEvent,
-  useId,
-  useRef,
-  useState,
-} from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
@@ -168,7 +161,7 @@ export function UsageWidget({
                         }
                   }
                   className={cn(
-                    "h-3.5 w-1 origin-bottom rounded-full transition-all duration-300",
+                    "h-3.5 w-1 origin-bottom rounded-full transition-colors duration-300",
                     isFilled
                       ? percent >= 85
                         ? "bg-warning"
@@ -359,7 +352,8 @@ export function UserMenuItems({
     }
   }, [])
 
-  const onShortcutKeyDown = useEffectEvent((e: KeyboardEvent) => {
+  const onShortcutKeyDownRef = useRef<(e: KeyboardEvent) => void>(() => {})
+  onShortcutKeyDownRef.current = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === ",") {
       e.preventDefault()
       toast.info("Preferences", {
@@ -378,11 +372,11 @@ export function UserMenuItems({
       e.preventDefault()
       promptSignOut()
     }
-  })
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      onShortcutKeyDown(e)
+      onShortcutKeyDownRef.current(e)
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
@@ -542,11 +536,25 @@ export function UserMenuItems({
             setActiveId("theme")
             openThemeSubmenu()
           }}
-          onPointerEnter={() => {
-            setActiveId("theme")
-            openThemeSubmenu()
+          onPointerEnter={(e) => {
+            if (e.pointerType !== "touch") {
+              setActiveId("theme")
+              openThemeSubmenu()
+            }
           }}
           onPointerLeave={scheduleCloseThemeSubmenu}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight" || e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              openThemeSubmenu()
+              setTimeout(() => {
+                const sub = document.querySelector<HTMLElement>(
+                  "[data-animated-dropdown-subcontent] [role='menuitemradio']",
+                )
+                sub?.focus()
+              }, 50)
+            }
+          }}
           onClick={() => {
             if (isThemeSubmenuOpen) {
               setIsThemeSubmenuOpen(false)
@@ -583,28 +591,23 @@ export function UserMenuItems({
         </button>
 
         {/* Notifications with Switch Toggle */}
-        <div
-          role="menuitem"
-          tabIndex={0}
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={notificationsEnabled}
           data-menu-item="true"
           onFocus={() => {
             setActiveId("notifications")
             setIsThemeSubmenuOpen(false)
           }}
-          onKeyDown={(e) => {
-            if (e.key === " " || e.key === "Enter") {
-              e.preventDefault()
-              const next = !notificationsEnabled
-              setNotificationsEnabled(next)
-              toast.info(
-                next ? "Notifications enabled" : "Notifications muted",
-                {
-                  description: next
-                    ? "You will receive system alerts and telemetry updates."
-                    : "Activity updates have been paused.",
-                },
-              )
-            }
+          onClick={() => {
+            const next = !notificationsEnabled
+            setNotificationsEnabled(next)
+            toast.info(next ? "Notifications enabled" : "Notifications muted", {
+              description: next
+                ? "You will receive system alerts and telemetry updates."
+                : "Activity updates have been paused.",
+            })
           }}
           onPointerMove={(e) => {
             if (e.pointerType !== "touch") {
@@ -612,7 +615,7 @@ export function UserMenuItems({
               setIsThemeSubmenuOpen(false)
             }
           }}
-          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground"
+          className="group/item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-sidebar-foreground/80 text-sm outline-none select-none transition-colors hover:text-sidebar-foreground focus:text-sidebar-foreground active:scale-[0.98]"
         >
           {activeId === "notifications" && (
             <m.span
@@ -632,20 +635,11 @@ export function UserMenuItems({
 
           <Switch
             checked={notificationsEnabled}
-            onCheckedChange={(checked) => {
-              setNotificationsEnabled(checked)
-              toast.info(
-                checked ? "Notifications enabled" : "Notifications muted",
-                {
-                  description: checked
-                    ? "You will receive system alerts and telemetry updates."
-                    : "Activity updates have been paused.",
-                },
-              )
-            }}
-            aria-label="Toggle notifications"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="pointer-events-none"
           />
-        </div>
+        </button>
 
         {/* Command menu */}
         <button
@@ -816,102 +810,139 @@ export function UserMenuItems({
       </div>
 
       {/* Floating Theme Submenu rendered via Portal with data-animated-dropdown-subcontent */}
-      {mounted && typeof document !== "undefined"
-        ? createPortal(
-            <AnimatePresence>
-              {isThemeSubmenuOpen && submenuCoords ? (
-                <m.div
-                  key="theme-submenu"
-                  data-animated-dropdown-subcontent=""
-                  style={{
-                    position: "fixed",
-                    left: submenuCoords.left,
-                    top: submenuCoords.top,
-                    zIndex: 120,
-                  }}
-                  className="pointer-events-auto [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.18))] before:absolute before:-inset-2 before:content-[''] before:-z-10"
-                  onPointerEnter={openThemeSubmenu}
-                  onPointerLeave={scheduleCloseThemeSubmenu}
-                  initial={
-                    reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
-                  }
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={
-                    reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }
-                  }
-                  transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-                >
-                  <div
-                    role="menu"
-                    aria-label="Theme options"
-                    className="flex w-44 flex-col gap-0.5 rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-md outline-none"
-                    onMouseLeave={() => setActiveThemeId(null)}
-                  >
-                    {THEME_OPTIONS.map(
-                      ({ icon: OptionIcon, label, mode: optionMode }) => {
-                        const isSelected = effectiveMode === optionMode
-                        const isHovered = activeThemeId === optionMode
-
-                        return (
-                          <button
-                            key={optionMode}
-                            type="button"
-                            role="menuitem"
-                            onFocus={() => setActiveThemeId(optionMode)}
-                            onPointerMove={(e) => {
-                              if (e.pointerType !== "touch") {
-                                setActiveThemeId(optionMode)
-                              }
-                            }}
-                            onPointerDown={(e) => {
-                              e.stopPropagation()
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setMode(optionMode)
-                            }}
-                            className="group/theme-item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-foreground text-sm outline-none select-none transition-colors active:scale-[0.98]"
-                          >
-                            {isHovered && (
-                              <m.span
-                                layoutId={`${themeMenuId}-glider`}
-                                className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
-                                transition={
-                                  reduce ? { duration: 0 } : SPRING_LAYOUT
-                                }
-                              />
-                            )}
-
-                            <div className="flex items-center gap-2.5">
-                              <HugeiconsIcon
-                                className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/theme-item:text-foreground"
-                                icon={OptionIcon}
-                                size={16}
-                              />
-                              <span>{label}</span>
-                            </div>
-
-                            {isSelected && (
-                              <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
-                                <HugeiconsIcon
-                                  icon={Tick02Icon}
-                                  size={10}
-                                  strokeWidth={3}
-                                />
-                              </span>
-                            )}
-                          </button>
-                        )
-                      },
-                    )}
-                  </div>
-                </m.div>
-              ) : null}
-            </AnimatePresence>,
-            document.body,
-          )
-        : null}
+      <ThemeSubmenuPortal
+        isOpen={isThemeSubmenuOpen}
+        coords={submenuCoords}
+        reduce={reduce}
+        effectiveMode={effectiveMode}
+        activeThemeId={activeThemeId}
+        themeMenuId={themeMenuId}
+        openThemeSubmenu={openThemeSubmenu}
+        scheduleCloseThemeSubmenu={scheduleCloseThemeSubmenu}
+        setActiveThemeId={setActiveThemeId}
+        setMode={setMode}
+      />
     </div>
+  )
+}
+
+interface ThemeSubmenuPortalProps {
+  isOpen: boolean
+  coords: { left: number; top: number } | null
+  reduce: boolean
+  effectiveMode: ThemeMode
+  activeThemeId: string | null
+  themeMenuId: string
+  openThemeSubmenu: () => void
+  scheduleCloseThemeSubmenu: () => void
+  setActiveThemeId: (id: string | null) => void
+  setMode: (mode: ThemeMode) => void
+}
+
+function ThemeSubmenuPortal({
+  isOpen,
+  coords,
+  reduce,
+  effectiveMode,
+  activeThemeId,
+  themeMenuId,
+  openThemeSubmenu,
+  scheduleCloseThemeSubmenu,
+  setActiveThemeId,
+  setMode,
+}: ThemeSubmenuPortalProps) {
+  const mounted = useIsMounted()
+  if (!mounted || typeof document === "undefined") {
+    return null
+  }
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && coords ? (
+        <m.div
+          key="theme-submenu"
+          data-animated-dropdown-subcontent=""
+          style={{
+            position: "fixed",
+            left: coords.left,
+            top: coords.top,
+            zIndex: 120,
+          }}
+          className="pointer-events-auto [filter:drop-shadow(0_12px_24px_rgba(0,0,0,0.18))] before:absolute before:-inset-2 before:content-[''] before:-z-10"
+          onPointerEnter={openThemeSubmenu}
+          onPointerLeave={scheduleCloseThemeSubmenu}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.95, x: -6 }}
+          transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+        >
+          <div
+            role="menu"
+            aria-label="Theme options"
+            className="flex w-44 flex-col gap-0.5 rounded-2xl border border-border/80 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-md outline-none"
+            onMouseLeave={() => setActiveThemeId(null)}
+          >
+            {THEME_OPTIONS.map(
+              ({ icon: OptionIcon, label, mode: optionMode }) => {
+                const isSelected = effectiveMode === optionMode
+                const isHovered = activeThemeId === optionMode
+
+                return (
+                  <button
+                    key={optionMode}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isSelected}
+                    onFocus={() => setActiveThemeId(optionMode)}
+                    onPointerMove={(e) => {
+                      if (e.pointerType !== "touch") {
+                        setActiveThemeId(optionMode)
+                      }
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setMode(optionMode)
+                    }}
+                    className="group/theme-item relative isolate flex h-9 w-full cursor-pointer items-center justify-between rounded-xl px-2.5 text-left font-medium text-foreground text-sm outline-none select-none transition-colors active:scale-[0.98]"
+                  >
+                    {isHovered && (
+                      <m.span
+                        layoutId={`${themeMenuId}-glider`}
+                        className="pointer-events-none absolute inset-0 -z-10 rounded-xl border border-sidebar-border/70 bg-sidebar-accent shadow-xs"
+                        transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
+                      />
+                    )}
+
+                    <div className="flex items-center gap-2.5">
+                      <HugeiconsIcon
+                        className="size-4 shrink-0 text-muted-foreground transition-colors group-hover/theme-item:text-foreground"
+                        icon={OptionIcon}
+                        size={16}
+                      />
+                      <span>{label}</span>
+                    </div>
+
+                    {isSelected && (
+                      <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs">
+                        <HugeiconsIcon
+                          icon={Tick02Icon}
+                          size={10}
+                          strokeWidth={3}
+                        />
+                      </span>
+                    )}
+                  </button>
+                )
+              },
+            )}
+          </div>
+        </m.div>
+      ) : null}
+    </AnimatePresence>,
+    document.body,
   )
 }
 
