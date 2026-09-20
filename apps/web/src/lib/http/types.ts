@@ -42,8 +42,9 @@ export interface EndpointDefinition<
 
 /**
  * Explicit caller headers type that prohibits specifying Authorization.
- * The shared transport owns the Authorization header and will reject or strip
- * any caller-supplied authorization header to prevent spoofing or accidental leakage.
+ * Note: HTTP header names are case-insensitive. While TypeScript provides type-level
+ * hints for common casings, the shared transport unconditionally strips and normalizes
+ * all authorization headers at runtime to prevent spoofing or accidental leakage.
  */
 export type SafeCallerHeaders = Record<
   string,
@@ -51,6 +52,7 @@ export type SafeCallerHeaders = Record<
 > & {
   authorization?: never
   Authorization?: never
+  AUTHORIZATION?: never
 }
 
 /**
@@ -109,12 +111,13 @@ export function defineAuthenticatedEndpoint<TInput = void, TOutput = unknown>(
     readonly audience: string
   }
 > {
+  const { audience, ...endpoint } = definition
   return {
-    ...definition,
+    ...endpoint,
     auth: {
       type: "authenticated",
       service: definition.service,
-      audience: definition.audience,
+      audience,
     },
   }
 }
