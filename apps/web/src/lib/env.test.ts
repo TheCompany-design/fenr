@@ -182,4 +182,113 @@ describe("Server Environment Validation (SMTP & Mailer)", () => {
     })
     expect(floatPort.success).toBe(false)
   })
+
+  describe("Google OAuth Credentials Validation", () => {
+    it("accepts when both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are provided", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: "google-client-id-123.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: "GOCSPX-secret12345",
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.GOOGLE_CLIENT_ID).toBe(
+          "google-client-id-123.apps.googleusercontent.com",
+        )
+        expect(result.data.GOOGLE_CLIENT_SECRET).toBe("GOCSPX-secret12345")
+      }
+    })
+
+    it("accepts when both are omitted and defaults both to undefined", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.GOOGLE_CLIENT_ID).toBeUndefined()
+        expect(result.data.GOOGLE_CLIENT_SECRET).toBeUndefined()
+      }
+    })
+
+    it("normalizes empty string credentials to undefined", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "",
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.GOOGLE_CLIENT_ID).toBeUndefined()
+        expect(result.data.GOOGLE_CLIENT_SECRET).toBeUndefined()
+      }
+    })
+
+    it("normalizes whitespace-only credentials to undefined", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: "   ",
+        GOOGLE_CLIENT_SECRET: " \t\n ",
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.GOOGLE_CLIENT_ID).toBeUndefined()
+        expect(result.data.GOOGLE_CLIENT_SECRET).toBeUndefined()
+      }
+    })
+
+    it("trims whitespace from credentials when provided", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: "  google-id.apps.googleusercontent.com  ",
+        GOOGLE_CLIENT_SECRET: "  GOCSPX-secret  ",
+      })
+
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.GOOGLE_CLIENT_ID).toBe(
+          "google-id.apps.googleusercontent.com",
+        )
+        expect(result.data.GOOGLE_CLIENT_SECRET).toBe("GOCSPX-secret")
+      }
+    })
+
+    it("rejects when GOOGLE_CLIENT_ID is provided without GOOGLE_CLIENT_SECRET", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: "google-client-id-123.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: undefined,
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        const secretIssue = result.error.issues.find((issue) =>
+          issue.path.includes("GOOGLE_CLIENT_SECRET"),
+        )
+        expect(secretIssue).toBeDefined()
+        expect(secretIssue?.message).toContain(
+          "Both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be provided together",
+        )
+      }
+    })
+
+    it("rejects when GOOGLE_CLIENT_SECRET is provided without GOOGLE_CLIENT_ID", () => {
+      const result = parseServerEnv({
+        ...baseValidEnv,
+        GOOGLE_CLIENT_ID: undefined,
+        GOOGLE_CLIENT_SECRET: "GOCSPX-secret12345",
+      })
+
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        const secretIssue = result.error.issues.find((issue) =>
+          issue.path.includes("GOOGLE_CLIENT_SECRET"),
+        )
+        expect(secretIssue).toBeDefined()
+      }
+    })
+  })
 })
