@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
@@ -21,8 +22,15 @@ describe("Auth Composition Components", () => {
   })
 
   describe("AuthMethods Composite Component", () => {
+    const renderWithQueryClient = (component: React.ReactElement) => {
+      const client = new QueryClient()
+      return renderToStaticMarkup(
+        createElement(QueryClientProvider, { client }, component),
+      )
+    }
+
     it("composes magic-link form, divider, and oauth buttons", () => {
-      const html = renderToStaticMarkup(
+      const html = renderWithQueryClient(
         createElement(AuthMethods, { redirectTo: "/dashboard" }),
       )
 
@@ -40,7 +48,7 @@ describe("Auth Composition Components", () => {
     })
 
     it("supports custom divider label in composition", () => {
-      const html = renderToStaticMarkup(
+      const html = renderWithQueryClient(
         createElement(AuthMethods, {
           redirectTo: "/dashboard",
           dividerLabel: "Alternative sign-in",

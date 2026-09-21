@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GlobalWindow } from "happy-dom"
 
 if (typeof window === "undefined") {
@@ -10,6 +11,7 @@ if (typeof window === "undefined") {
     Element: win.Element,
     HTMLElement: win.HTMLElement,
     HTMLButtonElement: win.HTMLButtonElement,
+    HTMLImageElement: win.HTMLImageElement,
     Node: win.Node,
     Event: win.Event,
     UIEvent: win.UIEvent,
@@ -22,9 +24,12 @@ if (typeof window === "undefined") {
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
+const { notifyManager } = await import("@tanstack/react-query")
 const { act, createElement } = await import("react")
 const { createRoot } = await import("react-dom/client")
 const { renderToStaticMarkup } = await import("react-dom/server")
+
+notifyManager.setScheduler((cb) => act(cb))
 
 const mockSocial = mock(
   async (_opts: {
@@ -79,15 +84,32 @@ describe("OAuthButtons Component", () => {
   })
 
   describe("SSR Static Markup", () => {
-    it("renders all social providers in horizontal group markup", () => {
-      const html = renderToStaticMarkup(createElement(OAuthButtons))
+    it("renders all social providers in horizontal group markup with CDN logo URLs", () => {
+      const client = new QueryClient()
+      const html = renderToStaticMarkup(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(OAuthButtons),
+        ),
+      )
       expect(html).toContain("Google")
       expect(html).toContain("Apple")
       expect(html).toContain("GitHub")
+      expect(html).toContain("https://logos.lndev.me/logos/google.svg")
+      expect(html).toContain("https://logos.lndev.me/logos/apple.svg")
+      expect(html).toContain("https://logos.lndev.me/logos/github.svg")
     })
 
     it("marks disabled providers with disabled attribute in SSR", () => {
-      const html = renderToStaticMarkup(createElement(OAuthButtons))
+      const client = new QueryClient()
+      const html = renderToStaticMarkup(
+        createElement(
+          QueryClientProvider,
+          { client },
+          createElement(OAuthButtons),
+        ),
+      )
       expect(html).toContain("Continue with Apple")
       expect(html).toContain("Apple sign-in is coming soon")
       expect(html).toContain("GitHub sign-in is coming soon")
@@ -96,8 +118,15 @@ describe("OAuthButtons Component", () => {
 
   describe("Client-side Interactive DOM", () => {
     let container: HTMLDivElement
+    let testClient: QueryClient
 
     beforeEach(() => {
+      testClient = new QueryClient({
+        defaultOptions: {
+          queries: { retry: false },
+          mutations: { retry: false },
+        },
+      })
       container = document.createElement("div")
       document.body.appendChild(container)
     })
@@ -105,7 +134,13 @@ describe("OAuthButtons Component", () => {
     const mount = (props: Parameters<typeof OAuthButtons>[0] = {}) => {
       const root = createRoot(container)
       act(() => {
-        root.render(createElement(OAuthButtons, props))
+        root.render(
+          createElement(
+            QueryClientProvider,
+            { client: testClient },
+            createElement(OAuthButtons, props),
+          ),
+        )
       })
       return {
         root,
@@ -140,6 +175,32 @@ describe("OAuthButtons Component", () => {
       expect(githubBtn?.getAttribute("title")).toBe(
         "GitHub sign-in is coming soon",
       )
+    })
+
+    it("renders provider brand logos from logos.lndev.me with appropriate dark mode styling", () => {
+      const { getButton } = mount()
+      const googleBtn = getButton("Google")
+      const appleBtn = getButton("Apple")
+      const githubBtn = getButton("GitHub")
+
+      const googleImg = googleBtn?.querySelector("img")
+      const appleImg = appleBtn?.querySelector("img")
+      const githubImg = githubBtn?.querySelector("img")
+
+      expect(googleImg?.getAttribute("src")).toBe(
+        "https://logos.lndev.me/logos/google.svg",
+      )
+      expect(googleImg?.classList.contains("dark:invert")).toBe(false)
+
+      expect(appleImg?.getAttribute("src")).toBe(
+        "https://logos.lndev.me/logos/apple.svg",
+      )
+      expect(appleImg?.classList.contains("dark:invert")).toBe(true)
+
+      expect(githubImg?.getAttribute("src")).toBe(
+        "https://logos.lndev.me/logos/github.svg",
+      )
+      expect(githubImg?.classList.contains("dark:invert")).toBe(true)
     })
 
     it("invokes authClient.signIn.social with google provider and default callbackURL", async () => {
@@ -197,7 +258,7 @@ describe("OAuthButtons Component", () => {
       const googleBtn = getButton("Google")
 
       // First click: triggers in-flight request
-      act(() => {
+      await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
 
@@ -206,7 +267,7 @@ describe("OAuthButtons Component", () => {
       expect(googleBtn?.hasAttribute("disabled")).toBe(true)
 
       // Second click while in-flight: must be ignored
-      act(() => {
+      await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
 
