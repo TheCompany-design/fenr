@@ -204,7 +204,20 @@ export async function executeRequest<
       endpoint.method === "PUT" ||
       endpoint.method === "PATCH")
   ) {
-    body = JSON.stringify(validatedInput)
+    try {
+      body = JSON.stringify(validatedInput)
+    } catch (err) {
+      throw new HttpClientError(
+        `Failed to serialize request for ${endpoint.service}`,
+        {
+          code: "VALIDATION_ERROR",
+          status: 400,
+          service: endpoint.service,
+          requestId,
+          cause: err,
+        },
+      )
+    }
     if (!headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json")
     }
@@ -319,7 +332,7 @@ export async function executeRequest<
         endpointId: endpoint.id,
         service: endpoint.service,
         method: endpoint.method,
-        targetUrl,
+        targetUrl: "[redacted]",
         durationMs,
         requestId,
       },

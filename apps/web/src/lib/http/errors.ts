@@ -83,6 +83,8 @@ export class HttpClientError extends Error {
         return "Received an unexpected response from the service. Please try again."
       case "CANCELLED":
         return "Request was cancelled."
+      case "CLIENT_CONFIGURATION_ERROR":
+        return "The service is not properly configured. Please contact support."
       default:
         return "An unexpected service error occurred. Please try again."
     }
