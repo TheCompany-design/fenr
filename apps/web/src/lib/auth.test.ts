@@ -12,6 +12,7 @@ import {
   useListOrganizations,
   useSession,
 } from "./auth-client"
+import { serverEnv } from "./env"
 
 type DbSession = Session["session"]
 
@@ -51,6 +52,25 @@ describe("Better Auth Configuration & Plugins", () => {
     it("has magic link API endpoints registered", () => {
       expect(auth.api.signInMagicLink).toBeDefined()
       expect(auth.api.magicLinkVerify).toBeDefined()
+    })
+
+    it("has Google social provider and social sign-in endpoints registered based on environment", () => {
+      expect(auth.api.signInSocial).toBeDefined()
+      if (serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET) {
+        expect(auth.options.socialProviders?.google).toBeDefined()
+        expect(auth.options.socialProviders?.google?.clientId).toBe(
+          serverEnv.GOOGLE_CLIENT_ID,
+        )
+      } else {
+        expect(auth.options.socialProviders?.google).toBeUndefined()
+      }
+    })
+
+    it("has accountLinking enabled for Google provider", () => {
+      expect(auth.options.account?.accountLinking?.enabled).toBe(true)
+      expect(auth.options.account?.accountLinking?.trustedProviders).toContain(
+        "google",
+      )
     })
 
     it("has JWT API endpoints registered and correctly configured", () => {
@@ -351,6 +371,64 @@ describe("Better Auth Configuration & Plugins", () => {
           .delete(schema.organization)
           .where(eq(schema.organization.id, testOrg.id))
       }
+    })
+  })
+
+  describe("Database Account Lifecycle Hooks", () => {
+    const accountHooks = auth.options.databaseHooks?.account
+
+    it("handles null/undefined account object defensively", async () => {
+      const createBefore = accountHooks?.create?.before
+      expect(typeof createBefore).toBe("function")
+      if (typeof createBefore !== "function") return
+      // @ts-expect-error - testing defensive null guard
+      const res = await createBefore(null)
+      const data =
+        res && typeof res === "object" && "data" in res ? res.data : null
+      expect(data).toBeNull()
+    })
+
+    it("synthesizes issuer from providerId when issuer is missing", async () => {
+      const createBefore = accountHooks?.create?.before
+      expect(typeof createBefore).toBe("function")
+      if (typeof createBefore !== "function") return
+
+      const mockAccount = {
+        id: "mock-acc-id",
+        accountId: "12345",
+        providerId: "google",
+        userId: "user-1",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      const res = await createBefore(
+        mockAccount as Parameters<typeof createBefore>[0],
+      )
+      const data =
+        res && typeof res === "object" && "data" in res ? res.data : null
+      expect((data as { issuer?: string })?.issuer).toBe("google")
+    })
+
+    it("preserves explicit issuer when present", async () => {
+      const createBefore = accountHooks?.create?.before
+      expect(typeof createBefore).toBe("function")
+      if (typeof createBefore !== "function") return
+
+      const mockAccount = {
+        id: "mock-acc-id",
+        accountId: "12345",
+        providerId: "google",
+        issuer: "custom:issuer",
+        userId: "user-1",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      const res = await createBefore(
+        mockAccount as Parameters<typeof createBefore>[0],
+      )
+      const data =
+        res && typeof res === "object" && "data" in res ? res.data : null
+      expect((data as { issuer?: string })?.issuer).toBe("custom:issuer")
     })
   })
 })

@@ -48,7 +48,39 @@ export const auth = betterAuth({
     enabled: false,
   },
 
+  socialProviders: {
+    ...(serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: serverEnv.GOOGLE_CLIENT_ID,
+            clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
+          },
+        }
+      : {}),
+  },
+
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
+
   databaseHooks: {
+    account: {
+      create: {
+        async before(account) {
+          if (!account) return { data: account }
+          const currentIssuer = (account as { issuer?: string }).issuer
+          return {
+            data: {
+              ...account,
+              issuer: currentIssuer || account.providerId || "local:credential",
+            },
+          }
+        },
+      },
+    },
     user: {
       create: {
         async after(user) {
