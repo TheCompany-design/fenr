@@ -3,10 +3,12 @@ export {
   type MagicLinkValues,
   magicLinkSchema,
 } from "@/lib/schemas/auth"
+export { AuthDivider, type AuthDividerProps } from "./components/auth-divider"
 export {
   AuthErrorBanner,
   type AuthErrorBannerProps,
 } from "./components/auth-error-banner"
+export { AuthMethods, type AuthMethodsProps } from "./components/auth-methods"
 export { AuthHeader, AuthShell } from "./components/auth-shell"
 export { CheckEmailCard } from "./components/check-email-card"
 export { FieldError } from "./components/field-error"
@@ -23,3 +25,4 @@ export {
   getAuthErrorMessage,
 } from "./utils/error-messages"
 export { getAuthTagline } from "./utils/tagline"
+export { useAuthError } from "./utils/use-auth-error"
