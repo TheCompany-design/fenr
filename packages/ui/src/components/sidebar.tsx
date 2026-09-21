@@ -350,8 +350,7 @@ function MobileSidebarDrawer({
       ;(firstFocusable ?? panelRef.current)?.focus({ preventScroll: true })
     })
 
-    const initialPathname =
-      typeof window !== "undefined" ? window.location.pathname : ""
+    const initialUrl = typeof window !== "undefined" ? window.location.href : ""
 
     return () => {
       cancelAnimationFrame(focusFrame)
@@ -362,7 +361,7 @@ function MobileSidebarDrawer({
       body.style.overflow = previousBodyStyles.overflow
       if (
         typeof window !== "undefined" &&
-        window.location.pathname === initialPathname
+        window.location.href === initialUrl
       ) {
         window.scrollTo(0, scrollY)
         triggerNode?.focus({ preventScroll: true })
