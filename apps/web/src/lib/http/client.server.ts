@@ -17,7 +17,7 @@ import { serverEnv } from "@/lib/env"
 import { moduleLogger } from "@/lib/logger"
 import { HttpClientError } from "./errors"
 import { SERVICES } from "./registry"
-import { acquireOutboundJwt } from "./token"
+import { acquireOutboundJwt } from "./token.server"
 import type {
   EndpointAuth,
   EndpointDefinition,

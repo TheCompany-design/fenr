@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { z } from "zod"
-import { executeRequest } from "./client"
+import { executeRequest } from "./client.server"
 import { HttpClientError } from "./errors"
 import { defineAuthenticatedEndpoint, definePublicEndpoint } from "./types"
 

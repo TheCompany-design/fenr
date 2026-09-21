@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query"
 import type { DashboardPost } from "@/lib/schemas/dashboard"
 
-import { getDashboardPostsFn } from "./server"
+import { getDashboardPostsFn } from "./dashboard.functions"
 
 export const dashboardPostsQueryOptions = () =>
   queryOptions({

@@ -5,7 +5,7 @@ import {
   getNabuSystemStatus,
   matchInflowReconciliation,
   NabuClientError,
-} from "./client"
+} from "./nabu.server"
 
 describe("Nabu HTTP Client", () => {
   const originalFetch = globalThis.fetch

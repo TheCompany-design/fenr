@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
-import { fetchDashboardPosts } from "./server"
+import { fetchDashboardPosts } from "./dashboard.server"
 
 describe("fetchDashboardPosts", () => {
   const originalFetch = globalThis.fetch

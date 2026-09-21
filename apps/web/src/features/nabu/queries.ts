@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query"
 
-import { getNabuSystemStatusFn } from "./server"
+import { getNabuSystemStatusFn } from "./nabu.functions"
 
 export const nabuSystemStatusQueryOptions = () =>
   queryOptions({
