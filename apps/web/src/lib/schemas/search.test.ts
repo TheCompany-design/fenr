@@ -38,9 +38,13 @@ describe("route search schemas", () => {
   })
 
   describe("authSignUpSearchSchema", () => {
-    it("parses redirect param", () => {
-      const parsed = authSignUpSearchSchema.parse({ redirect: "/onboarding" })
+    it("parses redirect and error params", () => {
+      const parsed = authSignUpSearchSchema.parse({
+        redirect: "/onboarding",
+        error: "access_resolution_failed",
+      })
       expect(parsed.redirect).toBe("/onboarding")
+      expect(parsed.error).toBe("access_resolution_failed")
     })
   })
 

@@ -4,16 +4,13 @@
  * Session bouncing is handled at the parent /auth route.
  * The `redirect` search param is validated against open-redirects.
  */
-import { createFileRoute } from "@tanstack/react-router"
-import { useEffect } from "react"
-import { toast } from "sonner"
+import { createFileRoute, Link } from "@tanstack/react-router"
 
 import {
   AuthErrorBanner,
   AuthHeader,
-  getAuthErrorMessage,
-  MagicLinkForm,
-  OAuthButtons,
+  AuthMethods,
+  useAuthError,
 } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
 import { authSignInSearchSchema } from "@/lib/schemas/search"
@@ -27,14 +24,7 @@ function SignInPage() {
   const { redirect: redirectToParam, error } = Route.useSearch()
   const redirectTo = safeRedirectPath(redirectToParam)
 
-  useEffect(() => {
-    if (error) {
-      const errInfo = getAuthErrorMessage(error)
-      toast.error(errInfo.title, {
-        description: errInfo.description,
-      })
-    }
-  }, [error])
+  useAuthError(error)
 
   return (
     <>
@@ -44,23 +34,17 @@ function SignInPage() {
         title="Sign in to Fenr"
         description="Enter your email to receive a passwordless sign-in link."
       />
-      <MagicLinkForm redirectTo={redirectTo} />
-
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-border border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
-            Or continue with
-          </span>
-        </div>
-      </div>
-
-      <OAuthButtons redirectTo={redirectTo} />
+      <AuthMethods redirectTo={redirectTo} />
 
       <footer className="mt-8 text-muted-foreground text-sm">
-        New to Fenr? Entering your email will automatically create your account.
+        Don&apos;t have an account?{" "}
+        <Link
+          to="/auth/sign-up"
+          search={{ redirect: redirectTo }}
+          className="text-foreground underline-offset-4 hover:underline"
+        >
+          Sign up
+        </Link>
       </footer>
     </>
   )

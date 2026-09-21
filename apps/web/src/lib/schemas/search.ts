@@ -19,6 +19,7 @@ export type AuthSignInSearch = z.infer<typeof authSignInSearchSchema>
 
 export const authSignUpSearchSchema = z.object({
   redirect: z.string().optional(),
+  error: z.string().optional(),
 })
 export type AuthSignUpSearch = z.infer<typeof authSignUpSearchSchema>
 
