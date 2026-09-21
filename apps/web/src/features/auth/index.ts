@@ -3,6 +3,12 @@ export {
   type MagicLinkValues,
   magicLinkSchema,
 } from "@/lib/schemas/auth"
+export {
+  getSocialProvider,
+  SOCIAL_PROVIDERS,
+  type SocialProviderConfig,
+  type SocialProviderId,
+} from "@/lib/social-providers"
 export { AuthDivider, type AuthDividerProps } from "./components/auth-divider"
 export {
   AuthErrorBanner,
@@ -16,10 +22,12 @@ export { MagicLinkForm } from "./components/magic-link-form"
 export {
   OAuthButtons,
   type OAuthButtonsProps,
-  SOCIAL_PROVIDERS,
-  type SocialProviderConfig,
-  type SocialProviderId,
 } from "./components/oauth-buttons"
+export {
+  SocialAuthError,
+  type SocialSignInVariables,
+  useSocialSignIn,
+} from "./hooks/use-social-sign-in"
 export {
   type AuthErrorMessage,
   getAuthErrorMessage,
