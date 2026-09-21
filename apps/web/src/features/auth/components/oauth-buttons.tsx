@@ -28,9 +28,9 @@ export function OAuthButtons({
   className,
   providers = SOCIAL_PROVIDERS,
 }: OAuthButtonsProps) {
-  const { mutate: signIn, isPending, isSuccess, variables } = useSocialSignIn()
+  const { mutate: signIn, isPending, variables } = useSocialSignIn()
 
-  const isConnecting = isPending || isSuccess
+  const isConnecting = isPending
 
   const handleSocialSignIn = (provider: SocialProviderConfig) => {
     if (!provider.enabled || isConnecting) {

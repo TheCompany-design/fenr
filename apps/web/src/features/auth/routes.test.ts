@@ -154,8 +154,8 @@ describe("Auth Route Guards & Loaders", () => {
       expect(parsed?.error).toBe("invalid_token")
     })
 
-    it("has SignInPage component configured with MagicLinkForm and OAuthButtons", () => {
-      expect(SignInRoute.options.component).toBeDefined()
+    it("has SignInPage component configured on route options", () => {
+      expect(typeof SignInRoute.options.component).toBe("function")
     })
   })
 
@@ -172,8 +172,8 @@ describe("Auth Route Guards & Loaders", () => {
       expect(parsed?.error).toBe("access_resolution_failed")
     })
 
-    it("has SignUpPage component configured with unified AuthMethods", () => {
-      expect(SignUpRoute.options.component).toBeDefined()
+    it("has SignUpPage component configured on route options", () => {
+      expect(typeof SignUpRoute.options.component).toBe("function")
     })
   })
 })

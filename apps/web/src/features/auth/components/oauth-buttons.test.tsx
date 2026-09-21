@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GlobalWindow } from "happy-dom"
 
@@ -110,6 +110,7 @@ describe("OAuthButtons Component", () => {
           createElement(OAuthButtons),
         ),
       )
+      expect(html).toContain('disabled=""')
       expect(html).toContain("Continue with Apple")
       expect(html).toContain("Apple sign-in is coming soon")
       expect(html).toContain("GitHub sign-in is coming soon")
@@ -119,6 +120,7 @@ describe("OAuthButtons Component", () => {
   describe("Client-side Interactive DOM", () => {
     let container: HTMLDivElement
     let testClient: QueryClient
+    let mountedRoot: ReturnType<typeof createRoot> | undefined
 
     beforeEach(() => {
       testClient = new QueryClient({
@@ -131,10 +133,21 @@ describe("OAuthButtons Component", () => {
       document.body.appendChild(container)
     })
 
+    afterEach(() => {
+      if (mountedRoot) {
+        act(() => {
+          mountedRoot?.unmount()
+        })
+        mountedRoot = undefined
+      }
+      container.remove()
+      testClient.clear()
+    })
+
     const mount = (props: Parameters<typeof OAuthButtons>[0] = {}) => {
-      const root = createRoot(container)
+      mountedRoot = createRoot(container)
       act(() => {
-        root.render(
+        mountedRoot?.render(
           createElement(
             QueryClientProvider,
             { client: testClient },
@@ -143,7 +156,7 @@ describe("OAuthButtons Component", () => {
         )
       })
       return {
-        root,
+        root: mountedRoot,
         getButtons: () => Array.from(container.querySelectorAll("button")),
         getButton: (name: string) =>
           Array.from(container.querySelectorAll("button")).find(
