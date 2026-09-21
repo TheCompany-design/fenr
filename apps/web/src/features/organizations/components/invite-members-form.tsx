@@ -167,7 +167,10 @@ export function InviteMembersForm({
   })
 
   const canContinueWithoutSending =
-    stats.sendable === 0 && stats.invalid === 0 && stats.total > 0
+    stats.sendable === 0 &&
+    stats.invalid === 0 &&
+    invites.length > 0 &&
+    invites.every((i) => isAutoJoin(i.email) || i.status === "success")
 
   const handleRetryFailed = async (invite: QueuedInvite) => {
     if (submittingRef.current) return

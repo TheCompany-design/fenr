@@ -198,7 +198,7 @@ export function ChipPill({
         disabled={isSubmitting || invite.status === "sending"}
         aria-label={`Remove ${invite.email}`}
         data-testid={`remove-chip-${invite.email}`}
-        className="flex size-5 items-center justify-center rounded-full opacity-50 hover:bg-foreground/[0.08] hover:opacity-100 transition-colors transition-opacity disabled:pointer-events-none cursor-pointer"
+        className="flex size-5 items-center justify-center rounded-full opacity-50 hover:bg-foreground/[0.08] hover:opacity-100 transition-[background-color,opacity] disabled:pointer-events-none cursor-pointer"
       >
         <HugeiconsIcon icon={Cancel01Icon} size={11} />
       </button>
