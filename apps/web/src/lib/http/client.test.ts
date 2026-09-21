@@ -346,6 +346,9 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
       const httpErr = err as HttpClientError
       expect(httpErr.code).toBe("CLIENT_CONFIGURATION_ERROR")
       expect(httpErr.message).toContain("Security violation")
+      expect(httpErr.getUserMessage()).toBe(
+        "The service is not properly configured. Please contact support.",
+      )
     }
   })
 
@@ -472,11 +475,39 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
   it("rejects immediately if signal is already aborted prior to dispatch", async () => {
     const controller = new AbortController()
     controller.abort(new Error("Pre-aborted"))
+    let fetchCalled = false
+    setMockFetch(async () => {
+      fetchCalled = true
+      return new Response(null, { status: 200 })
+    })
 
     await expect(
       executeRequest(testPublicEndpoint, {
         signal: controller.signal,
       }),
-    ).rejects.toThrow(HttpClientError)
+    ).rejects.toMatchObject({ code: "CANCELLED", status: 499 })
+    expect(fetchCalled).toBe(false)
+  })
+
+  it("rejects with VALIDATION_ERROR when request body serialization fails", async () => {
+    const circular: Record<string, unknown> = {}
+    circular.self = circular
+
+    await expect(
+      executeRequest(
+        {
+          ...testAuthenticatedEndpoint,
+          inputSchema:
+            z.any() as unknown as typeof testAuthenticatedEndpoint.inputSchema,
+        },
+        {
+          input: circular as unknown as { query: string; count: number },
+          token: "mock-token",
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      status: 400,
+    })
   })
 })
