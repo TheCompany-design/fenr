@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import {
   notifyManager,
   QueryClient,
@@ -76,6 +76,7 @@ const { SocialAuthError, useSocialSignIn } = await import(
 describe("useSocialSignIn hook", () => {
   let queryClient: QueryClient
   let container: HTMLDivElement
+  let mountedRoot: ReturnType<typeof createRoot> | undefined
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -90,6 +91,17 @@ describe("useSocialSignIn hook", () => {
     mockToastError.mockClear()
   })
 
+  afterEach(() => {
+    if (mountedRoot) {
+      act(() => {
+        mountedRoot?.unmount()
+      })
+      mountedRoot = undefined
+    }
+    container.remove()
+    queryClient.clear()
+  })
+
   const renderHookHelper = () => {
     let currentHook!: ReturnType<typeof useSocialSignIn>
     function HookConsumer() {
@@ -97,9 +109,9 @@ describe("useSocialSignIn hook", () => {
       return null
     }
 
-    const root = createRoot(container)
+    mountedRoot = createRoot(container)
     act(() => {
-      root.render(
+      mountedRoot?.render(
         createElement(
           QueryClientProvider,
           { client: queryClient },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { createElement } from "react"
+import { createElement, type ReactElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
 import { AuthDivider } from "./auth-divider"
@@ -22,7 +22,7 @@ describe("Auth Composition Components", () => {
   })
 
   describe("AuthMethods Composite Component", () => {
-    const renderWithQueryClient = (component: React.ReactElement) => {
+    const renderWithQueryClient = (component: ReactElement) => {
       const client = new QueryClient()
       return renderToStaticMarkup(
         createElement(QueryClientProvider, { client }, component),
