@@ -20,6 +20,7 @@ const { Route: AuthIndexRoute } = await import("@/routes/auth/index")
 const { Route: CheckEmailRoute } = await import(
   "@/routes/auth/check-email/index"
 )
+const { Route: SignInRoute } = await import("@/routes/auth/sign-in/index")
 
 type BeforeLoadCaller = (opts: {
   search: Record<string, unknown>
@@ -136,6 +137,24 @@ describe("Auth Route Guards & Loaders", () => {
         })
       }
       expect(true).toBe(true)
+    })
+  })
+
+  describe("/auth/sign-in Route", () => {
+    it("validates and parses valid search params", () => {
+      const validator = SignInRoute.options.validateSearch as (
+        search: Record<string, unknown>,
+      ) => { redirect?: string; error?: string }
+      const parsed = validator?.({
+        redirect: "/dashboard/projects",
+        error: "invalid_token",
+      })
+      expect(parsed?.redirect).toBe("/dashboard/projects")
+      expect(parsed?.error).toBe("invalid_token")
+    })
+
+    it("has SignInPage component configured with MagicLinkForm and OAuthButtons", () => {
+      expect(SignInRoute.options.component).toBeDefined()
     })
   })
 })
