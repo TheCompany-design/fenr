@@ -58,7 +58,7 @@ When Nabu receives an inbound request from Fenr:
 1. **Extract Authorization Header**:
    Read `Authorization: Bearer <token>`. Match the `Bearer` authentication scheme case-insensitively; if the header is missing, uses another scheme, or has no token, reject with `401 Unauthorized`.
 2. **Decode Header & Locate Key**:
-   Inspect the JWT header for `alg: "EdDSA"` and the `kid` claim.
+   Inspect the JWT header for `alg: "EdDSA"` and the `kid` header parameter.
 3. **Lookup Public Key**:
    Look up `kid` in local cached JWKS.
    - If `kid` is missing from cache, fetch fresh JWKS from Fenr (`GET /api/auth/jwks`).
