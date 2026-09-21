@@ -40,7 +40,6 @@ import {
 } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { useSidebar } from "@workspace/ui/components/sidebar"
-import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
   TooltipContent,
@@ -635,12 +634,20 @@ export function UserMenuItems({
             <span className="text-foreground">Notifications</span>
           </div>
 
-          <Switch
-            checked={notificationsEnabled}
-            tabIndex={-1}
+          <span
             aria-hidden="true"
-            className="pointer-events-none"
-          />
+            className={cn(
+              "pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors",
+              notificationsEnabled ? "bg-primary" : "bg-muted-foreground/30",
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none block size-4 rounded-full bg-background shadow-xs ring-0 transition-transform",
+                notificationsEnabled ? "translate-x-4" : "translate-x-0",
+              )}
+            />
+          </span>
         </button>
 
         {/* Command menu */}
