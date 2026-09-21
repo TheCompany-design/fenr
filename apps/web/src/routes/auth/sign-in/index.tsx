@@ -13,6 +13,7 @@ import {
   AuthHeader,
   getAuthErrorMessage,
   MagicLinkForm,
+  OAuthButtons,
 } from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
 import { authSignInSearchSchema } from "@/lib/schemas/search"
@@ -44,6 +45,20 @@ function SignInPage() {
         description="Enter your email to receive a passwordless sign-in link."
       />
       <MagicLinkForm redirectTo={redirectTo} />
+
+      <div className="relative my-6">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-border border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or continue with
+          </span>
+        </div>
+      </div>
+
+      <OAuthButtons redirectTo={redirectTo} />
+
       <footer className="mt-8 text-muted-foreground text-sm">
         New to Fenr? Entering your email will automatically create your account.
       </footer>
