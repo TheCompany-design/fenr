@@ -7,12 +7,12 @@
  */
 
 import {
-  type ExecuteRequestOptions,
-  executeRequest,
   HttpClientError,
   type HttpClientErrorCode,
   nabuEndpoints,
 } from "@/lib/http"
+import { executeRequest } from "@/lib/http/client.server"
+import type { ExecuteRequestOptions } from "@/lib/http/types"
 import type {
   AgentTaskResult,
   CreateAgentTaskInput,
@@ -20,6 +20,13 @@ import type {
   ReconciliationMatchInput,
   ReconciliationMatchResult,
 } from "@/lib/schemas/nabu"
+
+export class OrganizationRequiredError extends Error {
+  constructor(message = "Active organization required") {
+    super(message)
+    this.name = "OrganizationRequiredError"
+  }
+}
 
 export interface NabuClientErrorContext {
   status?: number

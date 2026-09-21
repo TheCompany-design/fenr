@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, mock } from "bun:test"
 import { auth } from "@/lib/auth"
 import { HttpClientError } from "./errors"
-import { acquireOutboundJwt } from "./token"
+import { acquireOutboundJwt } from "./token.server"
 
 describe("Outbound JWT Token Provider (acquireOutboundJwt)", () => {
   const originalGetSession = auth.api.getSession

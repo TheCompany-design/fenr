@@ -1,5 +1,3 @@
-export * from "./client"
 export * from "./errors"
 export * from "./registry"
-export * from "./token"
 export * from "./types"

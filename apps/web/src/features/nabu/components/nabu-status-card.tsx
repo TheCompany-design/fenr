@@ -15,9 +15,11 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 import { toast } from "sonner"
-
+import {
+  dispatchAgentTaskFn,
+  matchInflowReconciliationFn,
+} from "../nabu.functions"
 import { nabuSystemStatusQueryOptions } from "../queries"
-import { dispatchAgentTaskFn, matchInflowReconciliationFn } from "../server"
 
 export function NabuStatusCard() {
   const queryClient = useQueryClient()

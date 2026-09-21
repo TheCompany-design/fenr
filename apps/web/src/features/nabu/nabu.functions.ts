@@ -3,6 +3,7 @@
  *
  * Exposes type-safe createServerFn endpoints for client consumption.
  * Validated with Zod and wrapped in wide-event logging with session verification.
+ * Delegates transport and business execution to server-only modules.
  */
 
 import { createServerFn } from "@tanstack/react-start"
@@ -18,14 +19,8 @@ import {
   dispatchAgentTask,
   getNabuSystemStatus,
   matchInflowReconciliation,
-} from "./client"
-
-export class OrganizationRequiredError extends Error {
-  constructor(message = "Active organization required") {
-    super(message)
-    this.name = "OrganizationRequiredError"
-  }
-}
+  OrganizationRequiredError,
+} from "./nabu.server"
 
 export const getNabuSystemStatusFn = createServerFn({ method: "GET" }).handler(
   async () => {
