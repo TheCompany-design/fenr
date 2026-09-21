@@ -11,7 +11,13 @@ export { AuthHeader, AuthShell } from "./components/auth-shell"
 export { CheckEmailCard } from "./components/check-email-card"
 export { FieldError } from "./components/field-error"
 export { MagicLinkForm } from "./components/magic-link-form"
-export { OAuthButtons } from "./components/oauth-buttons"
+export {
+  OAuthButtons,
+  type OAuthButtonsProps,
+  SOCIAL_PROVIDERS,
+  type SocialProviderConfig,
+  type SocialProviderId,
+} from "./components/oauth-buttons"
 export {
   type AuthErrorMessage,
   getAuthErrorMessage,
