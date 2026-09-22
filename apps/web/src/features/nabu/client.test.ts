@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, mock } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import { auth } from "@/lib/auth"
 import { HttpClientError } from "@/lib/http"
 import {
   dispatchAgentTask,
@@ -9,9 +10,51 @@ import {
 
 describe("Nabu HTTP Client", () => {
   const originalFetch = globalThis.fetch
+  const originalGetSession = auth.api.getSession
+  const originalVerifyJWT = auth.api.verifyJWT
+
+  beforeEach(() => {
+    auth.api.getSession = mock(async () => ({
+      user: {
+        id: "user_nabu_test",
+        email: "test@nabu.dev",
+        name: "Nabu Test",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      session: {
+        id: "sess_nabu_test",
+        userId: "user_nabu_test",
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        token: "tok_nabu_test",
+        activeOrganizationId: "org_nabu_test",
+        ipAddress: null,
+        userAgent: null,
+      },
+    })) as unknown as typeof auth.api.getSession
+
+    auth.api.verifyJWT = mock(async ({ body }: { body: { token: string } }) => {
+      if (body.token === "unauthorized-token") {
+        return { payload: null }
+      }
+      return {
+        payload: {
+          sub: "user_nabu_test",
+          email: "test@nabu.dev",
+          activeOrganizationId: "org_nabu_test",
+          aud: "nabu",
+        },
+      }
+    }) as unknown as typeof auth.api.verifyJWT
+  })
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    auth.api.getSession = originalGetSession
+    auth.api.verifyJWT = originalVerifyJWT
   })
 
   describe("getNabuSystemStatus", () => {
@@ -36,6 +79,9 @@ describe("Nabu HTTP Client", () => {
     })
 
     it("throws HttpClientError with UNAUTHENTICATED when called without a session or token", async () => {
+      auth.api.getSession = mock(
+        async () => null,
+      ) as unknown as typeof auth.api.getSession
       try {
         await getNabuSystemStatus()
         expect(true).toBe(false)

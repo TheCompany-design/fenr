@@ -16,23 +16,165 @@ describe("Outbound JWT Token Provider (acquireOutboundJwt)", () => {
     audience: "nabu",
   }
 
-  it("returns explicit token when provided", async () => {
-    const token = await acquireOutboundJwt(mockAuthContract, {
-      token: "explicit-test-token",
-    })
-    expect(token).toBe("explicit-test-token")
+  const mockTenantSession = {
+    user: {
+      id: "user_tenant_999",
+      email: "finance@tenant.dev",
+      name: "Finance Bot",
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    session: {
+      id: "sess_tenant_999",
+      userId: "user_tenant_999",
+      expiresAt: new Date(Date.now() + 3600_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      token: "tok_xyz",
+      activeOrganizationId: "org_acme_corp",
+      ipAddress: null,
+      userAgent: null,
+    },
+  }
+
+  it("rejects explicit token when session is unauthenticated", async () => {
+    const emptyHeaders = new Headers()
+    await expect(
+      acquireOutboundJwt(mockAuthContract, {
+        token: "explicit-test-token",
+        headersSource: emptyHeaders,
+      }),
+    ).rejects.toThrow(HttpClientError)
   })
 
-  it("calls custom tokenProvider when provided", async () => {
+  it("rejects custom tokenProvider when session is unauthenticated", async () => {
+    const emptyHeaders = new Headers()
     const provider = mock(async () => "custom-provider-token")
+    await expect(
+      acquireOutboundJwt(mockAuthContract, {
+        tokenProvider: provider,
+        headersSource: emptyHeaders,
+      }),
+    ).rejects.toThrow(HttpClientError)
+  })
+
+  it("rejects explicit token when token is invalid or unverified", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
+    await expect(
+      acquireOutboundJwt(mockAuthContract, {
+        token: "invalid-unverified-token",
+      }),
+    ).rejects.toThrow(HttpClientError)
+  })
+
+  it("accepts valid explicit token matching active organization and audience", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
+    const signed = await auth.api.signJWT({
+      body: {
+        payload: {
+          sub: "user_tenant_999",
+          activeOrganizationId: "org_acme_corp",
+        },
+        overrideOptions: {
+          jwt: { audience: "nabu" },
+        },
+      },
+    })
+
+    const token = await acquireOutboundJwt(mockAuthContract, {
+      token: signed.token,
+    })
+    expect(token).toBe(signed.token)
+  })
+
+  it("rejects explicit token when audience does not match target service", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
+    const signed = await auth.api.signJWT({
+      body: {
+        payload: {
+          sub: "user_tenant_999",
+          activeOrganizationId: "org_acme_corp",
+        },
+        overrideOptions: {
+          jwt: { audience: "other_service" },
+        },
+      },
+    })
+
+    try {
+      await acquireOutboundJwt(mockAuthContract, { token: signed.token })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("UNAUTHENTICATED")
+      expect(httpErr.status).toBe(401)
+    }
+  })
+
+  it("rejects explicit token when tenant context does not match active organization", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
+    const signed = await auth.api.signJWT({
+      body: {
+        payload: {
+          sub: "user_tenant_999",
+          activeOrganizationId: "other_tenant_456",
+        },
+        overrideOptions: {
+          jwt: { audience: "nabu" },
+        },
+      },
+    })
+
+    try {
+      await acquireOutboundJwt(mockAuthContract, { token: signed.token })
+      expect(true).toBe(false)
+    } catch (err) {
+      expect(err).toBeInstanceOf(HttpClientError)
+      const httpErr = err as HttpClientError
+      expect(httpErr.code).toBe("UNAUTHENTICATED")
+      expect(httpErr.message).toContain("tenant context does not match")
+    }
+  })
+
+  it("calls custom tokenProvider and validates returned token", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
+    const signed = await auth.api.signJWT({
+      body: {
+        payload: {
+          sub: "user_tenant_999",
+          activeOrganizationId: "org_acme_corp",
+        },
+        overrideOptions: {
+          jwt: { audience: "nabu" },
+        },
+      },
+    })
+
+    expect(signed.token).toBeDefined()
+    const provider = mock(async () => String(signed.token))
     const token = await acquireOutboundJwt(mockAuthContract, {
       tokenProvider: provider,
     })
-    expect(token).toBe("custom-provider-token")
+    expect(token).toBe(signed.token)
     expect(provider).toHaveBeenCalled()
   })
 
   it("throws HttpClientError with UNAUTHENTICATED when custom provider throws", async () => {
+    auth.api.getSession = mock(
+      async () => mockTenantSession,
+    ) as unknown as typeof auth.api.getSession
     const failingProvider = mock(async () => {
       throw new Error("Provider network failure")
     })

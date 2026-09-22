@@ -40,7 +40,37 @@ export const validPublic = definePublicEndpoint<void, { ok: boolean }>({
   responseSchema: testSchema,
 })
 
-// 3. Negative check: missing auth policy in raw EndpointDefinition
+// 3. Negative check: missing audience in defineAuthenticatedEndpoint
+export const missingAudience = defineAuthenticatedEndpoint<
+  void,
+  { ok: boolean }
+>(
+  // @ts-expect-error - Property 'audience' is missing in type
+  {
+    id: "missing.audience",
+    service: "nabu",
+    method: "GET",
+    path: "/api/v1/test",
+    responseSchema: testSchema,
+  },
+)
+
+// 4. Negative check: missing service in defineAuthenticatedEndpoint
+export const missingService = defineAuthenticatedEndpoint<
+  void,
+  { ok: boolean }
+>(
+  // @ts-expect-error - Property 'service' is missing in type
+  {
+    id: "missing.service",
+    audience: "nabu",
+    method: "GET",
+    path: "/api/v1/test",
+    responseSchema: testSchema,
+  },
+)
+
+// 5. Negative check: missing auth policy in raw EndpointDefinition
 // @ts-expect-error - Property 'auth' is missing in type
 export const missingAuth: EndpointDefinition<void, { ok: boolean }> = {
   id: "missing.auth",
@@ -50,7 +80,7 @@ export const missingAuth: EndpointDefinition<void, { ok: boolean }> = {
   responseSchema: testSchema,
 }
 
-// 4. Negative check: invalid auth type
+// 6. Negative check: invalid auth type
 export const invalidAuthType: EndpointDefinition<void, { ok: boolean }> = {
   id: "invalid.auth",
   service: "nabu",
@@ -61,13 +91,13 @@ export const invalidAuthType: EndpointDefinition<void, { ok: boolean }> = {
   auth: { type: "none" },
 }
 
-// 5. Negative check: SafeCallerHeaders prohibits Authorization
+// 7. Negative check: SafeCallerHeaders prohibits Authorization
 export const illegalHeaders: SafeCallerHeaders = {
   // @ts-expect-error - Type 'string' is not assignable to type 'undefined'
   Authorization: "Bearer spoofed-token",
 }
 
-// 6. Negative check: SafeCallerHeaders prohibits lowercase authorization
+// 8. Negative check: SafeCallerHeaders prohibits lowercase authorization
 export const illegalHeadersLowercase: SafeCallerHeaders = {
   // @ts-expect-error - Type 'string' is not assignable to type 'undefined'
   authorization: "Bearer spoofed-token",
