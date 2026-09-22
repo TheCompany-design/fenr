@@ -20,6 +20,7 @@ import {
 import { DashboardOverview } from "@/features/dashboard/components/dashboard-overview"
 import { dashboardPostsQueryOptions } from "@/features/dashboard/queries"
 import { DemoForm, useDemoStore } from "@/features/demo"
+import { NabuStatusCard } from "@/features/nabu"
 
 export const Route = createFileRoute("/_app/")({
   loader: ({ context }) =>
@@ -71,7 +72,9 @@ function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <NabuStatusCard />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Zustand (persisted)</CardTitle>
@@ -112,7 +115,7 @@ function App() {
             </CardContent>
           </Card>
 
-          <div className="md:col-span-2 xl:col-span-1">
+          <div>
             <DemoForm />
           </div>
         </div>

@@ -20,6 +20,8 @@ const { Route: AuthIndexRoute } = await import("@/routes/auth/index")
 const { Route: CheckEmailRoute } = await import(
   "@/routes/auth/check-email/index"
 )
+const { Route: SignInRoute } = await import("@/routes/auth/sign-in/index")
+const { Route: SignUpRoute } = await import("@/routes/auth/sign-up/index")
 
 type BeforeLoadCaller = (opts: {
   search: Record<string, unknown>
@@ -136,6 +138,42 @@ describe("Auth Route Guards & Loaders", () => {
         })
       }
       expect(true).toBe(true)
+    })
+  })
+
+  describe("/auth/sign-in Route", () => {
+    it("validates and parses valid search params", () => {
+      const validator = SignInRoute.options.validateSearch as (
+        search: Record<string, unknown>,
+      ) => { redirect?: string; error?: string }
+      const parsed = validator?.({
+        redirect: "/dashboard/projects",
+        error: "invalid_token",
+      })
+      expect(parsed?.redirect).toBe("/dashboard/projects")
+      expect(parsed?.error).toBe("invalid_token")
+    })
+
+    it("has SignInPage component configured on route options", () => {
+      expect(typeof SignInRoute.options.component).toBe("function")
+    })
+  })
+
+  describe("/auth/sign-up Route", () => {
+    it("validates and parses valid search params", () => {
+      const validator = SignUpRoute.options.validateSearch as (
+        search: Record<string, unknown>,
+      ) => { redirect?: string; error?: string }
+      const parsed = validator?.({
+        redirect: "/dashboard/projects",
+        error: "access_resolution_failed",
+      })
+      expect(parsed?.redirect).toBe("/dashboard/projects")
+      expect(parsed?.error).toBe("access_resolution_failed")
+    })
+
+    it("has SignUpPage component configured on route options", () => {
+      expect(typeof SignUpRoute.options.component).toBe("function")
     })
   })
 })

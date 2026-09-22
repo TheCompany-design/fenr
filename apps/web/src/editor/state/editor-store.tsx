@@ -1,5 +1,5 @@
 import { createStore, Provider as JotaiProvider, useStore } from "jotai"
-import { type ReactNode, useRef } from "react"
+import { type ReactNode, useState } from "react"
 
 export type EditorStore = ReturnType<typeof createStore>
 
@@ -12,12 +12,10 @@ export const EditorProviderStore = ({
   children,
   store: externalStore,
 }: EditorProviderStoreProps) => {
-  const storeRef = useRef<EditorStore | null>(null)
-  if (!storeRef.current) {
-    storeRef.current = externalStore ?? createStore()
-  }
+  const [internalStore] = useState(() => externalStore ?? createStore())
+  const store = externalStore ?? internalStore
 
-  return <JotaiProvider store={storeRef.current}>{children}</JotaiProvider>
+  return <JotaiProvider store={store}>{children}</JotaiProvider>
 }
 
 export const useEditorStore = (): EditorStore => {

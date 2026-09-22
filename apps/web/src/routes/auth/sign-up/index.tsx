@@ -1,12 +1,17 @@
 /**
- * /auth/sign-up — public route for passwordless registration.
+ * /auth/sign-up — public route for passwordless registration and social sign-up.
  *
  * Session bouncing is handled at the parent /auth route.
- * Entering an email automatically creates and verifies the account.
+ * Entering an email or authenticating with OAuth automatically creates and verifies the account.
  */
 import { createFileRoute, Link } from "@tanstack/react-router"
 
-import { AuthHeader, MagicLinkForm } from "@/features/auth"
+import {
+  AuthErrorBanner,
+  AuthHeader,
+  AuthMethods,
+  useAuthError,
+} from "@/features/auth"
 import { safeRedirectPath } from "@/lib/redirect"
 import { authSignUpSearchSchema } from "@/lib/schemas/search"
 
@@ -16,16 +21,20 @@ export const Route = createFileRoute("/auth/sign-up/")({
 })
 
 function SignUpPage() {
-  const { redirect: redirectToParam } = Route.useSearch()
+  const { redirect: redirectToParam, error } = Route.useSearch()
   const redirectTo = safeRedirectPath(redirectToParam)
+
+  useAuthError(error)
 
   return (
     <>
+      {error ? <AuthErrorBanner error={error} /> : null}
+
       <AuthHeader
         title="Get started with Fenr"
         description="Enter your email to receive a passwordless sign-in link."
       />
-      <MagicLinkForm redirectTo={redirectTo} />
+      <AuthMethods redirectTo={redirectTo} />
       <footer className="mt-8 text-muted-foreground text-sm">
         Already have an account?{" "}
         <Link

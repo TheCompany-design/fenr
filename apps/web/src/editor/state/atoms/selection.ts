@@ -1,4 +1,5 @@
 import { atom } from "jotai"
+import { selectAtom } from "jotai/utils"
 
 export interface SelectionState {
   from: number
@@ -15,7 +16,8 @@ export const DEFAULT_SELECTION_STATE: SelectionState = {
 export const selectionAtom = atom<SelectionState>(DEFAULT_SELECTION_STATE)
 
 export const isSelectionEmptyAtom = atom((get) => get(selectionAtom).empty)
-export const selectionRangeAtom = atom((get) => {
-  const sel = get(selectionAtom)
-  return { from: sel.from, to: sel.to }
-})
+export const selectionRangeAtom = selectAtom(
+  selectionAtom,
+  (sel) => ({ from: sel.from, to: sel.to }),
+  (a, b) => a.from === b.from && a.to === b.to,
+)

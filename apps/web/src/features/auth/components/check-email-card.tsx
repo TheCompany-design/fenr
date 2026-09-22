@@ -55,7 +55,6 @@ export function CheckEmailCard({
   const isResendingRef = useRef(false)
   const isMountedRef = useRef(true)
   const cooldownEndRef = useRef<number | null>(cooldownEnd)
-  cooldownEndRef.current = cooldownEnd
 
   useEffect(() => {
     isMountedRef.current = true
@@ -65,8 +64,8 @@ export function CheckEmailCard({
   }, [])
 
   useEffect(() => {
+    cooldownEndRef.current = cooldownEnd
     if (!cooldownEnd) {
-      cooldownEndRef.current = null
       setSecondsLeft(0)
       return
     }
@@ -207,7 +206,7 @@ export function CheckEmailCard({
             isResendingRef.current ||
             resending ||
             secondsLeft > 0 ||
-            (cooldownEnd !== null && Date.now() < cooldownEnd)
+            cooldownEnd !== null
           }
           onClick={handleResend}
         >
