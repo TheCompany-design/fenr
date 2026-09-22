@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { z } from "zod"
+import { auth } from "@/lib/auth"
 import { executeRequest } from "./client.server"
 import { HttpClientError } from "./errors"
 import { defineAuthenticatedEndpoint, definePublicEndpoint } from "./types"
@@ -42,6 +43,8 @@ const testPublicEndpoint = definePublicEndpoint<
 
 describe("Outbound HTTP Transport (executeRequest)", () => {
   const originalFetch = globalThis.fetch
+  const originalGetSession = auth.api.getSession
+  const originalVerifyJWT = auth.api.verifyJWT
   let capturedRequest: { url: string; init?: RequestInit } | null = null
 
   function setMockFetch(
@@ -52,10 +55,47 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
 
   beforeEach(() => {
     capturedRequest = null
+    auth.api.getSession = mock(async () => ({
+      user: {
+        id: "user_client_test",
+        email: "test@client.dev",
+        name: "Test User",
+        emailVerified: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      session: {
+        id: "sess_client_test",
+        userId: "user_client_test",
+        expiresAt: new Date(Date.now() + 3600_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        token: "tok_client_test",
+        activeOrganizationId: "org_client_test",
+        ipAddress: null,
+        userAgent: null,
+      },
+    })) as unknown as typeof auth.api.getSession
+
+    auth.api.verifyJWT = mock(async ({ body }: { body: { token: string } }) => {
+      if (body.token === "unauthorized-token") {
+        return { payload: null }
+      }
+      return {
+        payload: {
+          sub: "user_client_test",
+          email: "test@client.dev",
+          activeOrganizationId: "org_client_test",
+          aud: "nabu",
+        },
+      }
+    }) as unknown as typeof auth.api.verifyJWT
   })
 
   afterEach(() => {
     globalThis.fetch = originalFetch
+    auth.api.getSession = originalGetSession
+    auth.api.verifyJWT = originalVerifyJWT
   })
 
   it("injects Authorization: Bearer <jwt> for authenticated endpoints", async () => {
@@ -329,6 +369,12 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
   })
 
   it("rejects authenticated requests targeting an unauthorized origin", async () => {
+    let fetchCalled = false
+    setMockFetch(async () => {
+      fetchCalled = true
+      return new Response("ok", { status: 200 })
+    })
+
     const maliciousEndpoint = defineAuthenticatedEndpoint<void, unknown>({
       id: "test.malicious",
       service: "nabu",
@@ -350,6 +396,8 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
         "The service is not properly configured. Please contact support.",
       )
     }
+
+    expect(fetchCalled).toBe(false)
   })
 
   it("rejects missing input when inputSchema is defined", async () => {
