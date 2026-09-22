@@ -12,7 +12,7 @@
 import { db, schema } from "@workspace/database"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
-import { magicLink, organization } from "better-auth/plugins"
+import { jwt, magicLink, organization } from "better-auth/plugins"
 import { tanstackStartCookies } from "better-auth/tanstack-start"
 
 import { serverEnv } from "./env"
@@ -48,7 +48,39 @@ export const auth = betterAuth({
     enabled: false,
   },
 
+  socialProviders: {
+    ...(serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: serverEnv.GOOGLE_CLIENT_ID,
+            clientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
+          },
+        }
+      : {}),
+  },
+
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
+
   databaseHooks: {
+    account: {
+      create: {
+        async before(account) {
+          if (!account) return { data: account }
+          const currentIssuer = (account as { issuer?: string }).issuer
+          return {
+            data: {
+              ...account,
+              issuer: currentIssuer || account.providerId || "local:credential",
+            },
+          }
+        },
+      },
+    },
     user: {
       create: {
         async after(user) {
@@ -184,6 +216,24 @@ export const auth = betterAuth({
           acceptUrl,
           expiresInHours: 48,
         })
+      },
+    }),
+
+    jwt({
+      jwt: {
+        issuer: serverEnv.BETTER_AUTH_URL,
+        audience: "nabu",
+        expirationTime: "15m",
+        definePayload: ({ user, session }) => ({
+          sub: user.id,
+          email: user.email,
+          activeOrganizationId:
+            (session as { activeOrganizationId?: string | null })
+              .activeOrganizationId ?? undefined,
+        }),
+      },
+      jwks: {
+        jwksPath: "/jwks",
       },
     }),
 

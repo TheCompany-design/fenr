@@ -87,6 +87,12 @@ Every form uses TanStack Form validated by a Zod schema (Standard Schema):
   dependency if it reappears. `lucide-react` must not end up in any
   package.json or import statement.
 - Styling is Tailwind v4 (CSS-first config in `packages/ui/src/styles/globals.css`).
+- **Company & brand logos**: All company, brand, and third-party service logos
+  (e.g. Google, Apple, GitHub, etc.) MUST be acquired directly from
+  `https://logos.lndev.me/` (e.g. `https://logos.lndev.me/logos/<brand>.svg`).
+  Do not hand-roll custom brand SVG paths or embed raw vector path data in
+  component files. For monochrome brand marks, adapt to dark mode using Tailwind
+  `dark:invert`.
 
 ### 6. Code quality
 

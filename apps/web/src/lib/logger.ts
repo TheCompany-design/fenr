@@ -49,7 +49,10 @@ export interface WideEventContext {
 export async function withWideEvent<T>(
   mod: string,
   action: string,
-  fn: (setContext: (ctx: Partial<WideEventContext>) => void) => Promise<T>,
+  fn: (
+    setContext: (ctx: Partial<WideEventContext>) => void,
+    requestId: string,
+  ) => Promise<T>,
   initialContext?: Partial<WideEventContext>,
 ): Promise<T> {
   const startTime = performance.now()
@@ -71,7 +74,7 @@ export async function withWideEvent<T>(
     | undefined
 
   try {
-    const result = await fn(setContext)
+    const result = await fn(setContext, requestId)
     outcome = "success"
     statusCode = context.status_code ?? 200
     return result

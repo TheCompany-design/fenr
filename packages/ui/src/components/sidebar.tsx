@@ -312,6 +312,11 @@ function MobileSidebarDrawer({
   const [hidden, setHidden] = React.useState(!context.openMobile)
   const openMobileRef = React.useRef(context.openMobile)
 
+  const panelContextValue = React.useMemo(
+    () => ({ collapsed: false, collapsible: "none" as const, side }),
+    [side],
+  )
+
   React.useEffect(() => setMounted(true), [])
 
   React.useEffect(() => {
@@ -322,6 +327,7 @@ function MobileSidebarDrawer({
   React.useEffect(() => {
     if (!context.openMobile) return
 
+    const triggerNode = context.triggerRef.current
     const body = document.body
     const scrollY = window.scrollY
     const previousBodyStyles = {
@@ -344,6 +350,8 @@ function MobileSidebarDrawer({
       ;(firstFocusable ?? panelRef.current)?.focus({ preventScroll: true })
     })
 
+    const initialUrl = typeof window !== "undefined" ? window.location.href : ""
+
     return () => {
       cancelAnimationFrame(focusFrame)
       body.style.position = previousBodyStyles.position
@@ -351,8 +359,13 @@ function MobileSidebarDrawer({
       body.style.left = previousBodyStyles.left
       body.style.right = previousBodyStyles.right
       body.style.overflow = previousBodyStyles.overflow
-      window.scrollTo(0, scrollY)
-      context.triggerRef.current?.focus({ preventScroll: true })
+      if (
+        typeof window !== "undefined" &&
+        window.location.href === initialUrl
+      ) {
+        window.scrollTo(0, scrollY)
+        triggerNode?.focus({ preventScroll: true })
+      }
     }
   }, [context.openMobile, context.triggerRef])
 
@@ -445,9 +458,7 @@ function MobileSidebarDrawer({
           className,
         )}
       >
-        <SidebarPanelContext.Provider
-          value={{ collapsed: false, collapsible: "none", side }}
-        >
+        <SidebarPanelContext.Provider value={panelContextValue}>
           {children}
         </SidebarPanelContext.Provider>
       </motion.div>
@@ -497,6 +508,11 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         ? "var(--sidebar-width-icon)"
         : "var(--sidebar-width)"
 
+    const panelContextValue = React.useMemo(
+      () => ({ collapsed, collapsible, side }),
+      [collapsed, collapsible, side],
+    )
+
     if (context.isMobile) {
       return (
         <MobileSidebarDrawer
@@ -530,7 +546,8 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         <motion.div
           data-slot="sidebar-gap"
           initial={false}
-          animate={{ width: targetGapWidth }}
+          layout
+          style={{ width: targetGapWidth }}
           transition={
             context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION
           }
@@ -543,8 +560,9 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         <motion.div
           data-slot="sidebar-container"
           initial={false}
+          layout
+          style={{ width: targetWidth }}
           animate={{
-            width: targetWidth,
             opacity: offcanvas ? 0 : 1,
             x: offcanvas ? (side === "left" ? "-100%" : "100%") : "0%",
           }}
@@ -571,9 +589,7 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
               variant === "inset" && "rounded-xl shadow-xs",
             )}
           >
-            <SidebarPanelContext.Provider
-              value={{ collapsed, collapsible, side }}
-            >
+            <SidebarPanelContext.Provider value={panelContextValue}>
               {children}
             </SidebarPanelContext.Provider>
           </div>
@@ -1052,14 +1068,12 @@ export const SidebarMenuBadge = React.forwardRef<
 export function SidebarMenuSkeleton({
   className,
   showIcon = false,
+  width = "70%",
   ...props
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
+  width?: string
 }) {
-  const [width] = React.useState(
-    () => `${Math.floor(Math.random() * 40) + 50}%`,
-  )
-
   return (
     <div
       data-slot="sidebar-menu-skeleton"
