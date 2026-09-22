@@ -204,4 +204,46 @@ describe("useSocialSignIn hook", () => {
     expect(mockToastError).toHaveBeenCalledTimes(1)
     expect(mockToastError.mock.calls[0][0]).toBe("Network error")
   })
+
+  it("triggers Authentication error toast on unexpected non-network errors", async () => {
+    mockSocial.mockRejectedValueOnce(new Error("Internal configuration error"))
+
+    const { getHook } = renderHookHelper()
+
+    let caughtError: unknown
+    await act(async () => {
+      try {
+        await getHook().mutateAsync({ provider: "google" })
+      } catch (err) {
+        caughtError = err
+      }
+    })
+
+    expect(caughtError).toBeInstanceOf(Error)
+    expect(mockToastError).toHaveBeenCalledTimes(1)
+    expect(mockToastError.mock.calls[0][0]).toBe("Authentication error")
+    expect(mockToastError.mock.calls[0][1]).toEqual({
+      description:
+        "An unexpected error occurred during sign in. Please try again.",
+    })
+  })
+
+  it("does not trigger error toast when operation is aborted", async () => {
+    const abortErr = new DOMException("Request was aborted", "AbortError")
+    mockSocial.mockRejectedValueOnce(abortErr)
+
+    const { getHook } = renderHookHelper()
+
+    let caughtError: unknown
+    await act(async () => {
+      try {
+        await getHook().mutateAsync({ provider: "google" })
+      } catch (err) {
+        caughtError = err
+      }
+    })
+
+    expect(caughtError).toBe(abortErr)
+    expect(mockToastError).toHaveBeenCalledTimes(0)
+  })
 })

@@ -34,6 +34,37 @@ export type SocialSignInResult = Awaited<
   ReturnType<typeof authClient.signIn.social>
 >
 
+function isAbortError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") {
+    return true
+  }
+  if (
+    typeof DOMException !== "undefined" &&
+    error instanceof DOMException &&
+    error.name === "AbortError"
+  ) {
+    return true
+  }
+  return false
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true
+  }
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase()
+    return (
+      error.name === "NetworkError" ||
+      msg.includes("failed to fetch") ||
+      msg.includes("network") ||
+      msg.includes("load failed") ||
+      msg.includes("connection")
+    )
+  }
+  return false
+}
+
 export function useSocialSignIn(
   options?: Omit<
     UseMutationOptions<SocialSignInResult, Error, SocialSignInVariables>,
@@ -61,14 +92,25 @@ export function useSocialSignIn(
     },
     onError: (...args) => {
       const [error] = args
+
+      if (isAbortError(error)) {
+        options?.onError?.(...args)
+        return
+      }
+
       if (error instanceof SocialAuthError) {
         toast.error("Sign in failed", {
           description: error.message,
         })
-      } else {
+      } else if (isNetworkError(error)) {
         toast.error("Network error", {
           description:
             "Unable to reach the authentication service. Please check your connection and try again.",
+        })
+      } else {
+        toast.error("Authentication error", {
+          description:
+            "An unexpected error occurred during sign in. Please try again.",
         })
       }
       options?.onError?.(...args)
