@@ -468,7 +468,7 @@ function MobileSidebarDrawer({
 }
 
 export interface SidebarProps
-  extends Omit<React.HTMLAttributes<HTMLElement>, "children"> {
+  extends Omit<HTMLMotionProps<"aside">, "children"> {
   children?: React.ReactNode
   side?: SidebarSide
   variant?: SidebarVariant
@@ -502,12 +502,6 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         ? "var(--sidebar-width-icon)"
         : "var(--sidebar-width)"
 
-    const targetGapWidth = offcanvas
-      ? "0px"
-      : collapsed
-        ? "var(--sidebar-width-icon)"
-        : "var(--sidebar-width)"
-
     const panelContextValue = React.useMemo(
       () => ({ collapsed, collapsible, side }),
       [collapsed, collapsible, side],
@@ -526,7 +520,7 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
     }
 
     return (
-      <aside
+      <motion.aside
         ref={forwardedRef}
         aria-label={ariaLabel}
         data-slot="sidebar"
@@ -534,34 +528,23 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsed ? collapsible : ""}
         data-variant={variant}
         data-side={side}
+        initial={false}
+        animate={{
+          width: targetWidth,
+        }}
+        transition={context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION}
         style={style}
         className={cn(
-          "group group/sidebar peer relative hidden h-auto shrink-0 md:block text-sidebar-foreground",
+          "group group/sidebar peer relative sticky top-0 z-10 hidden h-svh shrink-0 flex-col md:flex text-sidebar-foreground will-change-[width]",
           side === "right" && "order-last",
+          offcanvas && "overflow-hidden",
           className,
         )}
         {...props}
       >
-        {/* Desktop layout gap tracking */}
-        <motion.div
-          data-slot="sidebar-gap"
-          initial={false}
-          layout
-          style={{ width: targetGapWidth }}
-          transition={
-            context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION
-          }
-          className={cn(
-            "relative bg-transparent will-change-[width]",
-            side === "right" && "rotate-180",
-          )}
-        />
-
         <motion.div
           data-slot="sidebar-container"
           initial={false}
-          layout
-          style={{ width: targetWidth }}
           animate={{
             opacity: offcanvas ? 0 : 1,
             x: offcanvas ? (side === "left" ? "-100%" : "100%") : "0%",
@@ -570,7 +553,7 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
             context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION
           }
           className={cn(
-            "fixed inset-y-0 z-10 hidden h-svh will-change-[width,transform] data-[side=left]:left-0 data-[side=right]:right-0 md:flex",
+            "relative flex size-full flex-col",
             variant === "floating" || variant === "inset"
               ? "p-2"
               : side === "left"
@@ -594,7 +577,7 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
             </SidebarPanelContext.Provider>
           </div>
         </motion.div>
-      </aside>
+      </motion.aside>
     )
   },
 )
