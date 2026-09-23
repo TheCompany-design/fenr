@@ -1,6 +1,19 @@
 import { GlobalWindow } from "happy-dom"
 
 export function setupTestDOM() {
+  process.env.NODE_ENV = "test"
+  if (!process.env.TEST_DATABASE_URL && process.env.DATABASE_URL) {
+    process.env.TEST_DATABASE_URL = process.env.DATABASE_URL.includes("_test")
+      ? process.env.DATABASE_URL
+      : process.env.DATABASE_URL.replace(
+          /(\/[a-zA-Z0-9_]+)(\?.*)?$/,
+          "$1_test$2",
+        )
+  }
+  if (process.env.TEST_DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL
+  }
+
   if (typeof globalThis.window === "undefined" || !globalThis.document) {
     const win = new GlobalWindow({ url: "http://localhost:3000" })
     Object.assign(globalThis, {
