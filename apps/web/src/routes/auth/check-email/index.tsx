@@ -7,7 +7,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { CheckEmailCard } from "@/features/auth"
-import { safeRedirectPath } from "@/lib/redirect"
+import { safeRedirectPath } from "@/lib/navigation"
 import { authCheckEmailSearchSchema } from "@/lib/schemas/search"
 
 export const Route = createFileRoute("/auth/check-email/")({

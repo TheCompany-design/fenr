@@ -1,5 +1,5 @@
 import { describe, expect, it, spyOn } from "bun:test"
-import { logger, withWideEvent } from "./logger"
+import { logger, withWideEvent } from "./index"
 
 describe("withWideEvent", () => {
   it("success path: emits info log with duration, 200 status, success outcome, action, mod", async () => {

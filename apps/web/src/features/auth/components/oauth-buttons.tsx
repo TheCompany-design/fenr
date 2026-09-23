@@ -12,7 +12,7 @@ import {
   SOCIAL_PROVIDERS,
   type SocialProviderConfig,
   type SocialProviderId,
-} from "@/lib/social-providers"
+} from "@/lib/auth/providers/social"
 import { useSocialSignIn } from "../hooks/use-social-sign-in"
 
 export { SOCIAL_PROVIDERS, type SocialProviderConfig, type SocialProviderId }
