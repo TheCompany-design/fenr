@@ -22,6 +22,7 @@
     "check": "biome check --write . && turbo run typecheck",
     "db:generate": "bun run --cwd packages/database db:generate",
     "db:migrate": "bun run --cwd packages/database db:migrate",
+    "db:migrate:test": "bun run --cwd packages/database db:migrate:test",
     "auth:generate": "bun run --cwd apps/web auth:generate"
   },
   "workspaces": [

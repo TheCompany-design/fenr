@@ -4,6 +4,12 @@ import { db } from "../index"
 import * as schema from "./index"
 
 async function cleanTestData() {
+  const currentDbUrl = process.env.DATABASE_URL ?? ""
+  if (!currentDbUrl.includes("_test")) {
+    throw new Error(
+      `CRITICAL SAFETY ABORT: Refusing to clean non-test database: "${currentDbUrl}". Tests must run against a database ending with '_test'.`,
+    )
+  }
   await db.delete(schema.userActiveOrganization)
   await db.delete(schema.invitation)
   await db.delete(schema.member)

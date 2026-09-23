@@ -63,7 +63,17 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
     return createdOrgId
   }
 
+  function assertTestDatabase() {
+    const currentDbUrl = process.env.DATABASE_URL ?? ""
+    if (!currentDbUrl.includes("_test")) {
+      throw new Error(
+        `CRITICAL SAFETY ABORT: Refusing to clean non-test database: "${currentDbUrl}". Tests must run against a database ending with '_test'.`,
+      )
+    }
+  }
+
   beforeAll(async () => {
+    assertTestDatabase()
     // Configure mock mail transport to avoid outbound network timeouts
     setMailTransport({
       sendMail: async () => ({ messageId: "mock-message-id" }),
@@ -133,6 +143,7 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
   })
 
   afterAll(async () => {
+    assertTestDatabase()
     closeMailTransport()
     await db.delete(schema.invitation)
     await db.delete(schema.member)

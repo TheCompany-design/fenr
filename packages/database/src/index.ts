@@ -14,13 +14,31 @@ import postgres from "postgres"
 
 import * as schema from "./schema/index"
 
-const DATABASE_URL = process.env.DATABASE_URL
+export function resolveDatabaseUrl(): string {
+  const isTest =
+    process.env.NODE_ENV === "test" || process.env.BUN_ENV === "test"
 
-if (!DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL is not set. Copy apps/web/.env.example to apps/web/.env and fill it in.",
-  )
+  if (isTest) {
+    if (process.env.TEST_DATABASE_URL) {
+      return process.env.TEST_DATABASE_URL
+    }
+    if (process.env.DATABASE_URL) {
+      const url = process.env.DATABASE_URL
+      if (url.includes("_test")) return url
+      return url.replace(/(\/[a-zA-Z0-9_]+)(\?.*)?$/, "$1_test$2")
+    }
+  }
+
+  const url = process.env.DATABASE_URL
+  if (!url) {
+    throw new Error(
+      "DATABASE_URL is not set. Copy apps/web/.env.example to apps/web/.env and fill it in.",
+    )
+  }
+  return url
 }
+
+const DATABASE_URL = resolveDatabaseUrl()
 
 const client = postgres(DATABASE_URL, {
   // Small pool is plenty for an SSR app; postgres.js queues beyond max.
