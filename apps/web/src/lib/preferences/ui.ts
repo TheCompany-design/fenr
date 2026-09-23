@@ -3,7 +3,7 @@
  *
  * Lives in a lib module (not a route file) because route files are in the
  * client bundle and TanStack Start's import protection denies server-only
- * specifiers there — same pattern as lib/session.ts.
+ * specifiers there — same pattern as lib/auth/session.ts.
  *
  * The sidebar collapsed/expanded state is written by the SidebarProvider
  * primitive (@workspace/ui sidebar.tsx) into the `sidebar_state` cookie

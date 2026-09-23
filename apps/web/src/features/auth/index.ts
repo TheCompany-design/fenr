@@ -1,14 +1,14 @@
 export {
-  emailSchema,
-  type MagicLinkValues,
-  magicLinkSchema,
-} from "@/lib/schemas/auth"
-export {
   getSocialProvider,
   SOCIAL_PROVIDERS,
   type SocialProviderConfig,
   type SocialProviderId,
-} from "@/lib/social-providers"
+} from "@/lib/auth/providers/social"
+export {
+  emailSchema,
+  type MagicLinkValues,
+  magicLinkSchema,
+} from "@/lib/schemas/auth"
 export { AuthDivider, type AuthDividerProps } from "./components/auth-divider"
 export {
   AuthErrorBanner,
