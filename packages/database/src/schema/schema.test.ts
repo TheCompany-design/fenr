@@ -4,6 +4,9 @@ import { db } from "../index"
 import * as schema from "./index"
 
 async function cleanTestData() {
+  await db.delete(schema.agentItems)
+  await db.delete(schema.agentTurns)
+  await db.delete(schema.agentThreads)
   await db.delete(schema.userActiveOrganization)
   await db.delete(schema.invitation)
   await db.delete(schema.member)
@@ -44,6 +47,9 @@ describe("Schema & Database Architecture", () => {
       expect(schema.member).toBeDefined()
       expect(schema.invitation).toBeDefined()
       expect(schema.userActiveOrganization).toBeDefined()
+      expect(schema.agentThreads).toBeDefined()
+      expect(schema.agentTurns).toBeDefined()
+      expect(schema.agentItems).toBeDefined()
 
       // Relations
       expect(schema.userRelations).toBeDefined()
@@ -53,6 +59,9 @@ describe("Schema & Database Architecture", () => {
       expect(schema.memberRelations).toBeDefined()
       expect(schema.invitationRelations).toBeDefined()
       expect(schema.userActiveOrganizationRelations).toBeDefined()
+      expect(schema.agentThreadsRelations).toBeDefined()
+      expect(schema.agentTurnsRelations).toBeDefined()
+      expect(schema.agentItemsRelations).toBeDefined()
 
       // Helpers
       expect(schema.idColumn).toBeDefined()
@@ -136,6 +145,28 @@ describe("Schema & Database Architecture", () => {
       expect(schema.userActiveOrganization.userId).toBeDefined()
       expect(schema.userActiveOrganization.organizationId).toBeDefined()
       expect(schema.userActiveOrganization.updatedAt).toBeDefined()
+
+      // agentThreads
+      expect(schema.agentThreads.id).toBeDefined()
+      expect(schema.agentThreads.tenantId).toBeDefined()
+      expect(schema.agentThreads.title).toBeDefined()
+      expect(schema.agentThreads.createdAt).toBeDefined()
+      expect(schema.agentThreads.updatedAt).toBeDefined()
+
+      // agentTurns
+      expect(schema.agentTurns.id).toBeDefined()
+      expect(schema.agentTurns.threadId).toBeDefined()
+      expect(schema.agentTurns.turnIndex).toBeDefined()
+      expect(schema.agentTurns.status).toBeDefined()
+      expect(schema.agentTurns.createdAt).toBeDefined()
+      expect(schema.agentTurns.completedAt).toBeDefined()
+
+      // agentItems
+      expect(schema.agentItems.id).toBeDefined()
+      expect(schema.agentItems.turnId).toBeDefined()
+      expect(schema.agentItems.kind).toBeDefined()
+      expect(schema.agentItems.payload).toBeDefined()
+      expect(schema.agentItems.createdAt).toBeDefined()
     })
   })
 
@@ -563,6 +594,78 @@ describe("Schema & Database Architecture", () => {
         where: eq(schema.account.id, account2.id),
       })
       expect(deadAccount).toBeUndefined()
+    })
+
+    it("inserts agent thread, turn, item and cascades deletion from thread", async () => {
+      const [thread] = await db
+        .insert(schema.agentThreads)
+        .values({
+          tenantId: "tenant_sample",
+          title: "Test Chat Thread",
+        })
+        .returning()
+
+      expect(thread.id).toBeDefined()
+      expect(thread.tenantId).toBe("tenant_sample")
+      expect(thread.title).toBe("Test Chat Thread")
+
+      const [turn] = await db
+        .insert(schema.agentTurns)
+        .values({
+          threadId: thread.id,
+          turnIndex: 0,
+          status: "in_progress",
+        })
+        .returning()
+
+      expect(turn.id).toBeDefined()
+      expect(turn.threadId).toBe(thread.id)
+      expect(turn.status).toBe("in_progress")
+
+      const [item] = await db
+        .insert(schema.agentItems)
+        .values({
+          turnId: turn.id,
+          kind: "user_message",
+          payload: { content: "Hello agent" },
+        })
+        .returning()
+
+      expect(item.id).toBeDefined()
+      expect(item.turnId).toBe(turn.id)
+      expect(item.kind).toBe("user_message")
+
+      // Query relational data
+      const fetchedThread = await db.query.agentThreads.findFirst({
+        where: eq(schema.agentThreads.id, thread.id),
+        with: {
+          turns: {
+            with: {
+              items: true,
+            },
+          },
+        },
+      })
+
+      expect(fetchedThread).toBeDefined()
+      expect(fetchedThread?.turns.length).toBe(1)
+      expect(fetchedThread?.turns[0]?.items.length).toBe(1)
+      expect(fetchedThread?.turns[0]?.items[0]?.id).toBe(item.id)
+
+      // Cascade delete thread -> turns and items should be deleted
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.id, thread.id))
+
+      const deadTurn = await db.query.agentTurns.findFirst({
+        where: eq(schema.agentTurns.id, turn.id),
+      })
+      expect(deadTurn).toBeUndefined()
+
+      const deadItem = await db.query.agentItems.findFirst({
+        where: eq(schema.agentItems.id, item.id),
+      })
+      expect(deadItem).toBeUndefined()
     })
   })
 })

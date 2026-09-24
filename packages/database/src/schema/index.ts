@@ -5,6 +5,9 @@
  * Exports all tables, relations, and ID generation helpers.
  */
 
+export * from "./agent/agent-items"
+export * from "./agent/agent-threads"
+export * from "./agent/agent-turns"
 export * from "./auth/account"
 export * from "./auth/jwks"
 export * from "./auth/session"
