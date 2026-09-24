@@ -1,4 +1,7 @@
 import { relations } from "drizzle-orm"
+import { agentItems } from "./agent/agent-items"
+import { agentThreads } from "./agent/agent-threads"
+import { agentTurns } from "./agent/agent-turns"
 import { account } from "./auth/account"
 import { session } from "./auth/session"
 import { user } from "./auth/user"
@@ -78,3 +81,22 @@ export const userActiveOrganizationRelations = relations(
     }),
   }),
 )
+
+export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({
+  turns: many(agentTurns),
+}))
+
+export const agentTurnsRelations = relations(agentTurns, ({ one, many }) => ({
+  thread: one(agentThreads, {
+    fields: [agentTurns.threadId],
+    references: [agentThreads.id],
+  }),
+  items: many(agentItems),
+}))
+
+export const agentItemsRelations = relations(agentItems, ({ one }) => ({
+  turn: one(agentTurns, {
+    fields: [agentItems.turnId],
+    references: [agentTurns.id],
+  }),
+}))
