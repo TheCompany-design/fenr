@@ -32,6 +32,7 @@ const { ChatMessageItem } = await import("./chat-message-item")
 const { ChatComposer } = await import("./chat-composer")
 const { ChatMessages } = await import("./chat-messages")
 const { ChatContainer } = await import("./chat-container")
+const { initialTurnProjection } = await import("../state/stream-reducer")
 
 function setNativeValue(el: HTMLElement, val: string) {
   const isTextArea = el instanceof HTMLTextAreaElement
@@ -316,6 +317,137 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       expect(container?.textContent).toContain("Hello")
       expect(container?.textContent).toContain("Hi there!")
+    })
+
+    it("shows scroll-to-bottom button when scrolled up and hides it when clicked", () => {
+      const messages: ChatMessage[] = [
+        { id: "1", role: "user", content: "Message 1" },
+        { id: "2", role: "agent", content: "Message 2" },
+      ]
+
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages,
+            isStreaming: false,
+          }),
+        )
+      })
+
+      const viewport = container?.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLDivElement
+      expect(viewport).toBeDefined()
+
+      // Mock scroll dimensions where user is scrolled up far from bottom:
+      // distanceFromBottom = 1000 - 100 - 300 = 600 > 80 threshold
+      Object.defineProperty(viewport, "scrollHeight", {
+        value: 1000,
+        configurable: true,
+      })
+      Object.defineProperty(viewport, "clientHeight", {
+        value: 300,
+        configurable: true,
+      })
+      Object.defineProperty(viewport, "scrollTop", {
+        value: 100,
+        configurable: true,
+        writable: true,
+      })
+      viewport.scrollTo = mock((options?: ScrollToOptions | number) => {
+        if (typeof options === "object" && options?.top !== undefined) {
+          viewport.scrollTop = options.top
+        } else if (typeof options === "number") {
+          viewport.scrollTop = options
+        }
+      }) as unknown as typeof viewport.scrollTo
+
+      // Trigger scroll event
+      act(() => {
+        viewport.dispatchEvent(new Event("scroll"))
+      })
+
+      const scrollBottomBtn = container?.querySelector(
+        'button[aria-label="Scroll to latest messages"]',
+      ) as HTMLButtonElement
+      expect(scrollBottomBtn).toBeDefined()
+      expect(scrollBottomBtn?.textContent).toContain("Scroll to bottom")
+
+      // Clicking scroll to bottom
+      act(() => {
+        scrollBottomBtn.click()
+      })
+
+      expect(viewport.scrollTop).toBe(1000)
+      expect(
+        container?.querySelector(
+          'button[aria-label="Scroll to latest messages"]',
+        ),
+      ).toBeNull()
+    })
+
+    it("does not force scroll to bottom during streaming when user has scrolled up", () => {
+      const messages: ChatMessage[] = [
+        { id: "1", role: "user", content: "Message 1" },
+      ]
+
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages,
+            isStreaming: true,
+            projection: {
+              ...initialTurnProjection,
+              turnId: "turn-1",
+              status: "streaming",
+              streamingText: "Token 1",
+            },
+          }),
+        )
+      })
+
+      const viewport = container?.querySelector(
+        '[data-slot="scroll-area-viewport"]',
+      ) as HTMLDivElement
+      expect(viewport).toBeDefined()
+
+      // User scrolls up
+      Object.defineProperty(viewport, "scrollHeight", {
+        value: 1200,
+        configurable: true,
+      })
+      Object.defineProperty(viewport, "clientHeight", {
+        value: 300,
+        configurable: true,
+      })
+      Object.defineProperty(viewport, "scrollTop", {
+        value: 200,
+        configurable: true,
+        writable: true,
+      })
+
+      act(() => {
+        viewport.dispatchEvent(new Event("scroll"))
+      })
+
+      // Simulate next streaming token arriving
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages,
+            isStreaming: true,
+            projection: {
+              ...initialTurnProjection,
+              turnId: "turn-1",
+              status: "streaming",
+              streamingText: "Token 1 Token 2",
+            },
+          }),
+        )
+      })
+
+      // Viewport scrollTop should remain untouched at 200 (not pushed to bottom)
+      expect(viewport.scrollTop).toBe(200)
     })
   })
 
