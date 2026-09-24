@@ -9,6 +9,7 @@ export interface ChatMessagesProps {
   readonly messages: readonly ChatMessage[]
   readonly projection?: ActiveTurnProjection | null
   readonly isStreaming?: boolean
+  readonly showEmptyState?: boolean
 }
 
 /**
@@ -20,6 +21,7 @@ export function ChatMessages({
   messages,
   projection,
   isStreaming = false,
+  showEmptyState = true,
 }: ChatMessagesProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -93,6 +95,10 @@ export function ChatMessages({
     Boolean(projection?.streamingThinking)
 
   if (!hasMessages && !hasActiveStreaming) {
+    if (!showEmptyState) {
+      return <div className="min-h-0 flex-1 w-full" />
+    }
+
     return (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 pb-32 text-center">
         <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
