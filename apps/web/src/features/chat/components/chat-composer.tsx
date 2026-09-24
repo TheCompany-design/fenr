@@ -91,7 +91,7 @@ export function ChatComposer({
               key={suggestion}
               type="button"
               onClick={() => handleSuggestionClick(suggestion)}
-              className="rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:bg-muted hover:text-foreground"
+              className="rounded-full border border-border/80 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground shadow-xs backdrop-blur-xs transition-colors hover:border-foreground/20 hover:bg-muted hover:text-foreground"
             >
               {suggestion}
             </button>
@@ -106,7 +106,7 @@ export function ChatComposer({
           e.stopPropagation()
           void form.handleSubmit()
         }}
-        className="relative flex flex-col rounded-2xl border border-border bg-card p-2.5 shadow-xs transition-colors focus-within:border-foreground/40 focus-within:ring-1 focus-within:ring-foreground/10"
+        className="relative flex flex-col rounded-2xl border border-border/80 bg-background/90 p-2.5 shadow-lg backdrop-blur-md transition-colors focus-within:border-foreground/40 focus-within:ring-1 focus-within:ring-foreground/10 dark:bg-card/90"
       >
         <form.Field name="prompt">
           {(field) => (
