@@ -7,6 +7,7 @@
  */
 
 import {
+  AiChat02Icon,
   Doc01Icon,
   Home01Icon,
   Settings01Icon,
@@ -27,6 +28,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "home", title: "Home", icon: Home01Icon, to: "/" },
+  { id: "chat", title: "Chat", icon: AiChat02Icon, to: "/chat" },
   {
     id: "settings",
     title: "Settings",

@@ -17,6 +17,8 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSettingsRouteRouteImport } from './routes/_app/settings/route'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
+import { Route as AppChatIndexRouteImport } from './routes/_app/chat/index'
+import { Route as AppChatThreadIdRouteImport } from './routes/_app/chat/$threadId'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as ApiAgentStreamRouteImport } from './routes/api/agent/stream'
@@ -65,6 +67,16 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   id: '/invitations/accept',
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppChatIndexRoute = AppChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppChatThreadIdRoute = AppChatThreadIdRouteImport.update({
+  id: '/chat/$threadId',
+  path: '/chat/$threadId',
+  getParentRoute: () => AppRouteRoute,
 } as any)
 const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   id: '/document/',
@@ -120,8 +132,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/auth/': typeof AuthIndexRoute
+  '/chat/$threadId': typeof AppChatThreadIdRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/chat/': typeof AppChatIndexRoute
   '/document/': typeof AppDocumentIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
@@ -136,8 +150,10 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/chat/$threadId': typeof AppChatThreadIdRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/chat': typeof AppChatIndexRoute
   '/document': typeof AppDocumentIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/auth/check-email': typeof AuthCheckEmailIndexRoute
@@ -156,8 +172,10 @@ export interface FileRoutesById {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/_app/chat/$threadId': typeof AppChatThreadIdRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_app/chat/': typeof AppChatIndexRoute
   '/_app/document/': typeof AppDocumentIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
@@ -176,8 +194,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/invitations/accept'
     | '/auth/'
+    | '/chat/$threadId'
     | '/api/agent/stream'
     | '/api/auth/$'
+    | '/chat/'
     | '/document/'
     | '/settings/'
     | '/auth/check-email/'
@@ -192,8 +212,10 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/'
     | '/auth'
+    | '/chat/$threadId'
     | '/api/agent/stream'
     | '/api/auth/$'
+    | '/chat'
     | '/document'
     | '/settings'
     | '/auth/check-email'
@@ -211,8 +233,10 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/_app/'
     | '/auth/'
+    | '/_app/chat/$threadId'
     | '/api/agent/stream'
     | '/api/auth/$'
+    | '/_app/chat/'
     | '/_app/document/'
     | '/_app/settings/'
     | '/auth/check-email/'
@@ -289,6 +313,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/invitations/accept'
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/chat/': {
+      id: '/_app/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AppChatIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/chat/$threadId': {
+      id: '/_app/chat/$threadId'
+      path: '/chat/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof AppChatThreadIdRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/document/': {
       id: '/_app/document/'
@@ -374,12 +412,16 @@ const AppSettingsRouteRouteWithChildren =
 interface AppRouteRouteChildren {
   AppSettingsRouteRoute: typeof AppSettingsRouteRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
+  AppChatThreadIdRoute: typeof AppChatThreadIdRoute
+  AppChatIndexRoute: typeof AppChatIndexRoute
   AppDocumentIndexRoute: typeof AppDocumentIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppSettingsRouteRoute: AppSettingsRouteRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
+  AppChatThreadIdRoute: AppChatThreadIdRoute,
+  AppChatIndexRoute: AppChatIndexRoute,
   AppDocumentIndexRoute: AppDocumentIndexRoute,
 }
 
