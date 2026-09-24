@@ -1,0 +1,339 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
+import {
+  notifyManager,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query"
+import { GlobalWindow } from "happy-dom"
+import { toast } from "sonner"
+import type { ChatMessage } from "../types"
+
+if (typeof window === "undefined") {
+  const win = new GlobalWindow({ url: "http://localhost:3000" })
+  Object.assign(globalThis, {
+    window: win,
+    document: win.document,
+    navigator: win.navigator,
+    Element: win.Element,
+    HTMLElement: win.HTMLElement,
+    customElements: win.customElements,
+  })
+}
+
+;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
+
+const { act, createElement } = await import("react")
+const { createRoot } = await import("react-dom/client")
+
+notifyManager.setScheduler((cb) => act(cb))
+
+const { ThinkingTrace } = await import("./thinking-trace")
+const { ChatMessageItem } = await import("./chat-message-item")
+const { ChatComposer } = await import("./chat-composer")
+const { ChatMessages } = await import("./chat-messages")
+const { ChatContainer } = await import("./chat-container")
+
+function setNativeValue(el: HTMLElement, val: string) {
+  const isTextArea = el instanceof HTMLTextAreaElement
+  const proto = isTextArea
+    ? HTMLTextAreaElement.prototype
+    : HTMLInputElement.prototype
+  const set = Object.getOwnPropertyDescriptor(proto, "value")?.set
+  const tracker = (
+    el as unknown as { _valueTracker?: { setValue: (v: string) => void } }
+  )._valueTracker
+  if (tracker) {
+    tracker.setValue("__prev_diff_value__")
+  }
+  set?.call(el, val)
+  el.dispatchEvent(new Event("input", { bubbles: true }))
+  el.dispatchEvent(new Event("change", { bubbles: true }))
+}
+
+describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
+  let container: HTMLDivElement | null = null
+  let root: ReturnType<typeof createRoot> | null = null
+  let queryClient: QueryClient
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    if (root) {
+      try {
+        act(() => root?.unmount())
+      } catch {
+        // Ignored
+      }
+      root = null
+    }
+    if (container?.parentNode) {
+      container.parentNode.removeChild(container)
+      container = null
+    }
+  })
+
+  describe("ThinkingTrace", () => {
+    it("renders streaming thinking state with shimmer and disclosure", () => {
+      act(() => {
+        root?.render(
+          createElement(ThinkingTrace, {
+            thinking: "Analyzing bank reconciliation...",
+            isStreaming: true,
+            defaultExpanded: true,
+          }),
+        )
+      })
+
+      expect(container?.textContent).toContain("Thinking...")
+      expect(container?.textContent).toContain(
+        "Analyzing bank reconciliation...",
+      )
+    })
+
+    it("renders settled thinking trace and toggles disclosure on click", () => {
+      act(() => {
+        root?.render(
+          createElement(ThinkingTrace, {
+            thinking: "Checked 14 transactions.",
+            isStreaming: false,
+            defaultExpanded: false,
+          }),
+        )
+      })
+
+      expect(container?.textContent).toContain("Thought process")
+      expect(container?.textContent).not.toContain("Checked 14 transactions.")
+
+      const button = container?.querySelector("button")
+      expect(button).toBeDefined()
+
+      act(() => {
+        button?.click()
+      })
+
+      expect(container?.textContent).toContain("Checked 14 transactions.")
+    })
+  })
+
+  describe("ChatMessageItem", () => {
+    it("renders user message bubble cleanly", () => {
+      const msg: ChatMessage = {
+        id: "msg-user-1",
+        role: "user",
+        content: "What is my ledger balance?",
+        createdAt: "10:30 AM",
+      }
+
+      act(() => {
+        root?.render(createElement(ChatMessageItem, { message: msg }))
+      })
+
+      expect(container?.textContent).toContain("What is my ledger balance?")
+    })
+
+    it("renders agent message with thinking trace and streaming indicator", () => {
+      const msg: ChatMessage = {
+        id: "msg-agent-1",
+        role: "agent",
+        content: "Your balance is $5,240.00",
+        thinking: "Fetched from core ledger database",
+        createdAt: "10:31 AM",
+      }
+
+      act(() => {
+        root?.render(
+          createElement(ChatMessageItem, { message: msg, isStreaming: true }),
+        )
+      })
+
+      expect(container?.textContent).toContain("Nabu Agent")
+      expect(container?.textContent).toContain("Your balance is $5,240.00")
+      expect(container?.textContent).toContain(
+        "Fetched from core ledger database",
+      )
+    })
+
+    it("handles copy to clipboard action", async () => {
+      const msg: ChatMessage = {
+        id: "msg-agent-2",
+        role: "agent",
+        content: "Copy this text",
+      }
+
+      let copiedText = ""
+      Object.defineProperty(navigator, "clipboard", {
+        value: {
+          writeText: async (text: string) => {
+            copiedText = text
+          },
+        },
+        configurable: true,
+      })
+
+      const toastSuccessSpy = mock(() => "")
+      toast.success = toastSuccessSpy as unknown as typeof toast.success
+
+      act(() => {
+        root?.render(createElement(ChatMessageItem, { message: msg }))
+      })
+
+      const copyBtn = container?.querySelector(
+        'button[aria-label="Copy response"]',
+      ) as HTMLButtonElement
+      expect(copyBtn).toBeDefined()
+
+      await act(async () => {
+        copyBtn?.click()
+      })
+
+      expect(copiedText).toBe("Copy this text")
+      expect(toastSuccessSpy).toHaveBeenCalled()
+    })
+  })
+
+  describe("ChatComposer", () => {
+    it("submits message on form submission and clears input", async () => {
+      const sendSpy = mock(() => {})
+      const stopSpy = mock(() => {})
+
+      act(() => {
+        root?.render(
+          createElement(ChatComposer, {
+            onSend: sendSpy,
+            onStop: stopSpy,
+            isStreaming: false,
+          }),
+        )
+      })
+
+      const textarea = container?.querySelector(
+        "textarea",
+      ) as HTMLTextAreaElement
+      expect(textarea).toBeDefined()
+
+      act(() => {
+        setNativeValue(textarea, "New calculation")
+      })
+
+      const submitBtn = container?.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement
+      expect(submitBtn).toBeDefined()
+
+      await act(async () => {
+        submitBtn?.click()
+      })
+
+      expect(sendSpy).toHaveBeenCalledWith("New calculation")
+    })
+
+    it("renders stop button and triggers onStop when streaming", () => {
+      const sendSpy = mock(() => {})
+      const stopSpy = mock(() => {})
+
+      act(() => {
+        root?.render(
+          createElement(ChatComposer, {
+            onSend: sendSpy,
+            onStop: stopSpy,
+            isStreaming: true,
+          }),
+        )
+      })
+
+      const stopBtn = container?.querySelector(
+        'button[aria-label="Stop generating"]',
+      ) as HTMLButtonElement
+      expect(stopBtn).toBeDefined()
+
+      act(() => {
+        stopBtn?.click()
+      })
+
+      expect(stopSpy).toHaveBeenCalled()
+    })
+
+    it("populates textarea when a suggestion pill is clicked", () => {
+      act(() => {
+        root?.render(
+          createElement(ChatComposer, {
+            onSend: () => {},
+            onStop: () => {},
+            suggestions: ["Check inventory"],
+          }),
+        )
+      })
+
+      const pill = container?.querySelectorAll("button")[0]
+      expect(pill?.textContent).toBe("Check inventory")
+
+      act(() => {
+        pill?.click()
+      })
+
+      const textarea = container?.querySelector(
+        "textarea",
+      ) as HTMLTextAreaElement
+      expect(textarea.value).toBe("Check inventory")
+    })
+  })
+
+  describe("ChatMessages", () => {
+    it("renders empty state illustration when no messages are present", () => {
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages: [],
+            isStreaming: false,
+          }),
+        )
+      })
+
+      expect(container?.textContent).toContain("How can Nabu assist you today?")
+    })
+
+    it("renders messages feed when messages are present", () => {
+      const messages: ChatMessage[] = [
+        { id: "1", role: "user", content: "Hello" },
+        { id: "2", role: "agent", content: "Hi there!" },
+      ]
+
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages,
+            isStreaming: false,
+          }),
+        )
+      })
+
+      expect(container?.textContent).toContain("Hello")
+      expect(container?.textContent).toContain("Hi there!")
+    })
+  })
+
+  describe("ChatContainer", () => {
+    it("renders header, message feed, and composer inside query provider", () => {
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      expect(container?.textContent).toContain("Nabu Agent Chat")
+      expect(container?.textContent).toContain("Online")
+      expect(container?.querySelector("textarea")).toBeDefined()
+    })
+  })
+})
