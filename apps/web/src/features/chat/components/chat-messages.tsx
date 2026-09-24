@@ -94,7 +94,7 @@ export function ChatMessages({
 
   if (!hasMessages && !hasActiveStreaming) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8 pb-32 text-center">
         <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
           <HugeiconsIcon icon={AiChat02Icon} size={24} />
         </div>
@@ -117,7 +117,7 @@ export function ChatMessages({
         onScroll={handleScroll}
         className="min-h-0 flex-1 w-full"
       >
-        <div className="flex flex-col gap-2 p-4">
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
           {messages.map((message) => (
             <ChatMessageItem key={message.id} message={message} />
           ))}
@@ -145,7 +145,7 @@ export function ChatMessages({
           type="button"
           aria-label="Scroll to latest messages"
           onClick={() => scrollToBottom("smooth")}
-          className="absolute bottom-4 right-6 z-20 flex items-center gap-1.5 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur-xs transition-all hover:bg-muted active:scale-95"
+          className="absolute bottom-36 sm:bottom-40 right-6 z-20 flex items-center gap-1.5 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur-xs transition-all hover:bg-muted active:scale-95"
         >
           <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
           <span>Scroll to bottom</span>

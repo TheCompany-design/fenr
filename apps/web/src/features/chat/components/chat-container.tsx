@@ -104,20 +104,25 @@ export function ChatContainer({ initialThreadId = null }: ChatContainerProps) {
         )}
       </header>
 
-      {/* Messages Feed */}
-      <ChatMessages
-        messages={messages}
-        projection={projection}
-        isStreaming={isStreaming}
-      />
-
-      {/* Bottom Composer */}
-      <div className="shrink-0 p-4 sm:px-8 max-w-4xl w-full mx-auto">
-        <ChatComposer
-          onSend={handleSend}
-          onStop={stop}
+      {/* Conversational Canvas Area */}
+      <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
+        {/* Messages Feed (Scrolls behind floating composer) */}
+        <ChatMessages
+          messages={messages}
+          projection={projection}
           isStreaming={isStreaming}
         />
+
+        {/* Floating Bottom Composer */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end bg-gradient-to-t from-background via-background/80 to-transparent pb-4 pt-10 sm:pb-6">
+          <div className="pointer-events-auto mx-auto w-full max-w-4xl px-4 sm:px-8">
+            <ChatComposer
+              onSend={handleSend}
+              onStop={stop}
+              isStreaming={isStreaming}
+            />
+          </div>
+        </div>
       </div>
     </div>
   )
