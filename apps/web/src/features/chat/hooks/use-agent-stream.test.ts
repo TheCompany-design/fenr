@@ -27,6 +27,7 @@ const { createRoot } = await import("react-dom/client")
 notifyManager.setScheduler((cb) => act(cb))
 
 const { useAgentStream } = await import("./use-agent-stream")
+const { useChatStore } = await import("../state/chat-store")
 
 describe("useAgentStream Hook", () => {
   let container: HTMLDivElement | null = null
@@ -215,5 +216,81 @@ describe("useAgentStream Hook", () => {
     expect(hook.current.projection.error).toBe("Agent runtime down")
     expect(toastCalls.length).toBe(1)
     expect(toastCalls[0][0]).toBe("Chat error")
+  })
+
+  it("updates activeThreadId in useChatStore upon turn_started event", async () => {
+    useChatStore.getState().resetAll()
+    expect(useChatStore.getState().activeThreadId).toBeNull()
+
+    const serverThreadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c399"
+    const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c39a"
+
+    const ssePayload = [
+      `data: {"type":"turn_started","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}"}}\n\n`,
+      `data: {"type":"turn_completed","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}","status":"completed"}}\n\n`,
+    ].join("")
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(ssePayload))
+        controller.close()
+      },
+    })
+
+    const fetchPayloads: string[] = []
+    globalThis.fetch = mock(async (_url, init) => {
+      if (init?.body) {
+        fetchPayloads.push(init.body as string)
+      }
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const hook = renderStreamHook()
+
+    // Turn 1: No threadId initially passed
+    await act(async () => {
+      await hook.current.send("First prompt")
+    })
+
+    expect(useChatStore.getState().activeThreadId).toBe(serverThreadId)
+    const firstBody = JSON.parse(fetchPayloads[0]) as {
+      prompt: string
+      thread_id?: string
+    }
+    expect(firstBody.prompt).toBe("First prompt")
+    expect(firstBody.thread_id).toBeUndefined()
+
+    // Turn 2: Subsequent message sent using persisted threadId
+    const currentThreadId = useChatStore.getState().activeThreadId
+    const stream2 = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(ssePayload))
+        controller.close()
+      },
+    })
+    globalThis.fetch = mock(async (_url, init) => {
+      if (init?.body) {
+        fetchPayloads.push(init.body as string)
+      }
+      return new Response(stream2, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    await act(async () => {
+      await hook.current.send("Second prompt", currentThreadId)
+    })
+
+    expect(fetchPayloads.length).toBe(2)
+    const secondBody = JSON.parse(fetchPayloads[1]) as {
+      prompt: string
+      thread_id?: string
+    }
+    expect(secondBody.prompt).toBe("Second prompt")
+    expect(secondBody.thread_id).toBe(serverThreadId)
   })
 })

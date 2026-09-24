@@ -66,6 +66,7 @@ export function ChatContainer({ initialThreadId = null }: ChatContainerProps) {
   const handleClear = () => {
     stop()
     reset()
+    setActiveThreadId(null)
     setMessages([])
   }
 

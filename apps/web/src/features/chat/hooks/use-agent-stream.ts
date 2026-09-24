@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { agentStreamEventSchema } from "@/lib/schemas/agent-stream"
+import { useChatStore } from "../state/chat-store"
 import {
   type ActiveTurnProjection,
   initialTurnProjection,
@@ -122,6 +123,11 @@ export function useAgentStream(): UseAgentStreamReturn {
                   const event = validation.data
                   setProjection((prev) => streamReducer(prev, event))
 
+                  if (event.type === "turn_started") {
+                    useChatStore
+                      .getState()
+                      .setActiveThreadId(event.data.thread_id)
+                  }
                   if (event.type === "turn_completed") {
                     void queryClient.invalidateQueries({
                       queryKey: ["chat", "threads", event.data.thread_id],
