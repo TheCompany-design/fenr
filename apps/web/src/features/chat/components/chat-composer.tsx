@@ -85,7 +85,7 @@ export function ChatComposer({
     <div className="flex w-full flex-col gap-2">
       {/* Suggestions / Prompt pills */}
       {suggestions.length > 0 && !isStreaming && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 px-1">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion}

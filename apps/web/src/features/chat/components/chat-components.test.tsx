@@ -467,5 +467,68 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(container?.textContent).toContain("Online")
       expect(container?.querySelector("textarea")).toBeDefined()
     })
+
+    it("starts with composer centered and transitions to bottom when message is sent", async () => {
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      const composerLayer = container?.querySelector(
+        '[data-slot="composer-container"]',
+      )
+      expect(composerLayer?.className).toContain("bottom-1/2")
+      expect(composerLayer?.className).toContain("translate-y-1/2")
+
+      const heroGreeting = container?.querySelector(
+        '[data-slot="hero-greeting"]',
+      )
+      expect(heroGreeting?.className).toContain("opacity-100")
+      expect(heroGreeting?.textContent).toContain(
+        "How can Nabu assist you today?",
+      )
+
+      const textarea = container?.querySelector(
+        "textarea",
+      ) as HTMLTextAreaElement
+      expect(textarea).toBeDefined()
+
+      act(() => {
+        setNativeValue(textarea, "What is my ledger balance?")
+      })
+
+      const submitBtn = container?.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement
+      await act(async () => {
+        submitBtn?.click()
+      })
+
+      // Composer should now have bottom-0 and translate-y-0
+      expect(composerLayer?.className).toContain("bottom-0")
+      expect(composerLayer?.className).toContain("translate-y-0")
+      expect(heroGreeting?.className).toContain("opacity-0")
+      expect(container?.textContent).toContain("What is my ledger balance?")
+
+      // Clear conversation button should now be available
+      const clearBtn = Array.from(
+        container?.querySelectorAll("button") ?? [],
+      ).find((b) => b.textContent?.includes("Clear conversation"))
+      expect(clearBtn).toBeDefined()
+
+      act(() => {
+        clearBtn?.click()
+      })
+
+      // Should reset back to centered state
+      expect(composerLayer?.className).toContain("bottom-1/2")
+      expect(composerLayer?.className).toContain("translate-y-1/2")
+      expect(heroGreeting?.className).toContain("opacity-100")
+    })
   })
 })
