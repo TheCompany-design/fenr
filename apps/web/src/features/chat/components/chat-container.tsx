@@ -70,7 +70,7 @@ export function ChatContainer({ initialThreadId = null }: ChatContainerProps) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full flex-col overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       {/* Chat Header */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
         <div className="flex items-center gap-2.5">
