@@ -19,6 +19,7 @@ import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as ApiAgentStreamRouteImport } from './routes/api/agent/stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthCheckEmailIndexRouteImport } from './routes/auth/check-email/index'
 import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index'
@@ -75,6 +76,11 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppSettingsRouteRoute,
 } as any)
+const ApiAgentStreamRoute = ApiAgentStreamRouteImport.update({
+  id: '/api/agent/stream',
+  path: '/api/agent/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/auth/': typeof AuthIndexRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document/': typeof AppDocumentIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -129,6 +136,7 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/document': typeof AppDocumentIndexRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/document/': typeof AppDocumentIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/invitations/accept'
     | '/auth/'
+    | '/api/agent/stream'
     | '/api/auth/$'
     | '/document/'
     | '/settings/'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/'
     | '/auth'
+    | '/api/agent/stream'
     | '/api/auth/$'
     | '/document'
     | '/settings'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/_app/'
     | '/auth/'
+    | '/api/agent/stream'
     | '/api/auth/$'
     | '/_app/document/'
     | '/_app/settings/'
@@ -216,6 +228,7 @@ export interface RootRouteChildren {
   ChooseOrganizationRoute: typeof ChooseOrganizationRoute
   OnboardingRoute: typeof OnboardingRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  ApiAgentStreamRoute: typeof ApiAgentStreamRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -290,6 +303,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
+    }
+    '/api/agent/stream': {
+      id: '/api/agent/stream'
+      path: '/api/agent/stream'
+      fullPath: '/api/agent/stream'
+      preLoaderRoute: typeof ApiAgentStreamRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -391,6 +411,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChooseOrganizationRoute: ChooseOrganizationRoute,
   OnboardingRoute: OnboardingRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
+  ApiAgentStreamRoute: ApiAgentStreamRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
