@@ -163,6 +163,7 @@ describe("Schema & Database Architecture", () => {
 
       // agentItems
       expect(schema.agentItems.id).toBeDefined()
+      expect(schema.agentItems.threadId).toBeDefined()
       expect(schema.agentItems.turnId).toBeDefined()
       expect(schema.agentItems.kind).toBeDefined()
       expect(schema.agentItems.payload).toBeDefined()
@@ -597,16 +598,24 @@ describe("Schema & Database Architecture", () => {
     })
 
     it("inserts agent thread, turn, item and cascades deletion from thread", async () => {
+      const [org] = await db
+        .insert(schema.organization)
+        .values({
+          name: "Agent Org",
+          slug: `agent-org-${crypto.randomUUID()}`,
+        })
+        .returning()
+
       const [thread] = await db
         .insert(schema.agentThreads)
         .values({
-          tenantId: "tenant_sample",
+          tenantId: org.id,
           title: "Test Chat Thread",
         })
         .returning()
 
       expect(thread.id).toBeDefined()
-      expect(thread.tenantId).toBe("tenant_sample")
+      expect(thread.tenantId).toBe(org.id)
       expect(thread.title).toBe("Test Chat Thread")
 
       const [turn] = await db
@@ -625,6 +634,7 @@ describe("Schema & Database Architecture", () => {
       const [item] = await db
         .insert(schema.agentItems)
         .values({
+          threadId: thread.id,
           turnId: turn.id,
           kind: "user_message",
           payload: { content: "Hello agent" },

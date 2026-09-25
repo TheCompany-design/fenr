@@ -44,6 +44,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
   invitations: many(invitation),
   sessions: many(session),
   activePreferences: many(userActiveOrganization),
+  agentThreads: many(agentThreads),
 }))
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -82,9 +83,17 @@ export const userActiveOrganizationRelations = relations(
   }),
 )
 
-export const agentThreadsRelations = relations(agentThreads, ({ many }) => ({
-  turns: many(agentTurns),
-}))
+export const agentThreadsRelations = relations(
+  agentThreads,
+  ({ one, many }) => ({
+    organization: one(organization, {
+      fields: [agentThreads.tenantId],
+      references: [organization.id],
+    }),
+    turns: many(agentTurns),
+    items: many(agentItems),
+  }),
+)
 
 export const agentTurnsRelations = relations(agentTurns, ({ one, many }) => ({
   thread: one(agentThreads, {
@@ -95,6 +104,10 @@ export const agentTurnsRelations = relations(agentTurns, ({ one, many }) => ({
 }))
 
 export const agentItemsRelations = relations(agentItems, ({ one }) => ({
+  thread: one(agentThreads, {
+    fields: [agentItems.threadId],
+    references: [agentThreads.id],
+  }),
   turn: one(agentTurns, {
     fields: [agentItems.turnId],
     references: [agentTurns.id],
