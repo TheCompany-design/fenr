@@ -677,5 +677,70 @@ describe("Schema & Database Architecture", () => {
       })
       expect(deadItem).toBeUndefined()
     })
+
+    it("enforces agent turn index uniqueness and composite foreign key integrity", async () => {
+      const [org] = await db
+        .insert(schema.organization)
+        .values({
+          name: "Agent Integrity Org",
+          slug: `agent-integrity-${Date.now()}`,
+        })
+        .returning()
+
+      const [thread1] = await db
+        .insert(schema.agentThreads)
+        .values({
+          tenantId: org.id,
+          title: "Thread 1",
+        })
+        .returning()
+
+      expect(thread1.turnCount).toBe(0)
+
+      const [thread2] = await db
+        .insert(schema.agentThreads)
+        .values({
+          tenantId: org.id,
+          title: "Thread 2",
+        })
+        .returning()
+
+      const [turn1] = await db
+        .insert(schema.agentTurns)
+        .values({
+          threadId: thread1.id,
+          turnIndex: 0,
+          status: "in_progress",
+        })
+        .returning()
+
+      // 1. Attempt duplicate turn_index on thread1 -> should throw unique violation
+      let duplicateTurnError: Error | null = null
+      try {
+        await db.insert(schema.agentTurns).values({
+          threadId: thread1.id,
+          turnIndex: 0,
+          status: "in_progress",
+        })
+      } catch (e) {
+        duplicateTurnError = e as Error
+      }
+      expect(duplicateTurnError).not.toBeNull()
+
+      // 2. Attempt inserting item with mismatched threadId and turnId
+      // (turn1 belongs to thread1, but item specifies thread2)
+      let mismatchedItemError: Error | null = null
+      try {
+        await db.insert(schema.agentItems).values({
+          threadId: thread2.id,
+          turnId: turn1.id,
+          kind: "user_message",
+          payload: { content: "mismatched thread and turn" },
+        })
+      } catch (e) {
+        mismatchedItemError = e as Error
+      }
+      expect(mismatchedItemError).not.toBeNull()
+    })
   })
 })

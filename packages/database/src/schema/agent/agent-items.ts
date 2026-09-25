@@ -1,4 +1,5 @@
 import {
+  foreignKey,
   index,
   jsonb,
   pgTable,
@@ -17,9 +18,7 @@ export const agentItems = pgTable(
     threadId: uuid("thread_id")
       .notNull()
       .references(() => agentThreads.id, { onDelete: "cascade" }),
-    turnId: uuid("turn_id")
-      .notNull()
-      .references(() => agentTurns.id, { onDelete: "cascade" }),
+    turnId: uuid("turn_id").notNull(),
     kind: text("kind").notNull(),
     payload: jsonb("payload").notNull(),
     createdAt: timestamp("created_at", {
@@ -30,6 +29,10 @@ export const agentItems = pgTable(
       .notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.turnId, table.threadId],
+      foreignColumns: [agentTurns.id, agentTurns.threadId],
+    }).onDelete("cascade"),
     index("idx_agent_items_thread_created").on(table.threadId, table.createdAt),
     index("idx_agent_items_turn").on(table.turnId),
   ],

@@ -4,6 +4,7 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
 import { idColumn } from "../id"
@@ -29,5 +30,12 @@ export const agentTurns = pgTable(
       mode: "date",
     }),
   },
-  (table) => [index("idx_agent_turns_thread").on(table.threadId)],
+  (table) => [
+    index("idx_agent_turns_thread").on(table.threadId),
+    uniqueIndex("uidx_agent_turns_thread_turn_index").on(
+      table.threadId,
+      table.turnIndex,
+    ),
+    uniqueIndex("uidx_agent_turns_id_thread").on(table.id, table.threadId),
+  ],
 )
