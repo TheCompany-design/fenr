@@ -1,5 +1,6 @@
 import {
   index,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -17,6 +18,7 @@ export const agentThreads = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     title: text("title"),
+    turnCount: integer("turn_count").default(0).notNull(),
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",
