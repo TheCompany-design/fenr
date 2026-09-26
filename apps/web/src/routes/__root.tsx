@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router"
 import { Toaster } from "@workspace/ui/components/sonner"
 import appCss from "@workspace/ui/globals.css?url"
+import { NuqsAdapter } from "nuqs/adapters/tanstack-router"
 
 import { ConfirmDialogRoot } from "@/components/feedback"
 import { ThemeSync } from "@/components/providers"
@@ -82,7 +83,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <NuqsAdapter>{children}</NuqsAdapter>
         <ThemeSync />
         <Toaster richColors />
         <ConfirmDialogRoot />
