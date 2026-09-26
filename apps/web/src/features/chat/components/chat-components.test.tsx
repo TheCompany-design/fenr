@@ -32,7 +32,6 @@ const { ChatMessageItem } = await import("./chat-message-item")
 const { ChatComposer } = await import("./chat-composer")
 const { ChatMessages } = await import("./chat-messages")
 const { ChatContainer } = await import("./chat-container")
-const { initialTurnProjection } = await import("../state/stream-reducer")
 
 function setNativeValue(el: HTMLElement, val: string) {
   const isTextArea = el instanceof HTMLTextAreaElement
@@ -292,7 +291,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         root?.render(
           createElement(ChatMessages, {
             messages: [],
-            isStreaming: false,
           }),
         )
       })
@@ -310,7 +308,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         root?.render(
           createElement(ChatMessages, {
             messages,
-            isStreaming: false,
           }),
         )
       })
@@ -329,7 +326,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         root?.render(
           createElement(ChatMessages, {
             messages,
-            isStreaming: false,
           }),
         )
       })
@@ -389,19 +385,18 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
     it("does not force scroll to bottom during streaming when user has scrolled up", () => {
       const messages: ChatMessage[] = [
         { id: "1", role: "user", content: "Message 1" },
+        {
+          id: "2",
+          role: "agent",
+          content: "Token 1",
+          status: "streaming",
+        },
       ]
 
       act(() => {
         root?.render(
           createElement(ChatMessages, {
             messages,
-            isStreaming: true,
-            projection: {
-              ...initialTurnProjection,
-              turnId: "turn-1",
-              status: "streaming",
-              streamingText: "Token 1",
-            },
           }),
         )
       })
@@ -430,24 +425,51 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         viewport.dispatchEvent(new Event("scroll"))
       })
 
-      // Simulate next streaming token arriving
+      // Simulate next streaming token arriving in-place
+      const updatedMessages: ChatMessage[] = [
+        { id: "1", role: "user", content: "Message 1" },
+        {
+          id: "2",
+          role: "agent",
+          content: "Token 1 Token 2",
+          status: "streaming",
+        },
+      ]
+
       act(() => {
         root?.render(
           createElement(ChatMessages, {
-            messages,
-            isStreaming: true,
-            projection: {
-              ...initialTurnProjection,
-              turnId: "turn-1",
-              status: "streaming",
-              streamingText: "Token 1 Token 2",
-            },
+            messages: updatedMessages,
           }),
         )
       })
 
       // Viewport scrollTop should remain untouched at 200 (not pushed to bottom)
       expect(viewport.scrollTop).toBe(200)
+    })
+
+    it("renders each message exactly once and never duplicates completed agent responses", () => {
+      const messages: ChatMessage[] = [
+        { id: "1", role: "user", content: "Unique User Query" },
+        {
+          id: "2",
+          role: "agent",
+          content: "Unique Agent Response",
+          status: "completed",
+        },
+      ]
+
+      act(() => {
+        root?.render(
+          createElement(ChatMessages, {
+            messages,
+          }),
+        )
+      })
+
+      const text = container?.textContent ?? ""
+      const matches = text.match(/Unique Agent Response/g)
+      expect(matches).toHaveLength(1)
     })
   })
 
@@ -521,7 +543,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ).find((b) => b.textContent?.includes("Clear conversation"))
       expect(clearBtn).toBeDefined()
 
-      act(() => {
+      await act(async () => {
         clearBtn?.click()
       })
 

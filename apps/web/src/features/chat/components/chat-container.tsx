@@ -2,20 +2,14 @@ import { AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useAtom } from "jotai"
 import { useCallback } from "react"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
-import {
-  activeChatThreadIdAtom,
-  pendingUserMessageAtom,
-} from "../state/chat-atoms"
-import type { ChatMessage } from "../types"
 import { ChatComposer } from "./chat-composer"
 import { ChatMessages } from "./chat-messages"
 
 export interface ChatContainerProps {
-  readonly threadId?: string | null
+  readonly threadId?: string
   readonly onNavigate?: (opts: {
     to: string
     params?: Record<string, string>
@@ -24,21 +18,13 @@ export interface ChatContainerProps {
 }
 
 /**
- * Main conversational chat shell container orchestrating header controls,
- * scrollable message feed, active streaming turn projection, and input composer.
- * Decoupled from local useState and useEffect; state is driven by TanStack Router URL params,
- * Jotai transition atoms, and TanStack Query cache.
+ * Primary chat orchestrator component.
+ * Sourced directly from TanStack Query's cache and route tree.
+ * Coordinates smooth CSS transition from centered hero greeting to bottom-docked composer.
  */
-export function ChatContainer({
-  threadId = null,
-  onNavigate,
-}: ChatContainerProps) {
+export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
-  const [activeThreadId, setActiveThreadId] = useAtom(activeChatThreadIdAtom)
-  const [pendingUserMessage, setPendingUserMessage] = useAtom(
-    pendingUserMessageAtom,
-  )
-  const { projection, send, stop, reset, isStreaming } = useAgentStream()
+  const { send, stop, reset, isStreaming } = useAgentStream()
 
   const routerNavigate = useNavigate()
 
@@ -61,77 +47,32 @@ export function ChatContainer({
     [onNavigate, routerNavigate],
   )
 
-  const effectiveThreadId = threadId ?? activeThreadId
-
-  // Primary messages state sourced directly from TanStack Query cache
-  const { data: messages } = useQuery(
-    threadMessagesQueryOptions(effectiveThreadId),
-  )
+  // Authoritative messages state sourced directly from TanStack Query cache
+  const { data: messages } = useQuery(threadMessagesQueryOptions(threadId))
   const safeMessages = messages ?? []
 
-  // Combine persisted messages from TanStack Query with any in-flight pending user message
-  const displayMessages = pendingUserMessage
-    ? [...safeMessages, pendingUserMessage]
-    : safeMessages
-
   const handleSend = async (prompt: string) => {
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: prompt,
-      createdAt: new Date().toISOString(),
-    }
-
-    if (!effectiveThreadId) {
-      // Turn 0: Omit thread_id so Nabu atomically creates the thread in PostgreSQL
-      setPendingUserMessage(userMsg)
-
-      await send(prompt, undefined, {
-        onTurnStarted: async (serverThreadId) => {
-          setActiveThreadId(serverThreadId)
-
-          // Seed the newly minted server thread in TanStack Query cache
-          queryClient.setQueryData<ChatMessage[]>(
-            chatKeys.messages(serverThreadId),
-            [userMsg],
-          )
-
-          setPendingUserMessage(null)
-
-          // Seamlessly transition URL from /chat to /chat/<real-thread-id>
-          await safeNavigate({
-            to: "/chat/$threadId",
-            params: { threadId: serverThreadId },
-            replace: true,
-          })
-        },
-      })
-    } else {
-      // Turn 1+: Existing thread in PostgreSQL
-      queryClient.setQueryData<ChatMessage[]>(
-        chatKeys.messages(effectiveThreadId),
-        (old = []) => [...old, userMsg],
-      )
-
-      await send(prompt, effectiveThreadId)
-    }
+    await send(prompt, threadId, {
+      onTurnStarted: async (serverThreadId) => {
+        // Seamlessly transition URL from /chat to /chat/<server-thread-id>
+        await safeNavigate({
+          to: "/chat/$threadId",
+          params: { threadId: serverThreadId },
+          replace: true,
+        })
+      },
+    })
   }
 
   const handleClear = async () => {
     stop()
     reset()
-    setActiveThreadId(null)
-    setPendingUserMessage(null)
+    queryClient.setQueryData(chatKeys.messages(threadId), [])
+    queryClient.removeQueries({ queryKey: chatKeys.messages(null) })
     await safeNavigate({ to: "/chat" })
   }
 
-  const hasStarted =
-    Boolean(effectiveThreadId) ||
-    Boolean(pendingUserMessage) ||
-    displayMessages.length > 0 ||
-    isStreaming ||
-    Boolean(projection.streamingText) ||
-    Boolean(projection.streamingThinking)
+  const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -171,12 +112,7 @@ export function ChatContainer({
       {/* Conversational Canvas Area */}
       <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
         {/* Messages Feed (Scrolls behind floating composer) */}
-        <ChatMessages
-          messages={displayMessages}
-          projection={projection}
-          isStreaming={isStreaming}
-          showEmptyState={false}
-        />
+        <ChatMessages messages={safeMessages} showEmptyState={false} />
 
         {/* Floating / Centered Composer Layer */}
         <div

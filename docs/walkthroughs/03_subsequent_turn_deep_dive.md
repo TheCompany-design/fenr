@@ -90,23 +90,10 @@ const form = useForm({
 ```typescript
 // apps/web/src/features/chat/components/chat-container.tsx
 const handleSend = async (prompt: string) => {
-  const userMsg: ChatMessage = {
-    id: crypto.randomUUID(),
-    role: "user",
-    content: prompt,
-    createdAt: new Date().toISOString(),
-  }
-
-  // Turn 1+: effectiveThreadId is bound to the route's threadId
-  queryClient.setQueryData<ChatMessage[]>(
-    chatKeys.messages(effectiveThreadId),
-    (old = []) => [...old, userMsg],
-  )
-
-  // Dispatch stream request with existing threadId
-  await send(prompt, effectiveThreadId)
+  await send(prompt, threadId)
 }
 ```
+`send(prompt, threadId)` executes `chatMessagesReducer(old, { type: "client_send", payload: { userMessage, agentMessage } })` against `chatKeys.messages(threadId)`, appending the user's message and the streaming agent placeholder.
 
 ---
 
@@ -128,7 +115,7 @@ The fetch request dispatches to `POST /api/agent/stream`:
 
 ## 4. Multi-Turn Reactive Streaming & Auto-Scroll
 
-1. **`item_started`**: Emitted by Nabu with a newly generated `item_id`. Mounts a new assistant bubble below the previous turn.
+1. **`item_started`**: Emitted by Nabu with a newly generated `item_id`. `chatMessagesReducer` updates the in-flight agent message's ID to match the server item ID.
 2. **Smart Scroll Detection (`apps/web/src/features/chat/components/chat-messages.tsx`)**:
    - If user is at bottom (`isAtBottomRef.current === true`), viewport automatically scrolls down with each token.
    - If user has scrolled up to inspect previous turns, auto-scroll is suspended to prevent fighting the operator.
@@ -139,24 +126,9 @@ The fetch request dispatches to `POST /api/agent/stream`:
 ## 5. Turn Finalization & Query Synchronization
 
 When `turn_completed` arrives from Nabu:
-1. `useAgentStream` extracts the completed response text and commits it directly to TanStack Query cache:
-   ```typescript
-   queryClient.setQueryData<ChatMessage[]>(
-     chatKeys.messages(completedThreadId),
-     (old = []) => [
-       ...old,
-       {
-         id: current.activeItemId || current.turnId || crypto.randomUUID(),
-         role: "agent",
-         content: current.streamingText,
-         thinking: current.streamingThinking || undefined,
-         createdAt: new Date().toISOString(),
-       },
-     ],
-   )
-   ```
+1. `useAgentStream` dispatches `chatMessagesReducer` with `turn_completed`, transitioning the streaming message's status to `"completed"` in-place.
 2. Invalidates the query cache `chatKeys.thread(completedThreadId)` to ensure database sync.
-3. Stream projection resets back to idle via `reset()`.
+3. No ghost bubbles or duplicate message items can render because `ChatMessages` renders the single array via `messages.map(...)`.
 
 ---
 
