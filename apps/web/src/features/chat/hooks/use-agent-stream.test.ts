@@ -191,12 +191,15 @@ describe("useAgentStream Hook", () => {
     expect(toastSpy).not.toHaveBeenCalled()
   })
 
-  it("surfaces error toast on HTTP failure", async () => {
+  it("surfaces error toast on HTTP failure with request reference", async () => {
     globalThis.fetch = mock(
       async () =>
         new Response(JSON.stringify({ error: "Agent runtime down" }), {
           status: 502,
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": "trace-502-req",
+          },
         }),
     ) as unknown as typeof fetch
 
@@ -213,9 +216,56 @@ describe("useAgentStream Hook", () => {
     })
 
     expect(hook.current.projection.status).toBe("error")
-    expect(hook.current.projection.error).toBe("Agent runtime down")
+    expect(hook.current.projection.error).toBe(
+      "Agent runtime down (Ref: trace-502-req)",
+    )
+    expect(hook.current.lastRequestId).toBe("trace-502-req")
     expect(toastCalls.length).toBe(1)
-    expect(toastCalls[0][0]).toBe("Chat error")
+    expect(toastCalls[0]?.[0]).toBe("Chat error")
+    expect(toastCalls[0]?.[1]).toEqual({
+      description: "Agent runtime down (Ref: trace-502-req)",
+    })
+  })
+
+  it("surfaces error toast with request reference on stream_error SSE event", async () => {
+    const ssePayload =
+      'data: {"type":"stream_error","data":{"code":"MODEL_TIMEOUT","message":"Model timed out"}}\n\n'
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(ssePayload))
+        controller.close()
+      },
+    })
+
+    globalThis.fetch = mock(
+      async () =>
+        new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "x-request-id": "trace-sse-err-123",
+          },
+        }),
+    ) as unknown as typeof fetch
+
+    const toastCalls: Array<[string, unknown]> = []
+    toast.error = mock(((msg: string, opts: unknown) => {
+      toastCalls.push([msg, opts])
+      return ""
+    }) as unknown as typeof toast.error)
+
+    const hook = renderStreamHook()
+
+    await act(async () => {
+      await hook.current.send("Prompt")
+    })
+
+    expect(hook.current.lastRequestId).toBe("trace-sse-err-123")
+    expect(toastCalls.length).toBe(1)
+    expect(toastCalls[0]?.[0]).toBe("Agent error")
+    expect(toastCalls[0]?.[1]).toEqual({
+      description: "Model timed out (Ref: trace-sse-err-123)",
+    })
   })
 
   it("updates activeThreadId in useChatStore upon turn_started event", async () => {
