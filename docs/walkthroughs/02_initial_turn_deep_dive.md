@@ -2,12 +2,12 @@
 
 This document provides a code-level, execution-order walkthrough of the agent chat lifecycle in **Fenr** during an initial conversation turn (`thread_id: null`). It covers:
 1. **Server Boot & In-Memory State**: Bun production server initialization, static asset caching, and TanStack Start handler registration.
-2. **Initial Client Mount State**: Initial values in React state, Zustand (`useChatStore`), and the stream projection.
-3. **User Action & Form Validation**: Entering the prompt, TanStack Form validation with Zod (`chatComposerSchema`), and keyboard handling.
-4. **Optimistic Rendering & Hook Invocation**: Appending the user message, collapsing the hero greeting, and triggering `useAgentStream.send()`.
+2. **Initial Client Mount State**: Initial values in TanStack Router, TanStack Query, and Jotai stream projection atoms.
+3. **User Action & Form Validation**: Entering the prompt, TanStack Form validation with Zod (`chatComposerSchema`), and declarative CSS auto-resizing.
+4. **Optimistic Rendering & URL Navigation**: Appending user message to TanStack Query cache, transitioning URL to `/chat/<uuid>`, collapsing the hero greeting, and triggering `useAgentStream.send()`.
 5. **TanStack Start BFF Proxy Execution**: Session authentication, tenant boundary validation, outbound Ed25519 JWT minting, and zero-buffering proxying.
-6. **Client Stream Processing & Pure Reducer Dispatching**: Reading SSE chunks, Zod schema validation, and pure state projection.
-7. **Turn Finalization & UI Commit**: Query cache invalidation, persistent message list commit, and wide-event logging.
+6. **Client Stream Processing & Pure Reducer Dispatching**: Reading SSE chunks, Zod schema validation, and pure state projection via Jotai atoms.
+7. **Turn Finalization & UI Commit**: Query cache commit and invalidation, wide-event logging, and persistence synchronization.
 
 ---
 
@@ -53,19 +53,15 @@ When initialized, the server environment holds:
 
 When an operator navigates to `/chat` (`apps/web/src/routes/_app/chat/index.tsx`), TanStack Router mounts `ChatContainer`:
 
-### 2.1 Zustand Global Store (`apps/web/src/lib/stores/chat.store.ts`)
-```typescript
-{
-  activeThreadId: null,
-  draftPrompt: "",
-  isThinkingOpen: true,
-}
-```
+### 2.1 Route & URL State
+- Route: `/_app/chat/`
+- `threadId`: `null`
+- URL State: Managed via TanStack Router route tree with `NuqsAdapter` mounted at root.
 
-### 2.2 `useAgentStream` Hook State (`apps/web/src/features/chat/hooks/use-agent-stream.ts`)
+### 2.2 In-Flight Jotai Atoms (`apps/web/src/features/chat/state/chat-atoms.ts`)
 ```typescript
 {
-  projection: {
+  activeTurnProjectionAtom: {
     threadId: null,
     turnId: null,
     activeItemId: null,
@@ -74,15 +70,16 @@ When an operator navigates to `/chat` (`apps/web/src/routes/_app/chat/index.tsx`
     status: "idle",
     error: null,
   },
-  abortControllerRef: { current: null },
-  isStreaming: false,
+  lastRequestIdAtom: null,
+  isThinkingOpenAtom: true,
 }
 ```
 
-### 2.3 `ChatContainer` Local State (`apps/web/src/features/chat/components/chat-container.tsx`)
-- `messages`: `[]` (empty array).
+### 2.3 `ChatContainer` & TanStack Query State (`apps/web/src/features/chat/components/chat-container.tsx`)
+- `messages`: Query result for `threadMessagesQueryOptions(null)` -> defaults to `[]`.
 - `hasStarted`: `false`.
 - **UI Layout**: Because `hasStarted` is false, the hero greeting (`"How can Nabu assist you today?"`) is vertically centered (`bottom-1/2 translate-y-1/2`).
+- **Zero Local State Anti-Patterns**: No `useState<ChatMessage[]>` or completion `useEffect` hooks.
 
 ---
 
@@ -103,7 +100,7 @@ export const chatComposerSchema = z.object({
 })
 ```
 
-1. **Auto-Resize**: As the user types, `adjustHeight()` sets `textareaRef.current.style.height` to `Math.min(scrollHeight, 200)px`.
+1. **Declarative Auto-Resize**: Uses modern CSS `field-sizing-content` (`field-sizing: content`). The browser automatically expands the textarea up to `max-h-[200px]` with zero JavaScript execution, zero `useRef`, and zero `useEffect`.
 2. **Keyboard Capture**:
    ```typescript
    onKeyDown={(e) => {
@@ -119,27 +116,46 @@ export const chatComposerSchema = z.object({
 
 ---
 
-## 4. Optimistic Rendering & Hook Invocation
+## 4. Optimistic Rendering, URL Navigation & Hook Invocation
 
 When the form submits, `ChatContainer.handleSend(prompt)` executes:
 
 ```typescript
-// apps/web/src/features/chat/components/chat-container.tsx:55
+// apps/web/src/features/chat/components/chat-container.tsx
 const handleSend = async (prompt: string) => {
+  const targetThreadId = effectiveThreadId ?? crypto.randomUUID()
+  setActiveThreadId(targetThreadId)
+
   const userMsg: ChatMessage = {
     id: crypto.randomUUID(),
     role: "user",
     content: prompt,
-    createdAt: "Just now",
+    createdAt: new Date().toISOString(),
   }
-  setMessages((prev) => [...prev, userMsg])
-  await send(prompt, activeThreadId) // activeThreadId is null
+
+  // 1. Optimistically append message to TanStack Query cache
+  queryClient.setQueryData<ChatMessage[]>(
+    chatKeys.messages(targetThreadId),
+    (old = []) => [...old, userMsg],
+  )
+
+  // 2. Navigate immediately to /chat/<uuid>
+  if (!threadId) {
+    await safeNavigate({
+      to: "/_app/chat/$threadId",
+      params: { threadId: targetThreadId },
+    })
+  }
+
+  // 3. Dispatch stream request with new thread ID
+  await send(prompt, targetThreadId)
 }
 ```
 
 ### 4.1 UI Transitions
-1. **Optimistic Message Insertion**: The user message bubble immediately appears in the message feed.
-2. **Hero Greeting Collapse**: `hasStarted` becomes `true`. The hero greeting collapses with a 500ms spring animation (`opacity-0 max-h-0 -translate-y-4 scale-95 overflow-hidden`), and the composer translates smoothly to the bottom of the viewport (`bottom-0 translate-y-0 pb-6`).
+1. **URL Transition**: The browser URL navigates from `/chat` to `/chat/<uuid>` via TanStack Router.
+2. **Optimistic Message Insertion**: The user message bubble immediately appears from TanStack Query's cache.
+3. **Hero Greeting Collapse**: `hasStarted` becomes `true`. The hero greeting collapses with a 500ms spring animation (`opacity-0 max-h-0 -translate-y-4 scale-95 overflow-hidden`), and the composer translates smoothly to the bottom of the viewport (`bottom-0 translate-y-0 pb-6`).
 
 ### 4.2 Initiating `useAgentStream.send()`
 In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
@@ -149,11 +165,11 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
    const abortController = new AbortController()
    abortControllerRef.current = abortController
    ```
-3. Sets stream projection to streaming:
+3. Sets stream projection atom to streaming:
    ```typescript
    setProjection({
      ...initialTurnProjection,
-     threadId: null,
+     threadId: targetThreadId,
      status: "streaming",
    })
    ```
@@ -166,8 +182,8 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
        Accept: "text/event-stream",
      },
      body: JSON.stringify({
-       prompt: "What is the invoice status for Initech?",
-       thread_id: undefined,
+       prompt: trimmedPrompt,
+       thread_id: targetThreadId,
      }),
      signal: abortController.signal,
    })
@@ -177,68 +193,42 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
 
 ## 5. TanStack Start BFF Proxy Execution
 
-The fetch hits `apps/web/src/routes/api/agent/stream.ts:handleAgentStreamRequest`.
+The POST request arrives at `apps/web/src/routes/api/agent/stream.ts`.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Browser as Browser Client
-    participant Proxy as TanStack Start BFF (/api/agent/stream)
-    participant Auth as Better-Auth Engine
-    participant Nabu as Nabu Engine (/api/v1/agent/run)
-
-    Browser->>Proxy: POST /api/agent/stream
-    Note over Proxy: Start timer & generate x-request-id
-
-    Proxy->>Auth: auth.api.getSession({ headers })
-    Auth-->>Proxy: Session { user.id, activeOrganizationId }
-    Note over Proxy: Fail-closed if activeOrganizationId missing
-
-    Proxy->>Auth: acquireOutboundJwt({ service: "nabu", audience: "nabu" })
-    Auth-->>Proxy: Signed Ed25519 JWT
-
-    Proxy->>Nabu: POST /api/v1/agent/run (Bearer JWT, duplex: "half")
-    Nabu-->>Proxy: HTTP 200 text/event-stream (Streaming body)
-
-    Proxy-->>Browser: HTTP 200 text/event-stream (Piped directly with zero buffering)
-```
-
-### Step 5.1: Session Authentication
+### 5.1 Step 1: Session Authentication & Tenant Isolation
 ```typescript
 const session = await auth.api.getSession({ headers: request.headers })
 if (!session?.user?.id) {
-  return Response.json({ error: "Unauthorized" }, { status: 401 })
+  return jsonErrorResponse("Unauthorized", 401, requestId)
 }
-```
-Better-Auth verifies the session cookie and resolves the user ID: `"usr_0195c1a2-b3c4-7d5e-8f90-112233445566"`.
 
-### Step 5.2: Tenant Boundary Enforcement
-```typescript
 const activeOrgId = session.session?.activeOrganizationId
 if (!activeOrgId) {
-  return Response.json(
-    { error: "Tenant context required: active organization context is missing" },
-    { status: 403 },
-  )
+  return jsonErrorResponse("Tenant context required", 403, requestId)
 }
-tenantId = activeOrgId // "org_initech_corp"
 ```
-The proxy fails-closed if no active tenant organization is selected.
 
-### Step 5.3: Mint Outbound JWT
+### 5.2 Step 2: Mint Outbound EdDSA JWT
 ```typescript
 const token = await acquireOutboundJwt(
   { type: "authenticated", service: "nabu", audience: "nabu" },
   { headersSource: request.headers },
 )
 ```
-In `apps/web/src/lib/http/token.server.ts`:
-- Signs a new Ed25519 JWT valid for 5 minutes.
-- Sets payload claims: `sub: user.id`, `activeOrganizationId: "org_initech_corp"`, `aud: "nabu"`.
+The token includes standard claims:
+```json
+{
+  "iss": "fenr-bff",
+  "sub": "usr_01923485-abcd-7890-a1b2-c3d4e5f67890",
+  "aud": "nabu",
+  "activeOrganizationId": "org_01923485-0000-7890-a1b2-c3d4e5f67890",
+  "exp": 1727389500
+}
+```
 
-### Step 5.4: Upstream Request & Zero-Buffering Response
+### 5.3 Step 3: Upstream Call to Nabu Agent Runner
 ```typescript
-const nabuUrl = `${serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")}/api/v1/agent/run`
+const nabuUrl = `${serverEnv.NABU_SERVER_URL}/api/v1/agent/run`
 const nabuResponse = await fetch(nabuUrl, {
   method: "POST",
   headers: {
@@ -248,28 +238,16 @@ const nabuResponse = await fetch(nabuUrl, {
     "X-Request-Id": requestId,
   },
   body: JSON.stringify(payload),
-  // @ts-expect-error duplex required for streaming request body in Bun/Node
   duplex: "half",
   signal: request.signal,
 })
-
-return new Response(nabuResponse.body, {
-  status: 200,
-  headers: {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
-  },
-})
 ```
-The upstream `nabuResponse.body` is streamed directly to the browser with zero intermediate memory accumulation.
 
 ---
 
 ## 6. Client Stream Processing & Pure Reducer Dispatching
 
-In `useAgentStream`, the browser acquires a reader:
+As SSE chunks arrive from the BFF proxy, `useAgentStream` decodes them:
 
 ```typescript
 const reader = response.body.getReader()
@@ -285,141 +263,17 @@ while (true) {
   buffer = lines.pop() ?? ""
 
   for (const line of lines) {
-    if (line.trim().startsWith("data:")) {
-      const rawJson = line.trim().slice(5).trim()
-      const parsed = JSON.parse(rawJson)
-      const validation = agentStreamEventSchema.safeParse(parsed)
-      if (validation.success) {
-        setProjection((prev) => streamReducer(prev, validation.data))
-        // Handle side effects...
-      }
+    if (line.startsWith("data:")) {
+      const parsed = JSON.parse(line.slice(5).trim())
+      const event = agentStreamEventSchema.parse(parsed)
+      setProjection((prev) => streamReducer(prev, event))
     }
   }
 }
 ```
 
-### 6.1 Event Trace & State Transitions
-
-#### Event 1: `turn_started`
-- **Wire Payload**:
-  ```json
-  {"type":"turn_started","data":{"thread_id":"0195c100-aaaa-7000-8000-000000000001","turn_id":"0195c100-bbbb-7000-8000-000000000001"}}
-  ```
-- **Reducer Action**:
-  ```typescript
-  return {
-    ...state,
-    threadId: event.data.thread_id,
-    turnId: event.data.turn_id,
-    streamingText: "",
-    streamingThinking: "",
-    status: "streaming",
-    error: null,
-  }
-  ```
-- **Side Effect**:
-  ```typescript
-  useChatStore.getState().setActiveThreadId(event.data.thread_id)
-  ```
-  The thread ID is stored in Zustand, binding all future prompts in this session to the thread.
-
-#### Event 2: `item_started`
-- **Wire Payload**:
-  ```json
-  {"type":"item_started","data":{"thread_id":"...","turn_id":"...","item_id":"0195c100-dddd-7000-8000-000000000001","kind":"agent_message"}}
-  ```
-- **Reducer Action**:
-  ```typescript
-  return { ...state, activeItemId: event.data.item_id }
-  ```
-- **UI Render**:
-  `ChatMessages` detects `hasActiveStreaming = true` and renders:
-  ```tsx
-  <ChatMessageItem
-    message={{
-      id: projection.activeItemId, // "0195c100-dddd-..."
-      role: "agent",
-      content: "",
-      thinking: null,
-    }}
-    isStreaming={true}
-  />
-  ```
-  The assistant bubble mounts with the agent avatar and a pulsing cursor. Because `activeItemId` matches the database key, no DOM re-keying occurs later.
-
-#### Event 3: `item_delta` (Thinking)
-- **Wire Payload**:
-  ```json
-  {"type":"item_delta","data":{"item_id":"...","delta":{"kind":"thinking_delta","text":"Checking ledger..."}}}
-  ```
-- **Reducer Action**: Appends text to `state.streamingThinking`.
-- **UI Render**: `<ThinkingTrace />` renders a collapsible thinking badge displaying the stream in real-time.
-
-#### Event 4: `item_delta` (Text)
-- **Wire Payload**:
-  ```json
-  {"type":"item_delta","data":{"item_id":"...","delta":{"kind":"text_delta","text":"Invoice #INV-2024-001 is PAID."}}}
-  ```
-- **Reducer Action**: Appends text to `state.streamingText`.
-- **UI Render**: `<ChatMessageItem />` updates the text stream smoothly.
-- **Scroll Stickiness**: `ChatMessages` checks `isAtBottomRef.current`. If the user has not scrolled up, it auto-scrolls down:
-  ```typescript
-  viewportRef.current.scrollTop = viewportRef.current.scrollHeight
-  ```
-
-#### Event 5: `turn_completed`
-- **Wire Payload**:
-  ```json
-  {"type":"turn_completed","data":{"thread_id":"...","turn_id":"...","status":"completed","usage":{"prompt_tokens":15,"completion_tokens":10,"total_tokens":25}}}
-  ```
-- **Reducer Action**: Sets `status: "completed"`.
-- **Side Effect**:
-  ```typescript
-  queryClient.invalidateQueries({
-    queryKey: ["chat", "threads", event.data.thread_id],
-  })
-  ```
-  Triggers background refetch of any sidebar thread list components.
-
----
-
-## 7. Turn Finalization & UI Commit
-
-When `projection.status` transitions to `"completed"`, `ChatContainer` commits the streaming message:
-
-```typescript
-// apps/web/src/features/chat/components/chat-container.tsx:31
-useEffect(() => {
-  if (projection.status === "completed" && projection.streamingText) {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: projection.activeItemId || projection.turnId || crypto.randomUUID(),
-        role: "agent",
-        content: projection.streamingText,
-        thinking: projection.streamingThinking || null,
-        createdAt: "Just now",
-      },
-    ])
-    reset() // Resets projection to initialTurnProjection (status: "idle")
-  }
-}, [projection.status, projection.streamingText, projection.streamingThinking, reset])
-```
-
-1. **State Persistence**: The assistant response is committed into the persistent `messages` array in React state.
-2. **Projection Reset**: `reset()` returns `projection.status` to `"idle"` and clears `streamingText`. The pulsing cursor disappears, and message action buttons (e.g. Copy to Clipboard) appear.
-3. **Wide Event Logging**: In the BFF proxy's `finally` block, Pino logs a wide JSON event:
-   ```json
-   {
-     "service": "fenr",
-     "mod": "api.agent.stream",
-     "action": "/api/agent/stream",
-     "method": "POST",
-     "requestId": "0195c100-demo-trace-0001",
-     "timestamp": "2026-09-25T15:18:00.000Z",
-     "status_code": 200,
-     "outcome": "success",
-     "duration_ms": 142,
-     "tenantId": "org_initech_corp"
-   }
-   ```
+### 6.1 Event Lifecycle
+1. **`turn_started`**: Binds `turn_id` and confirms `thread_id`.
+2. **`item_started`**: Upstream persists `agent_items` row and returns `item_id`. Assistant message bubble renders with pulsing cursor.
+3. **`item_delta`**: Appends streaming text and thinking trace smoothly via Jotai reactive atom.
+4. **`turn_completed`**: Commits the finalized assistant message directly to TanStack Query cache `chatKeys.messages(threadId)` and invalidates query options.

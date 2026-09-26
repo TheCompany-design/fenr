@@ -24,8 +24,8 @@ To understand the architecture, think of the system as **four distinct roles**:
     Captures Prompts        Projects State            & Pipes Zero-Buffer SSE         & Persists to Postgres
 ```
 
-1. **The Surface (`apps/web/src/features/chat/components`)**: React UI components composed of `ChatContainer`, `ChatComposer`, `ChatMessages`, `ChatMessageItem`, and `ThinkingTrace`. Manages auto-resizing textareas, hero greeting collapse animations, and Radix `<ScrollArea />` stick-to-bottom mechanics.
-2. **The Bridge (`apps/web/src/features/chat/hooks`, `state`)**: The `useAgentStream` hook and pure `streamReducer`. Reads raw byte streams, splits lines on `\n`, validates event schemas with Zod, and accumulates token deltas without React state tearing.
+1. **The Surface (`apps/web/src/features/chat/components`)**: React UI components composed of `ChatContainer`, `ChatComposer`, `ChatMessages`, `ChatMessageItem`, and `ThinkingTrace`. Manages declarative CSS `field-sizing-content` auto-resizing, hero greeting collapse animations, and Radix `<ScrollArea />` stick-to-bottom mechanics.
+2. **The Bridge (`apps/web/src/features/chat/hooks`, `state`)**: The `useAgentStream` hook, Jotai turn projection atoms (`activeTurnProjectionAtom`), and pure `streamReducer`. Reads raw byte streams, splits lines on `\n`, validates event schemas with Zod, and accumulates token deltas without React state tearing.
 3. **The Gatekeeper (`apps/web/src/routes/api/agent/stream.ts`)**: TanStack Start server BFF proxy route. Authenticates Better-Auth user sessions, strictly enforces `activeOrganizationId` tenant boundaries, mints short-lived outbound Ed25519 JWTs, and streams upstream SSE with zero buffering.
 4. **The Engine (`thebookofnabu`)**: The autonomous Rust runtime. Executes the state machine stepper, calls completion models via `rig-core`, writes items to PostgreSQL, and emits Server-Sent Events back through the pipeline.
 
@@ -37,15 +37,20 @@ To understand the architecture, think of the system as **four distinct roles**:
 sequenceDiagram
     autonumber
     actor User as Operator (Browser)
+    participant Router as TanStack Router & Nuqs
     participant UI as ChatContainer / Composer
+    participant Query as TanStack Query Cache
     participant Hook as useAgentStream Hook
     participant BFF as TanStack Start BFF Proxy (/api/agent/stream)
     participant Auth as Better-Auth / Token Server
     participant Nabu as Upstream Nabu Engine (/api/v1/agent/run)
 
+    Note over User, UI: Initial state at /chat (Centered Composer)
     User->>UI: Types prompt & hits Enter
-    UI->>UI: Optimistic render: Append User message to messages list
-    UI->>Hook: send(prompt, activeThreadId)
+    UI->>Router: Generates UUID & navigates to /chat/<new-uuid>
+    Note over Router, UI: Layout smoothly animates composer to bottom-0
+    UI->>Query: Optimistic render: Append User message to Query Cache
+    UI->>Hook: send(prompt, newThreadId)
     Hook->>Hook: Reset projection, create AbortController, set status="streaming"
     Hook->>BFF: POST /api/agent/stream (JSON: prompt, thread_id)
 
@@ -68,9 +73,8 @@ sequenceDiagram
     Nabu->>BFF: data: {"type":"turn_completed",...}
     BFF->>Hook: Pipe turn_completed
     Hook->>Hook: streamReducer -> status="completed"
-    Hook->>UI: Invalidate TanStack Query ["chat", "threads", thread_id]
-    UI->>UI: Commit completed message to permanent messages state
-    UI->>Hook: reset() -> projection back to idle
+    Hook->>Query: Commit finalized message directly to TanStack Query Cache
+    Hook->>Query: Invalidate TanStack Query ["chat", "threads", thread_id]
 ```
 
 ---
@@ -96,8 +100,14 @@ response = new Response(nabuResponse.body, {
 - `X-Accel-Buffering: no` instructs NGINX/reverse-proxies to flush chunks immediately.
 - The browser begins parsing events on the very first byte delivered by the LLM.
 
-### 3.2 Pure Stream Reducer (No React Tearing)
-High-frequency token streams (often 50–100 tokens/sec) can cause React state tearing or dropped frames if handled via scattered `useState` calls. Fenr uses a single pure reducer function (`apps/web/src/features/chat/state/stream-reducer.ts`):
+### 3.2 URL Routing & TanStack Query State (Zero useState/useEffect)
+Fenr enforces a strict anti-pattern avoidance policy:
+- **URL Route as Truth**: Conversations begin at `/_app/chat/` (`/chat`) with the composer centered. On first message send, a UUID is generated, navigating to `/_app/chat/$threadId` (`/chat/<uuid>`). URL state is decoupled from Zustand, and `NuqsAdapter` (`nuqs/adapters/tanstack-router`) is mounted at the root.
+- **TanStack Query Cache**: Persistent messages are managed strictly by TanStack Query (`threadMessagesQueryOptions(threadId)`), using optimistic cache mutations on message dispatch. No local `useState<ChatMessage[]>` or completion `useEffect` hooks.
+- **TanStack Form**: The message composer uses TanStack Form with modern CSS `field-sizing-content` for declarative auto-expanding textareas without refs or imperative height manipulation.
+
+### 3.3 Pure Stream Reducer & Jotai Atoms (No React Tearing)
+High-frequency token streams (often 50–100 tokens/sec) can cause React state tearing or dropped frames if handled via scattered `useState` calls. Fenr uses a single pure reducer function (`apps/web/src/features/chat/state/stream-reducer.ts`) and reactive Jotai atoms:
 
 ```typescript
 export function streamReducer(
@@ -105,12 +115,12 @@ export function streamReducer(
   event: AgentStreamEvent,
 ): ActiveTurnProjection
 ```
-All in-flight state—`streamingText`, `streamingThinking`, `activeItemId`, `turnId`, `threadId`, and `status`—is consolidated into an immutable `ActiveTurnProjection`. When `turn_completed` arrives, the final content is atomically committed to the persistent message list in `ChatContainer`.
+All in-flight state—`streamingText`, `streamingThinking`, `activeItemId`, `turnId`, `threadId`, and `status`—is consolidated into an immutable `ActiveTurnProjection` managed by `activeTurnProjectionAtom`. When `turn_completed` arrives, the final content is atomically committed to the TanStack Query cache.
 
-### 3.3 Zero Layout Jitter
+### 3.4 Zero Layout Jitter
 Before generating any tokens, the upstream Nabu stepper emits `item_started` with the PostgreSQL-persisted `item_id`. The client immediately mounts the assistant message bubble with a pulsing cursor. The UI does not jump or reflow when the first text token arrives.
 
-### 3.4 Multi-Timescale Tenant Security
+### 3.5 Multi-Timescale Tenant Security
 Client-side cookies only identify the browser session to the Fenr BFF. The browser **never** touches or stores the private EdDSA keys used to communicate with the Rust backend.
 1. The client browser makes a session-authenticated request to `POST /api/agent/stream`.
 2. The BFF extracts `activeOrganizationId` from the Better-Auth session. If missing, it immediately rejects the request with `403 Forbidden`.
@@ -122,28 +132,27 @@ Client-side cookies only identify the browser session to the Fenr BFF. The brows
 ## 4. The Three Core Conversation Scenarios
 
 ### Scenario 1: Starting a New Chat (Turn 0)
-1. **Initial Mount**: `useChatStore` has `activeThreadId: null`. The hero greeting is centered on screen.
+1. **Initial Mount**: Navigating to `/chat`. `threadId` is null. The hero greeting and composer are vertically centered (`bottom-1/2 translate-y-1/2`).
 2. **User Submission**: The operator enters a prompt in `ChatComposer` and presses Enter.
-3. **Optimistic Rendering**: The user prompt is immediately appended to the local `messages` state in `ChatContainer`.
-4. **Hero Collapse**: `ChatContainer` detects `hasStarted = true` and triggers a smooth 500ms CSS spring collapse, translating the composer to the bottom of the viewport.
-5. **Thread Binding**: Upstream emits `turn_started` with a newly generated `thread_id`. The hook calls `useChatStore.getState().setActiveThreadId(thread_id)`, binding the session for all subsequent turns.
-6. **Streaming & Completion**: Tokens stream into the assistant bubble. On `turn_completed`, the completed message is committed to `messages`, and the stream projection resets.
+3. **URL Transition & Optimistic Rendering**: A new `threadId` UUID is created. TanStack Router immediately transitions to `/chat/<uuid>`. The user prompt is optimistically added to TanStack Query cache.
+4. **Hero Collapse**: `hasStarted` becomes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
+5. **Streaming & Completion**: Tokens stream into the assistant bubble via `activeTurnProjectionAtom`. On `turn_completed`, the completed message is committed to TanStack Query cache.
 
 ### Scenario 2: Continuing the Context (Turn 1)
-1. **Subsequent Submission**: The operator types a follow-up prompt. `activeThreadId` is already set in `useChatStore`.
-2. **Contextual Ingress**: `handleSend(prompt)` sends `{ prompt, thread_id: activeThreadId }` to `/api/agent/stream`.
+1. **Subsequent Submission**: The operator types a follow-up prompt on `/chat/<uuid>`. The `threadId` is already bound from route params.
+2. **Contextual Ingress**: `handleSend(prompt)` sends `{ prompt, thread_id }` to `/api/agent/stream`.
 3. **Upstream Forwarding**: Nabu receives the `thread_id`, queries PostgreSQL for the conversation history, and forwards past messages to the LLM.
 4. **Reactive Mounting**: The new turn streams below existing messages.
-5. **Query Invalidation**: On `turn_completed`, the hook invalidates TanStack Query key `["chat", "threads", thread_id]`, ensuring any thread sidebar lists or server-rendered history remain synchronised.
+5. **Query Invalidation**: On `turn_completed`, TanStack Query keys are updated and invalidated, ensuring server-persisted history remains synchronized.
 
 ### Scenario 3: User Cancellation (Stop Generation)
-1. **Stop Trigger**: While tokens are streaming, the send button transforms into a destructive "Stop" icon. The user clicks it, or submits a new prompt.
+1. **Stop Trigger**: While tokens are streaming, the send button transforms into a destructive "Stop" icon. The user clicks it.
 2. **`AbortController` Signal**: `useAgentStream` invokes `abortControllerRef.current.abort()`.
 3. **Transport Tear-Down**:
    - The browser's active `fetch()` connection is aborted.
    - The BFF proxy's outbound request to Nabu is cancelled via `signal: request.signal`.
    - The hook sets `projection.status = "idle"`.
-4. **Headless Upstream Completion**: As designed in `thebookofnabu`, the Rust coordinator catches the closed client connection and proceeds headlessly to write the complete response to PostgreSQL.
+4. **Headless Upstream Completion**: The Rust coordinator catches the closed client connection and proceeds headlessly to write the complete response to PostgreSQL.
 
 ---
 
@@ -153,11 +162,11 @@ The client parses incoming SSE frames tagged `event: agent_event`. Payloads are 
 
 | Event Type (`type`) | Role in UI Lifecycle | Payload Shape |
 | :--- | :--- | :--- |
-| `turn_started` | Sets active thread ID in Zustand; resets streaming projection. | `{"thread_id":"uuid","turn_id":"uuid"}` |
+| `turn_started` | Resets streaming projection; sets active turn status. | `{"thread_id":"uuid","turn_id":"uuid"}` |
 | `item_started` | Mounts message bubble in feed with zero layout shift. | `{"thread_id":"uuid","turn_id":"uuid","item_id":"uuid","kind":"agent_message"}` |
-| `item_delta` | Appends text or reasoning tokens to the in-flight projection. | `{"item_id":"uuid","delta":{"kind":"text_delta"\|"thinking_delta","text":"..."}}` |
+| `item_delta` | Appends text or reasoning tokens to in-flight projection atom. | `{"item_id":"uuid","delta":{"kind":"text_delta"\|"thinking_delta","text":"..."}}` |
 | `item_completed` | Upstream item persistence confirmation. | `{"item_id":"uuid","payload":{"kind":"agent_message","text":"...","thinking":"..."}}` |
-| `turn_completed` | Marks turn completed; triggers TanStack Query cache invalidation. | `{"thread_id":"uuid","turn_id":"uuid","status":"completed","usage":{...}}` |
+| `turn_completed` | Commits assistant message to TanStack Query; invalidates query. | `{"thread_id":"uuid","turn_id":"uuid","status":"completed","usage":{...}}` |
 | `stream_error` | Renders `<Sonner />` error toast and marks projection error. | `{"code":"...","message":"..."}` |
 
 ---
@@ -166,8 +175,9 @@ The client parses incoming SSE frames tagged `event: agent_event`. Payloads are 
 
 | Layer | Responsibility | State Model | Lifecycle / Failure Behavior |
 | :--- | :--- | :--- | :--- |
-| **`ChatContainer`** | UI layout, message list state, auto-scroll coordination. | Local React State (`useState`) | Preserves messages across turns; clears on "Clear conversation". |
-| **`useChatStore`** | Global UI state (`activeThreadId`, `draftPrompt`, `isThinkingOpen`). | Zustand Store | Persists active thread identifier across route navigations. |
-| **`useAgentStream`** | Transport lifecycle, SSE line buffering, Zod parsing. | React Hook + `useRef` | Manages `AbortController`; cleans up listeners on component unmount. |
+| **`ChatContainer`** | UI layout, URL-driven routing, auto-scroll coordination. | TanStack Router params (`threadId`) + Query Cache | Sourced from URL; clears back to centered `/chat` on "Clear conversation". |
+| **`ChatComposer`** | Input validation, keyboard capture, declarative sizing. | TanStack Form + CSS `field-sizing-content` | Zero useState/useEffect; declarative CSS height expansion. |
+| **`useAgentStream`** | Transport lifecycle, SSE line buffering, Zod parsing. | React Hook + Jotai atoms (`activeTurnProjectionAtom`) | Manages `AbortController`; cleans up listeners on abort/cancel. |
 | **`streamReducer`** | Pure event accumulation without tearing. | Pure Function | Deterministic projection; 100% testable in unit tests. |
+| **TanStack Query** | Durable conversation history persistence & cache. | TanStack Query Cache (`['chat', 'thread', threadId, 'messages']`) | Optimistic updates on user send; auto-invalidated on turn completion. |
 | **BFF Proxy Route** | Session auth, tenant validation, outbound JWT minting, SSE proxy. | Stateless TanStack Start Route | Emits wide log events via Pino; handles upstream 502/504 errors gracefully. |
