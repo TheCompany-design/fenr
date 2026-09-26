@@ -1,76 +1,100 @@
 import { AiChat02Icon, Delete02Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useEffect, useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
+import { useAtom } from "jotai"
+import { useCallback } from "react"
 import { useAgentStream } from "../hooks/use-agent-stream"
-import { useChatStore } from "../state/chat-store"
+import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
+import { activeChatThreadIdAtom } from "../state/chat-atoms"
 import type { ChatMessage } from "../types"
 import { ChatComposer } from "./chat-composer"
 import { ChatMessages } from "./chat-messages"
 
 export interface ChatContainerProps {
-  readonly initialThreadId?: string | null
+  readonly threadId?: string | null
+  readonly onNavigate?: (opts: {
+    to: string
+    params?: Record<string, string>
+  }) => void | Promise<void>
 }
 
 /**
  * Main conversational chat shell container orchestrating header controls,
  * scrollable message feed, active streaming turn projection, and input composer.
+ * Decoupled from local useState and useEffect; state is driven by TanStack Router URL params,
+ * Jotai transition atoms, and TanStack Query cache.
  */
-export function ChatContainer({ initialThreadId = null }: ChatContainerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+export function ChatContainer({
+  threadId = null,
+  onNavigate,
+}: ChatContainerProps) {
+  const queryClient = useQueryClient()
+  const [activeThreadId, setActiveThreadId] = useAtom(activeChatThreadIdAtom)
   const { projection, send, stop, reset, isStreaming } = useAgentStream()
-  const activeThreadId = useChatStore((state) => state.activeThreadId)
-  const setActiveThreadId = useChatStore((state) => state.setActiveThreadId)
 
-  useEffect(() => {
-    if (initialThreadId) {
-      setActiveThreadId(initialThreadId)
-    }
-  }, [initialThreadId, setActiveThreadId])
+  const routerNavigate = useNavigate()
 
-  // When turn completes, commit streaming message to messages list
-  useEffect(() => {
-    if (projection.status === "completed" && projection.streamingText) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id:
-            projection.activeItemId || projection.turnId || crypto.randomUUID(),
-          role: "agent",
-          content: projection.streamingText,
-          thinking: projection.streamingThinking || null,
-          createdAt: "Just now",
-        },
-      ])
-      reset()
-    }
-  }, [
-    projection.status,
-    projection.streamingText,
-    projection.streamingThinking,
-    projection.activeItemId,
-    projection.turnId,
-    reset,
-  ])
+  const safeNavigate = useCallback(
+    async (opts: { to: string; params?: Record<string, string> }) => {
+      if (onNavigate) {
+        await onNavigate(opts)
+        return
+      }
+      try {
+        await routerNavigate(opts as never)
+      } catch {
+        // Fallback if router context is missing in testing
+      }
+    },
+    [onNavigate, routerNavigate],
+  )
+
+  const effectiveThreadId = threadId ?? activeThreadId
+
+  // Primary messages state sourced directly from TanStack Query cache
+  const { data: messages = [] } = useQuery(
+    threadMessagesQueryOptions(effectiveThreadId),
+  )
 
   const handleSend = async (prompt: string) => {
+    const targetThreadId = effectiveThreadId ?? crypto.randomUUID()
+    setActiveThreadId(targetThreadId)
+
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: prompt,
-      createdAt: "Just now",
+      createdAt: new Date().toISOString(),
     }
-    setMessages((prev) => [...prev, userMsg])
-    await send(prompt, activeThreadId)
+
+    // Optimistically update the message feed in TanStack Query cache
+    queryClient.setQueryData<ChatMessage[]>(
+      chatKeys.messages(targetThreadId),
+      (old = []) => [...old, userMsg],
+    )
+
+    // When on initial /chat route, transition URL state immediately to /chat/<uuid>
+    if (!threadId) {
+      await safeNavigate({
+        to: "/_app/chat/$threadId",
+        params: { threadId: targetThreadId },
+      })
+    }
+
+    // Begin SSE streaming response
+    await send(prompt, targetThreadId)
   }
 
-  const handleClear = () => {
+  const handleClear = async () => {
     stop()
     reset()
     setActiveThreadId(null)
-    setMessages([])
+    await safeNavigate({ to: "/_app/chat" })
   }
 
   const hasStarted =
+    Boolean(effectiveThreadId) ||
     messages.length > 0 ||
     isStreaming ||
     Boolean(projection.streamingText) ||
@@ -99,7 +123,7 @@ export function ChatContainer({ initialThreadId = null }: ChatContainerProps) {
           </div>
         </div>
 
-        {messages.length > 0 && (
+        {hasStarted && (
           <button
             type="button"
             onClick={handleClear}

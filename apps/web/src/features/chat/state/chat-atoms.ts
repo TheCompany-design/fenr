@@ -27,3 +27,8 @@ export const isThinkingOpenAtom = atom<boolean>(true)
  * ID of the most recently copied message, if any.
  */
 export const copiedMessageIdAtom = atom<string | null>(null)
+
+/**
+ * Ephemeral active thread ID for client transition coordination.
+ */
+export const activeChatThreadIdAtom = atom<string | null>(null)
