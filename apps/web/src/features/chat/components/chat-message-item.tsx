@@ -5,8 +5,9 @@ import {
   UserIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useState } from "react"
+import { useAtom } from "jotai"
 import { toast } from "sonner"
+import { copiedMessageIdAtom } from "../state/chat-atoms"
 import type { ChatMessage } from "../types"
 import { ThinkingTrace } from "./thinking-trace"
 
@@ -23,15 +24,15 @@ export function ChatMessageItem({
   message,
   isStreaming = false,
 }: ChatMessageItemProps) {
-  const [copied, setCopied] = useState(false)
+  const [copiedId, setCopiedId] = useAtom(copiedMessageIdAtom)
+  const isCopied = copiedId === message.id
   const isUser = message.role === "user"
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(message.content)
-      setCopied(true)
+      setCopiedId(message.id)
       toast.success("Copied to clipboard")
-      setTimeout(() => setCopied(false), 2000)
     } catch {
       toast.error("Failed to copy message")
     }
@@ -92,12 +93,12 @@ export function ChatMessageItem({
             <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
               <button
                 type="button"
-                aria-label={copied ? "Copied" : "Copy response"}
+                aria-label={isCopied ? "Copied" : "Copy response"}
                 onClick={handleCopy}
                 className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <HugeiconsIcon
-                  icon={copied ? CheckmarkCircle02Icon : Copy01Icon}
+                  icon={isCopied ? CheckmarkCircle02Icon : Copy01Icon}
                   size={13}
                 />
               </button>

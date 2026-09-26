@@ -22,3 +22,8 @@ export const lastRequestIdAtom = atom<string | null>(null)
  * UI disclosure state for the streaming thinking trace.
  */
 export const isThinkingOpenAtom = atom<boolean>(true)
+
+/**
+ * ID of the most recently copied message, if any.
+ */
+export const copiedMessageIdAtom = atom<string | null>(null)

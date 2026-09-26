@@ -1,12 +1,10 @@
 import { SentIcon, StopCircleIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useForm } from "@tanstack/react-form"
-import { useCallback, useEffect, useRef } from "react"
 import {
   type ChatComposerInput,
   chatComposerSchema,
 } from "@/lib/schemas/agent-stream"
-import { useChatStore } from "../state/chat-store"
 
 export interface ChatComposerProps {
   readonly onSend: (prompt: string) => void | Promise<void>
@@ -24,8 +22,8 @@ const DEFAULT_SUGGESTIONS = [
 
 /**
  * Message composer adapted from Beautiful UI ChatComposer and Prompt Bar primitives.
- * Integrates TanStack Form with Zod validation, Enter-to-send keyboard handling,
- * and dynamic send/stop action state.
+ * Integrates TanStack Form with Zod validation, declarative CSS field-sizing,
+ * Enter-to-send keyboard handling, and dynamic send/stop action state.
  */
 export function ChatComposer({
   onSend,
@@ -34,14 +32,9 @@ export function ChatComposer({
   placeholder = "Message Nabu agent... (Enter to send, Shift+Enter for new line)",
   suggestions = DEFAULT_SUGGESTIONS,
 }: ChatComposerProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const draftPrompt = useChatStore((state) => state.draftPrompt)
-  const setDraftPrompt = useChatStore((state) => state.setDraftPrompt)
-  const resetDraft = useChatStore((state) => state.resetDraft)
-
   const form = useForm({
     defaultValues: {
-      prompt: draftPrompt || "",
+      prompt: "",
     } as ChatComposerInput,
     validators: {
       onChange: chatComposerSchema,
@@ -49,36 +42,13 @@ export function ChatComposer({
     onSubmit: async ({ value }) => {
       const trimmed = value.prompt.trim()
       if (!trimmed || isStreaming) return
-      resetDraft()
       form.reset()
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto"
-      }
       await onSend(trimmed)
     },
   })
 
-  // Auto-resize textarea height smoothly
-  const adjustHeight = useCallback(() => {
-    const el = textareaRef.current
-    if (el) {
-      el.style.height = "auto"
-      el.style.height = `${Math.min(el.scrollHeight, 200)}px`
-    }
-  }, [])
-
-  // Adjust on initial load if pre-filled draft
-  useEffect(() => {
-    adjustHeight()
-  }, [adjustHeight])
-
   const handleSuggestionClick = (suggestion: string) => {
     form.setFieldValue("prompt", suggestion)
-    setDraftPrompt(suggestion)
-    if (textareaRef.current) {
-      textareaRef.current.focus()
-      adjustHeight()
-    }
   }
 
   return (
@@ -111,15 +81,10 @@ export function ChatComposer({
         <form.Field name="prompt">
           {(field) => (
             <textarea
-              ref={textareaRef}
               name={field.name}
               value={field.state.value}
               onBlur={field.handleBlur}
-              onChange={(e) => {
-                field.handleChange(e.target.value)
-                setDraftPrompt(e.target.value)
-                adjustHeight()
-              }}
+              onChange={(e) => field.handleChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
@@ -130,7 +95,7 @@ export function ChatComposer({
               }}
               placeholder={placeholder}
               rows={1}
-              className="max-h-[200px] min-h-[44px] w-full resize-none bg-transparent px-2 py-1.5 text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden"
+              className="max-h-[200px] min-h-[44px] w-full resize-none field-sizing-content bg-transparent px-2 py-1.5 text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden"
             />
           )}
         </form.Field>
