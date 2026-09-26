@@ -1,4 +1,5 @@
 import { atom } from "jotai"
+import type { ChatMessage } from "../types"
 import {
   type ActiveTurnProjection,
   initialTurnProjection,
@@ -32,3 +33,8 @@ export const copiedMessageIdAtom = atom<string | null>(null)
  * Ephemeral active thread ID for client transition coordination.
  */
 export const activeChatThreadIdAtom = atom<string | null>(null)
+
+/**
+ * Optimistic user message displayed while initial turn is created on server.
+ */
+export const pendingUserMessageAtom = atom<ChatMessage | null>(null)

@@ -15,10 +15,18 @@ import {
 } from "../state/stream-reducer"
 import type { ChatMessage } from "../types"
 
+export interface SendOptions {
+  readonly onTurnStarted?: (threadId: string) => void | Promise<void>
+}
+
 export interface UseAgentStreamReturn {
   readonly projection: ActiveTurnProjection
   readonly lastRequestId: string | null
-  readonly send: (prompt: string, threadId?: string | null) => Promise<void>
+  readonly send: (
+    prompt: string,
+    threadId?: string | null,
+    options?: SendOptions,
+  ) => Promise<void>
   readonly stop: () => void
   readonly reset: () => void
   readonly isStreaming: boolean
@@ -52,7 +60,7 @@ export function useAgentStream(): UseAgentStreamReturn {
   }, [stop, setProjection, setLastRequestId])
 
   const send = useCallback(
-    async (prompt: string, threadId?: string | null) => {
+    async (prompt: string, threadId?: string | null, options?: SendOptions) => {
       stop()
 
       const trimmedPrompt = prompt.trim()
@@ -127,6 +135,16 @@ export function useAgentStream(): UseAgentStreamReturn {
                 if (validation.success) {
                   const event = validation.data
                   setProjection((prev) => streamReducer(prev, event))
+
+                  if (event.type === "turn_started") {
+                    if (options?.onTurnStarted) {
+                      try {
+                        await options.onTurnStarted(event.data.thread_id)
+                      } catch {
+                        // Ignore navigation errors during active stream
+                      }
+                    }
+                  }
 
                   if (event.type === "turn_completed") {
                     const completedThreadId = event.data.thread_id
