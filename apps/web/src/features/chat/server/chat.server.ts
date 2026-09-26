@@ -16,7 +16,7 @@ export async function getThreadMessages(
   threadId: string,
   tenantId: string,
   options?: GetThreadMessagesOptions,
-): Promise<ChatMessage[]> {
+): Promise<ChatMessage[] | null> {
   log.debug(
     { threadId, tenantId, requestId: options?.requestId },
     "Fetching thread messages from database",
@@ -35,7 +35,7 @@ export async function getThreadMessages(
     .limit(1)
 
   if (!thread) {
-    return []
+    return null
   }
 
   // 2. Fetch items for this thread ordered chronologically

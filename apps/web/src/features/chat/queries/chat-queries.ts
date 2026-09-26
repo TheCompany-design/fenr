@@ -11,7 +11,7 @@ export const chatKeys = {
 }
 
 export function threadMessagesQueryOptions(threadId?: string | null) {
-  return queryOptions<ChatMessage[]>({
+  return queryOptions<ChatMessage[] | null>({
     queryKey: threadId
       ? chatKeys.messages(threadId)
       : ([...chatKeys.all, "empty-messages"] as const),
