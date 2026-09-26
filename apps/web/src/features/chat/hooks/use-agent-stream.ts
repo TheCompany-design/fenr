@@ -1,13 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useAtom } from "jotai"
+import { useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { agentStreamEventSchema } from "@/lib/schemas/agent-stream"
-import { useChatStore } from "../state/chat-store"
+import { chatKeys } from "../queries/chat-queries"
+import {
+  activeTurnProjectionAtom,
+  lastRequestIdAtom,
+} from "../state/chat-atoms"
 import {
   type ActiveTurnProjection,
   initialTurnProjection,
   streamReducer,
 } from "../state/stream-reducer"
+import type { ChatMessage } from "../types"
 
 export interface UseAgentStreamReturn {
   readonly projection: ActiveTurnProjection
@@ -21,13 +27,11 @@ export interface UseAgentStreamReturn {
 /**
  * Custom React hook managing real-time SSE streaming connection to the BFF proxy.
  * Encapsulates AbortController cancellation, line-buffered SSE chunk parsing,
- * Zod event validation, pure reducer dispatching, query invalidation, and Sonner alerts.
+ * Zod event validation, Jotai turn projection updates, and TanStack Query cache sync.
  */
 export function useAgentStream(): UseAgentStreamReturn {
-  const [projection, setProjection] = useState<ActiveTurnProjection>(
-    initialTurnProjection,
-  )
-  const [lastRequestId, setLastRequestId] = useState<string | null>(null)
+  const [projection, setProjection] = useAtom(activeTurnProjectionAtom)
+  const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
   const abortControllerRef = useRef<AbortController | null>(null)
   const queryClient = useQueryClient()
 
@@ -39,23 +43,13 @@ export function useAgentStream(): UseAgentStreamReturn {
         prev.status === "streaming" ? { ...prev, status: "idle" } : prev,
       )
     }
-  }, [])
+  }, [setProjection])
 
   const reset = useCallback(() => {
     stop()
     setProjection(initialTurnProjection)
     setLastRequestId(null)
-  }, [stop])
-
-  // Cleanup in-flight requests when component unmounts
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        abortControllerRef.current = null
-      }
-    }
-  }, [])
+  }, [stop, setProjection, setLastRequestId])
 
   const send = useCallback(
     async (prompt: string, threadId?: string | null) => {
@@ -134,16 +128,36 @@ export function useAgentStream(): UseAgentStreamReturn {
                   const event = validation.data
                   setProjection((prev) => streamReducer(prev, event))
 
-                  if (event.type === "turn_started") {
-                    useChatStore
-                      .getState()
-                      .setActiveThreadId(event.data.thread_id)
-                  }
                   if (event.type === "turn_completed") {
+                    const completedThreadId = event.data.thread_id
+
+                    setProjection((current) => {
+                      if (current.streamingText) {
+                        queryClient.setQueryData<ChatMessage[]>(
+                          chatKeys.messages(completedThreadId),
+                          (old = []) => [
+                            ...old,
+                            {
+                              id:
+                                current.activeItemId ||
+                                current.turnId ||
+                                crypto.randomUUID(),
+                              role: "agent",
+                              content: current.streamingText,
+                              thinking: current.streamingThinking || undefined,
+                              createdAt: new Date().toISOString(),
+                            },
+                          ],
+                        )
+                      }
+                      return current
+                    })
+
                     void queryClient.invalidateQueries({
-                      queryKey: ["chat", "threads", event.data.thread_id],
+                      queryKey: chatKeys.thread(completedThreadId),
                     })
                   }
+
                   if (event.type === "stream_error") {
                     const description = activeRequestId
                       ? `${event.data.message} (Ref: ${activeRequestId})`
@@ -185,7 +199,7 @@ export function useAgentStream(): UseAgentStreamReturn {
         }
       }
     },
-    [stop, queryClient],
+    [stop, setProjection, setLastRequestId, queryClient],
   )
 
   return {

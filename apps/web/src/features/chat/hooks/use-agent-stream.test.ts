@@ -27,7 +27,6 @@ const { createRoot } = await import("react-dom/client")
 notifyManager.setScheduler((cb) => act(cb))
 
 const { useAgentStream } = await import("./use-agent-stream")
-const { useChatStore } = await import("../state/chat-store")
 
 describe("useAgentStream Hook", () => {
   let container: HTMLDivElement | null = null
@@ -268,16 +267,13 @@ describe("useAgentStream Hook", () => {
     })
   })
 
-  it("updates activeThreadId in useChatStore upon turn_started event", async () => {
-    useChatStore.getState().resetAll()
-    expect(useChatStore.getState().activeThreadId).toBeNull()
-
+  it("handles thread_id propagation and invalidates queries on turn_completed", async () => {
     const serverThreadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c399"
     const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c39a"
 
     const ssePayload = [
       `data: {"type":"turn_started","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}"}}\n\n`,
-      `data: {"type":"turn_completed","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}","status":"completed"}}\n\n`,
+      `data: {"type":"turn_completed","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}","status":"completed","usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30}}}\n\n`,
     ].join("")
 
     const stream = new ReadableStream({
@@ -300,21 +296,19 @@ describe("useAgentStream Hook", () => {
 
     const hook = renderStreamHook()
 
-    // Turn 1: No threadId initially passed
+    // Turn 1: Initial prompt passed with threadId
     await act(async () => {
-      await hook.current.send("First prompt")
+      await hook.current.send("First prompt", serverThreadId)
     })
 
-    expect(useChatStore.getState().activeThreadId).toBe(serverThreadId)
     const firstBody = JSON.parse(fetchPayloads[0]) as {
       prompt: string
       thread_id?: string
     }
     expect(firstBody.prompt).toBe("First prompt")
-    expect(firstBody.thread_id).toBeUndefined()
+    expect(firstBody.thread_id).toBe(serverThreadId)
 
-    // Turn 2: Subsequent message sent using persisted threadId
-    const currentThreadId = useChatStore.getState().activeThreadId
+    // Turn 2: Subsequent message sent using threadId
     const stream2 = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(ssePayload))
@@ -332,7 +326,7 @@ describe("useAgentStream Hook", () => {
     }) as unknown as typeof fetch
 
     await act(async () => {
-      await hook.current.send("Second prompt", currentThreadId)
+      await hook.current.send("Second prompt", serverThreadId)
     })
 
     expect(fetchPayloads.length).toBe(2)
