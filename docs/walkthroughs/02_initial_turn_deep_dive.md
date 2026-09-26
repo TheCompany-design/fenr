@@ -4,7 +4,7 @@ This document provides a code-level, execution-order walkthrough of the agent ch
 1. **Server Boot & In-Memory State**: Bun production server initialization, static asset caching, and TanStack Start handler registration.
 2. **Initial Client Mount State**: Initial values in TanStack Router, TanStack Query, and Jotai stream projection atoms.
 3. **User Action & Form Validation**: Entering the prompt, TanStack Form validation with Zod (`chatComposerSchema`), and declarative CSS auto-resizing.
-4. **Optimistic Rendering & URL Navigation**: Appending user message to TanStack Query cache, transitioning URL to `/chat/<uuid>`, collapsing the hero greeting, and triggering `useAgentStream.send()`.
+4. **Optimistic Rendering & Ingress**: Optimistic user prompt display via `pendingUserMessageAtom`, collapsing the hero greeting, triggering `useAgentStream.send()` with omitted `thread_id`, and binding server thread ID upon `turn_started`.
 5. **TanStack Start BFF Proxy Execution**: Session authentication, tenant boundary validation, outbound Ed25519 JWT minting, and zero-buffering proxying.
 6. **Client Stream Processing & Pure Reducer Dispatching**: Reading SSE chunks, Zod schema validation, and pure state projection via Jotai atoms.
 7. **Turn Finalization & UI Commit**: Query cache commit and invalidation, wide-event logging, and persistence synchronization.
@@ -116,16 +116,13 @@ export const chatComposerSchema = z.object({
 
 ---
 
-## 4. Optimistic Rendering, URL Navigation & Hook Invocation
+## 4. Optimistic Rendering, Ingress & Server Thread Binding
 
-When the form submits, `ChatContainer.handleSend(prompt)` executes:
+When the form submits on an initial conversation turn (`threadId: null`), `ChatContainer.handleSend(prompt)` executes:
 
 ```typescript
 // apps/web/src/features/chat/components/chat-container.tsx
 const handleSend = async (prompt: string) => {
-  const targetThreadId = effectiveThreadId ?? crypto.randomUUID()
-  setActiveThreadId(targetThreadId)
-
   const userMsg: ChatMessage = {
     id: crypto.randomUUID(),
     role: "user",
@@ -133,31 +130,62 @@ const handleSend = async (prompt: string) => {
     createdAt: new Date().toISOString(),
   }
 
-  // 1. Optimistically append message to TanStack Query cache
-  queryClient.setQueryData<ChatMessage[]>(
-    chatKeys.messages(targetThreadId),
-    (old = []) => [...old, userMsg],
-  )
+  if (!effectiveThreadId) {
+    // Turn 0: Omit thread_id so Nabu atomically creates the thread in PostgreSQL
+    setPendingUserMessage(userMsg)
 
-  // 2. Navigate immediately to /chat/<uuid>
-  if (!threadId) {
-    await safeNavigate({
-      to: "/_app/chat/$threadId",
-      params: { threadId: targetThreadId },
+    await send(prompt, undefined, {
+      onTurnStarted: async (serverThreadId) => {
+        setActiveThreadId(serverThreadId)
+
+        // Seed the newly minted server thread in TanStack Query cache
+        queryClient.setQueryData<ChatMessage[]>(
+          chatKeys.messages(serverThreadId),
+          [userMsg],
+        )
+
+        setPendingUserMessage(null)
+
+        // Seamlessly transition URL from /chat to /chat/<real-thread-id>
+        await safeNavigate({
+          to: "/chat/$threadId",
+          params: { threadId: serverThreadId },
+          replace: true,
+        })
+      },
     })
-  }
+  } else {
+    // Turn 1+: Existing thread in PostgreSQL
+    queryClient.setQueryData<ChatMessage[]>(
+      chatKeys.messages(effectiveThreadId),
+      (old = []) => [...old, userMsg],
+    )
 
-  // 3. Dispatch stream request with new thread ID
-  await send(prompt, targetThreadId)
+    await send(prompt, effectiveThreadId)
+  }
 }
 ```
 
-### 4.1 UI Transitions
-1. **URL Transition**: The browser URL navigates from `/chat` to `/chat/<uuid>` via TanStack Router.
-2. **Optimistic Message Insertion**: The user message bubble immediately appears from TanStack Query's cache.
-3. **Hero Greeting Collapse**: `hasStarted` becomes `true`. The hero greeting collapses with a 500ms spring animation (`opacity-0 max-h-0 -translate-y-4 scale-95 overflow-hidden`), and the composer translates smoothly to the bottom of the viewport (`bottom-0 translate-y-0 pb-6`).
+### 4.1 UI Transitions & Optimistic Feedback
+1. **Optimistic Display via Atom**: `pendingUserMessage` is set to `userMsg`. Because `hasStarted` checks `Boolean(pendingUserMessage)`, it immediately switches to `true`.
+2. **Hero Greeting Collapse**: The hero greeting collapses with a 500ms spring animation (`opacity-0 max-h-0 -translate-y-4 scale-95 overflow-hidden`), and the composer translates smoothly to the bottom of the viewport (`bottom-0 translate-y-0 pb-6`).
+3. **Display Merging**: `displayMessages` computes `[...safeMessages, pendingUserMessage]`, displaying the user's message bubble immediately with zero wait time.
 
-### 4.2 Initiating `useAgentStream.send()`
+### 4.2 Database Invariants: Why Client-Side UUID Generation Fails
+In upstream Nabu (`thebookofnabu/crates/nabu-agent/src/storage/postgres.rs`), when a `thread_id` is supplied in the request body, Nabu assumes the thread already exists in PostgreSQL and executes:
+```sql
+UPDATE agent_threads SET updated_at = NOW() WHERE id = $1 AND tenant_id = $2
+```
+If an unpersisted UUID generated via `crypto.randomUUID()` were passed, PostgreSQL returns 0 rows updated, and Nabu immediately fails with `StorageError::NotFound` ("Thread not found: <uuid>").
+Conversely, when `thread_id` is omitted (`None`/`undefined`), Nabu executes:
+```sql
+INSERT INTO agent_threads (id, tenant_id, title, created_at, updated_at)
+VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())
+RETURNING id;
+```
+It then emits `turn_started` SSE event containing the newly minted, PostgreSQL-persisted thread UUID.
+
+### 4.3 Initiating `useAgentStream.send()`
 In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
 1. Cleans up any prior requests: `stop()`.
 2. Allocates a new `AbortController`:
@@ -169,11 +197,11 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
    ```typescript
    setProjection({
      ...initialTurnProjection,
-     threadId: targetThreadId,
+     threadId: targetThreadId ?? null,
      status: "streaming",
    })
    ```
-4. Dispatches the HTTP fetch request:
+4. Dispatches the HTTP fetch request (omitting `thread_id` when undefined):
    ```typescript
    const response = await fetch("/api/agent/stream", {
      method: "POST",
@@ -183,11 +211,18 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
      },
      body: JSON.stringify({
        prompt: trimmedPrompt,
-       thread_id: targetThreadId,
+       thread_id: targetThreadId ?? undefined,
      }),
      signal: abortController.signal,
    })
    ```
+
+### 4.4 URL Route Resolution
+When `turn_started` arrives, `onTurnStarted(serverThreadId)` runs:
+1. `queryClient.setQueryData(chatKeys.messages(serverThreadId), [userMsg])` seeds the cache.
+2. `setPendingUserMessage(null)` clears the temporary optimistic atom.
+3. `safeNavigate({ to: "/chat/$threadId", params: { threadId: serverThreadId }, replace: true })` updates TanStack Router's URL without a 404 or full page reload.
+*(Note: TanStack Router public route is `/chat/$threadId`, not `/_app/chat/$threadId`, as `_app` is a pathless layout id.)*
 
 ---
 

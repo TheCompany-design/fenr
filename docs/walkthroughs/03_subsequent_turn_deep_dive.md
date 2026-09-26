@@ -16,16 +16,26 @@ It builds directly upon the state created in [Deep Dive 1: Initial Web Request (
 
 At the conclusion of Turn 0, the client application holds:
 
-### 1.1 TanStack Router & URL State
+### 1.1 TanStack Router & Defensive Route Loader
 - Current URL: `/chat/0195c100-aaaa-7000-8000-000000000001`
-- Route: `/_app/chat/$threadId`
+- Route: `/chat/$threadId` (rendered inside pathless `_app` layout)
 - `threadId`: `"0195c100-aaaa-7000-8000-000000000001"` (read via `Route.useParams()`)
-- Prefetched via Route Loader:
+- Defensive Route Loader:
   ```typescript
-  loader: async ({ context: { queryClient }, params: { threadId } }) => {
-    await queryClient.ensureQueryData(threadMessagesQueryOptions(threadId))
-  }
+  // apps/web/src/routes/_app/chat/$threadId.tsx
+  export const Route = createFileRoute("/_app/chat/$threadId")({
+    loader: async ({ context: { queryClient }, params: { threadId } }) => {
+      const messages = await queryClient.ensureQueryData(
+        threadMessagesQueryOptions(threadId),
+      )
+      if (messages === null) {
+        throw redirect({ to: "/chat" })
+      }
+    },
+    component: ThreadChatRouteComponent,
+  })
   ```
+  If an operator enters a bogus or non-existent thread UUID, `getThreadMessagesFn` returns `null` and the route loader immediately redirects to `/chat`, safeguarding against broken or stranded empty views.
 
 ### 1.2 TanStack Query Cache
 Key `["chat", "threads", "0195c100-aaaa-7000-8000-000000000001", "messages"]` contains:
@@ -80,8 +90,6 @@ const form = useForm({
 ```typescript
 // apps/web/src/features/chat/components/chat-container.tsx
 const handleSend = async (prompt: string) => {
-  const targetThreadId = effectiveThreadId! // Already bound: "0195c100-aaaa-..."
-
   const userMsg: ChatMessage = {
     id: crypto.randomUUID(),
     role: "user",
@@ -89,16 +97,14 @@ const handleSend = async (prompt: string) => {
     createdAt: new Date().toISOString(),
   }
 
-  // 1. Optimistically append new user message to TanStack Query cache
+  // Turn 1+: effectiveThreadId is bound to the route's threadId
   queryClient.setQueryData<ChatMessage[]>(
-    chatKeys.messages(targetThreadId),
+    chatKeys.messages(effectiveThreadId),
     (old = []) => [...old, userMsg],
   )
 
-  // 2. Already on /chat/<uuid>, so no router transition is needed
-
-  // 3. Dispatch stream request with existing threadId
-  await send(prompt, targetThreadId)
+  // Dispatch stream request with existing threadId
+  await send(prompt, effectiveThreadId)
 }
 ```
 

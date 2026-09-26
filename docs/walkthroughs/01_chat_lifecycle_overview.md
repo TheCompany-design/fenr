@@ -47,23 +47,28 @@ sequenceDiagram
 
     Note over User, UI: Initial state at /chat (Centered Composer)
     User->>UI: Types prompt & hits Enter
-    UI->>Router: Generates UUID & navigates to /chat/<new-uuid>
-    Note over Router, UI: Layout smoothly animates composer to bottom-0
-    UI->>Query: Optimistic render: Append User message to Query Cache
-    UI->>Hook: send(prompt, newThreadId)
+    UI->>UI: Optimistic render: pendingUserMessageAtom + collapses hero to bottom-0
+    UI->>Hook: send(prompt, undefined, { onTurnStarted }) [omits thread_id]
     Hook->>Hook: Reset projection, create AbortController, set status="streaming"
-    Hook->>BFF: POST /api/agent/stream (JSON: prompt, thread_id)
+    Hook->>BFF: POST /api/agent/stream (JSON: prompt, thread_id: undefined)
 
     BFF->>Auth: auth.api.getSession(request.headers)
     Auth-->>BFF: Valid session with activeOrganizationId
     BFF->>Auth: acquireOutboundJwt({ service: "nabu", audience: "nabu" })
     Auth-->>BFF: Signed Ed25519 Bearer token
     BFF->>Nabu: POST /api/v1/agent/run (Bearer token, duplex: "half")
+    Nabu->>Nabu: Postgres INSERT INTO agent_threads (new thread created)
     Nabu-->>BFF: HTTP 200 text/event-stream
     BFF-->>Hook: HTTP 200 text/event-stream (Zero-buffering pipeline)
 
+    Nabu->>BFF: event: agent_event\ndata: {"type":"turn_started","thread_id":"server-uuid",...}
+    BFF->>Hook: Pipe turn_started
+    Hook->>UI: onTurnStarted("server-uuid")
+    UI->>Query: Seed Query Cache with user message at ["chat", "threads", "server-uuid", "messages"]
+    UI->>Router: navigate({ to: "/chat/$threadId", params: { threadId: "server-uuid" }, replace: true })
+
     loop SSE Streaming Chunks
-        Nabu->>BFF: event: agent_event\ndata: {"type":"turn_started",...}
+        Nabu->>BFF: event: agent_event\ndata: {"type":"item_started",...}
         BFF->>Hook: Pipe raw SSE chunk
         Hook->>Hook: Line-split, Zod parse, streamReducer(projection, event)
         Hook->>UI: Reactive re-render: Mount assistant bubble (item_started)
@@ -74,7 +79,7 @@ sequenceDiagram
     BFF->>Hook: Pipe turn_completed
     Hook->>Hook: streamReducer -> status="completed"
     Hook->>Query: Commit finalized message directly to TanStack Query Cache
-    Hook->>Query: Invalidate TanStack Query ["chat", "threads", thread_id]
+    Hook->>Query: Invalidate TanStack Query ["chat", "threads", "server-uuid"]
 ```
 
 ---
@@ -102,7 +107,7 @@ response = new Response(nabuResponse.body, {
 
 ### 3.2 URL Routing & TanStack Query State (Zero useState/useEffect)
 Fenr enforces a strict anti-pattern avoidance policy:
-- **URL Route as Truth**: Conversations begin at `/_app/chat/` (`/chat`) with the composer centered. On first message send, a UUID is generated, navigating to `/_app/chat/$threadId` (`/chat/<uuid>`). URL state is decoupled from Zustand, and `NuqsAdapter` (`nuqs/adapters/tanstack-router`) is mounted at the root.
+- **URL Route as Truth**: Conversations begin at `/chat` (`apps/web/src/routes/_app/chat/index.tsx`) with the composer centered. On first message send, `thread_id` is omitted so the upstream Nabu engine creates the thread in PostgreSQL and issues a real server UUID via `turn_started`. Upon receiving `turn_started`, the client seeds TanStack Query and transitions the route to `/chat/$threadId` via `{ replace: true }`. If an operator navigates to `/chat/<bogus-uuid>`, the route loader checks `getThreadMessagesFn` and safely throws `redirect({ to: "/chat" })`, preventing stranded empty states or 404s.
 - **TanStack Query Cache**: Persistent messages are managed strictly by TanStack Query (`threadMessagesQueryOptions(threadId)`), using optimistic cache mutations on message dispatch. No local `useState<ChatMessage[]>` or completion `useEffect` hooks.
 - **TanStack Form**: The message composer uses TanStack Form with modern CSS `field-sizing-content` for declarative auto-expanding textareas without refs or imperative height manipulation.
 
@@ -134,9 +139,10 @@ Client-side cookies only identify the browser session to the Fenr BFF. The brows
 ### Scenario 1: Starting a New Chat (Turn 0)
 1. **Initial Mount**: Navigating to `/chat`. `threadId` is null. The hero greeting and composer are vertically centered (`bottom-1/2 translate-y-1/2`).
 2. **User Submission**: The operator enters a prompt in `ChatComposer` and presses Enter.
-3. **URL Transition & Optimistic Rendering**: A new `threadId` UUID is created. TanStack Router immediately transitions to `/chat/<uuid>`. The user prompt is optimistically added to TanStack Query cache.
-4. **Hero Collapse**: `hasStarted` becomes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
-5. **Streaming & Completion**: Tokens stream into the assistant bubble via `activeTurnProjectionAtom`. On `turn_completed`, the completed message is committed to TanStack Query cache.
+3. **Optimistic Rendering & Ingress**: `pendingUserMessageAtom` holds the prompt for instant UI rendering. `hasStarted` immediately becomes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
+4. **Server Thread Creation**: `send(prompt, undefined, { onTurnStarted })` dispatches the request with no `thread_id`. Nabu atomically creates the thread record in PostgreSQL and emits `turn_started` with the server-minted `thread_id`.
+5. **Cache Seeding & URL Transition**: The `onTurnStarted` callback seeds TanStack Query cache at `chatKeys.messages(serverThreadId)` with the user message, clears `pendingUserMessageAtom`, and navigates to `/chat/$threadId` with `{ replace: true }`.
+6. **Streaming & Completion**: Tokens stream into the assistant bubble via `activeTurnProjectionAtom`. On `turn_completed`, the completed message is committed to TanStack Query cache.
 
 ### Scenario 2: Continuing the Context (Turn 1)
 1. **Subsequent Submission**: The operator types a follow-up prompt on `/chat/<uuid>`. The `threadId` is already bound from route params.
