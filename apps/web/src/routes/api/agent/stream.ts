@@ -9,15 +9,38 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { auth } from "@/lib/auth"
 import { serverEnv } from "@/lib/env"
+import {
+  extractOrGenerateRequestId,
+  REQUEST_ID_HEADER,
+} from "@/lib/http/request-id"
 import { acquireOutboundJwt } from "@/lib/http/token.server"
 import { logger } from "@/lib/logger"
+
+function jsonErrorResponse(
+  error: string,
+  status: number,
+  requestId: string,
+  extraHeaders?: Record<string, string>,
+): Response {
+  return Response.json(
+    { error },
+    {
+      status,
+      headers: {
+        [REQUEST_ID_HEADER]: requestId,
+        "Access-Control-Expose-Headers": REQUEST_ID_HEADER,
+        ...extraHeaders,
+      },
+    },
+  )
+}
 
 export async function handleAgentStreamRequest(
   request: Request,
 ): Promise<Response> {
   const startTime = performance.now()
   const pathname = "/api/agent/stream"
-  const requestId = request.headers.get("x-request-id") || crypto.randomUUID()
+  const { requestId } = extractOrGenerateRequestId(request.headers)
   const mod = "api.agent.stream"
   const method = request.method
   const timestamp = new Date().toISOString()
@@ -30,29 +53,26 @@ export async function handleAgentStreamRequest(
 
   try {
     if (method !== "POST") {
-      response = Response.json(
-        { error: "Method not allowed" },
-        { status: 405, headers: { Allow: "POST" } },
-      )
+      response = jsonErrorResponse("Method not allowed", 405, requestId, {
+        Allow: "POST",
+      })
       return response
     }
 
     // 1. Authenticate user session
     const session = await auth.api.getSession({ headers: request.headers })
     if (!session?.user?.id) {
-      response = Response.json({ error: "Unauthorized" }, { status: 401 })
+      response = jsonErrorResponse("Unauthorized", 401, requestId)
       return response
     }
 
     // 2. Enforce active organization tenant context
     const activeOrgId = session.session?.activeOrganizationId
     if (!activeOrgId) {
-      response = Response.json(
-        {
-          error:
-            "Tenant context required: active organization context is missing",
-        },
-        { status: 403 },
+      response = jsonErrorResponse(
+        "Tenant context required: active organization context is missing",
+        403,
+        requestId,
       )
       return response
     }
@@ -63,10 +83,7 @@ export async function handleAgentStreamRequest(
     try {
       bodyText = await request.text()
     } catch {
-      response = Response.json(
-        { error: "Invalid request body" },
-        { status: 400 },
-      )
+      response = jsonErrorResponse("Invalid request body", 400, requestId)
       return response
     }
 
@@ -74,10 +91,7 @@ export async function handleAgentStreamRequest(
     try {
       payload = JSON.parse(bodyText)
     } catch {
-      response = Response.json(
-        { error: "Malformed JSON payload" },
-        { status: 400 },
-      )
+      response = jsonErrorResponse("Malformed JSON payload", 400, requestId)
       return response
     }
 
@@ -88,10 +102,7 @@ export async function handleAgentStreamRequest(
       typeof (payload as { prompt: unknown }).prompt !== "string" ||
       !(payload as { prompt: string }).prompt.trim()
     ) {
-      response = Response.json(
-        { error: "Invalid prompt payload" },
-        { status: 400 },
-      )
+      response = jsonErrorResponse("Invalid prompt payload", 400, requestId)
       return response
     }
 
@@ -119,9 +130,10 @@ export async function handleAgentStreamRequest(
 
     if (!nabuResponse.ok || !nabuResponse.body) {
       const status = nabuResponse.status >= 500 ? 502 : nabuResponse.status
-      response = Response.json(
-        { error: "Agent runtime unavailable" },
-        { status },
+      response = jsonErrorResponse(
+        "Agent runtime unavailable",
+        status,
+        requestId,
       )
       return response
     }
@@ -134,6 +146,8 @@ export async function handleAgentStreamRequest(
         "Cache-Control": "no-cache, no-transform",
         Connection: "keep-alive",
         "X-Accel-Buffering": "no",
+        [REQUEST_ID_HEADER]: requestId,
+        "Access-Control-Expose-Headers": REQUEST_ID_HEADER,
       },
     })
     return response
@@ -147,10 +161,7 @@ export async function handleAgentStreamRequest(
     } else {
       errorDetails = { name: "Error", message: String(error) }
     }
-    response = Response.json(
-      { error: "Internal Server Error" },
-      { status: 500 },
-    )
+    response = jsonErrorResponse("Internal Server Error", 500, requestId)
     return response
   } finally {
     const duration_ms = Math.max(0, Math.round(performance.now() - startTime))

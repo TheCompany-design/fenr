@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { auth } from "@/lib/auth"
+import { isValidUuidV7 } from "@/lib/id"
 import { logger } from "@/lib/logger"
 import { handleAgentStreamRequest } from "./stream"
 
@@ -32,6 +33,10 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     const response = await handleAgentStreamRequest(request)
     expect(response.status).toBe(405)
     expect(response.headers.get("Allow")).toBe("POST")
+    expect(isValidUuidV7(response.headers.get("x-request-id") ?? "")).toBe(true)
+    expect(response.headers.get("Access-Control-Expose-Headers")).toBe(
+      "x-request-id",
+    )
     const body = (await response.json()) as { error: string }
     expect(body.error).toBe("Method not allowed")
   })
@@ -183,6 +188,10 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-cache, no-transform")
     expect(response.headers.get("Connection")).toBe("keep-alive")
     expect(response.headers.get("X-Accel-Buffering")).toBe("no")
+    expect(response.headers.get("x-request-id")).toBe("test-req-456")
+    expect(response.headers.get("Access-Control-Expose-Headers")).toBe(
+      "x-request-id",
+    )
 
     // Check wide event logging
     expect(infoCalls.length).toBe(1)
@@ -197,5 +206,41 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     const eventStr = JSON.stringify(event)
     expect(eventStr).not.toContain("mock-jwt-token")
     expect(eventStr).not.toContain("Authorization")
+  })
+
+  it("sanitizes invalid x-request-id containing spaces and echoes generated UUIDv7", async () => {
+    auth.api.getSession = mock(async () => ({
+      user: { id: "user-123", email: "user@example.com" },
+      session: { id: "sess-123", activeOrganizationId: "org-123" },
+    })) as unknown as typeof auth.api.getSession
+
+    auth.api.signJWT = mock(async () => ({
+      token: "mock-jwt-token",
+    })) as unknown as typeof auth.api.signJWT
+
+    globalThis.fetch = mock(async () => {
+      return new Response(new ReadableStream(), {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const request = new Request("http://localhost:3000/api/agent/stream", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-request-id": "bad trace id with spaces",
+      },
+      body: JSON.stringify({ prompt: "Calculate margin" }),
+    })
+
+    const response = await handleAgentStreamRequest(request)
+    expect(response.status).toBe(200)
+    const echoedId = response.headers.get("x-request-id")
+    expect(echoedId).not.toBe("bad trace id with spaces")
+    expect(isValidUuidV7(echoedId ?? "")).toBe(true)
+    expect(response.headers.get("Access-Control-Expose-Headers")).toBe(
+      "x-request-id",
+    )
   })
 })

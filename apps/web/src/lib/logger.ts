@@ -12,6 +12,7 @@
  *   info = meaningful state transitions, debug = diagnostics.
  */
 import pino from "pino"
+import { generateUuidV7 } from "@/lib/id"
 
 const logLevel =
   typeof window !== "undefined" ? "info" : (process.env.LOG_LEVEL ?? "info")
@@ -59,7 +60,7 @@ export async function withWideEvent<T>(
   const requestId =
     typeof initialContext?.requestId === "string"
       ? initialContext.requestId
-      : crypto.randomUUID()
+      : generateUuidV7()
   const timestamp = new Date().toISOString()
 
   const context: WideEventContext = { ...initialContext }
