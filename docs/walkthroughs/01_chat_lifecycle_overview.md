@@ -24,8 +24,8 @@ To understand the architecture, think of the system as **four distinct roles**:
     Captures Prompts        Projects State            & Pipes Zero-Buffer SSE         & Persists to Postgres
 ```
 
-1. **The Surface (`apps/web/src/features/chat/components`)**: React UI components composed of `ChatContainer`, `ChatComposer`, `ChatMessages`, `ChatMessageItem`, and `ThinkingTrace`. Manages declarative CSS `field-sizing-content` auto-resizing, hero greeting collapse animations, and Radix `<ScrollArea />` stick-to-bottom mechanics.
-2. **The Bridge (`apps/web/src/features/chat/hooks`, `state`)**: The `useAgentStream` hook, Jotai turn projection atoms (`activeTurnProjectionAtom`), and pure `streamReducer`. Reads raw byte streams, splits lines on `\n`, validates event schemas with Zod, and accumulates token deltas without React state tearing.
+1. **The Surface (`apps/web/src/features/chat/components`)**: React UI components composed of `ChatContainer`, `ChatComposer`, `ChatMessages`, `ChatMessageItem`, and `ThinkingTrace`. Features single-loop declarative rendering (`messages.map`), CSS `field-sizing-content` auto-resizing, hero greeting collapse animations, and Radix `<ScrollArea />` stick-to-bottom mechanics.
+2. **The Bridge (`apps/web/src/features/chat/hooks`, `state`)**: The `useAgentStream` hook and pure `chatMessagesReducer`. Reads raw byte streams, splits lines on `\n`, validates event schemas with Zod, and drives in-place updates directly into TanStack Query's cache without separate projection state or duplicate ghost bubbles.
 3. **The Gatekeeper (`apps/web/src/routes/api/agent/stream.ts`)**: TanStack Start server BFF proxy route. Authenticates Better-Auth user sessions, strictly enforces `activeOrganizationId` tenant boundaries, mints short-lived outbound Ed25519 JWTs, and streams upstream SSE with zero buffering.
 4. **The Engine (`thebookofnabu`)**: The autonomous Rust runtime. Executes the state machine stepper, calls completion models via `rig-core`, writes items to PostgreSQL, and emits Server-Sent Events back through the pipeline.
 
@@ -47,9 +47,9 @@ sequenceDiagram
 
     Note over User, UI: Initial state at /chat (Centered Composer)
     User->>UI: Types prompt & hits Enter
-    UI->>UI: Optimistic render: pendingUserMessageAtom + collapses hero to bottom-0
-    UI->>Hook: send(prompt, undefined, { onTurnStarted }) [omits thread_id]
-    Hook->>Hook: Reset projection, create AbortController, set status="streaming"
+    UI->>Hook: send(prompt, threadId)
+    Hook->>Query: chatMessagesReducer({ type: "client_send" }) -> Appends user & streaming agent message
+    Note over UI, Query: UI renders user bubble & active streaming agent bubble via single loop
     Hook->>BFF: POST /api/agent/stream (JSON: prompt, thread_id: undefined)
 
     BFF->>Auth: auth.api.getSession(request.headers)
@@ -63,22 +63,19 @@ sequenceDiagram
 
     Nabu->>BFF: event: agent_event\ndata: {"type":"turn_started","thread_id":"server-uuid",...}
     BFF->>Hook: Pipe turn_started
-    Hook->>UI: onTurnStarted("server-uuid")
-    UI->>Query: Seed Query Cache with user message at ["chat", "threads", "server-uuid", "messages"]
-    UI->>Router: navigate({ to: "/chat/$threadId", params: { threadId: "server-uuid" }, replace: true })
+    Hook->>Query: Migrate draft cache to ["chat", "threads", "server-uuid", "messages"]
+    Hook->>Router: navigate({ to: "/chat/$threadId", params: { threadId: "server-uuid" }, replace: true })
 
     loop SSE Streaming Chunks
-        Nabu->>BFF: event: agent_event\ndata: {"type":"item_started",...}
+        Nabu->>BFF: event: agent_event\ndata: {"type":"item_delta",...}
         BFF->>Hook: Pipe raw SSE chunk
-        Hook->>Hook: Line-split, Zod parse, streamReducer(projection, event)
-        Hook->>UI: Reactive re-render: Mount assistant bubble (item_started)
-        Hook->>UI: Reactive re-render: Stream text/thinking deltas (item_delta)
+        Hook->>Query: chatMessagesReducer({ type: "agent_event", event }) -> Appends deltas in-place
+        Query-->>UI: Reactive update: Live tokens & thinking trace render in-place
     end
 
     Nabu->>BFF: data: {"type":"turn_completed",...}
     BFF->>Hook: Pipe turn_completed
-    Hook->>Hook: streamReducer -> status="completed"
-    Hook->>Query: Commit finalized message directly to TanStack Query Cache
+    Hook->>Query: chatMessagesReducer(turn_completed) -> Marks status="completed"
     Hook->>Query: Invalidate TanStack Query ["chat", "threads", "server-uuid"]
 ```
 
@@ -107,20 +104,21 @@ response = new Response(nabuResponse.body, {
 
 ### 3.2 URL Routing & TanStack Query State (Zero useState/useEffect)
 Fenr enforces a strict anti-pattern avoidance policy:
-- **URL Route as Truth**: Conversations begin at `/chat` (`apps/web/src/routes/_app/chat/index.tsx`) with the composer centered. On first message send, `thread_id` is omitted so the upstream Nabu engine creates the thread in PostgreSQL and issues a real server UUID via `turn_started`. Upon receiving `turn_started`, the client seeds TanStack Query and transitions the route to `/chat/$threadId` via `{ replace: true }`. If an operator navigates to `/chat/<bogus-uuid>`, the route loader checks `getThreadMessagesFn` and safely throws `redirect({ to: "/chat" })`, preventing stranded empty states or 404s.
-- **TanStack Query Cache**: Persistent messages are managed strictly by TanStack Query (`threadMessagesQueryOptions(threadId)`), using optimistic cache mutations on message dispatch. No local `useState<ChatMessage[]>` or completion `useEffect` hooks.
+- **URL Route as Truth**: Conversations begin at `/chat` (`apps/web/src/routes/_app/chat/index.tsx`) with the composer centered. On first message send, `thread_id` is omitted so the upstream Nabu engine creates the thread in PostgreSQL and issues a real server UUID via `turn_started`. Upon receiving `turn_started`, the client migrates the draft query data and transitions the route to `/chat/$threadId` via `{ replace: true }`. If an operator navigates to `/chat/<bogus-uuid>`, the route loader checks `getThreadMessagesFn` and safely throws `redirect({ to: "/chat" })`, preventing stranded empty states or 404s.
+- **TanStack Query Cache**: Persistent and in-flight messages are managed strictly by TanStack Query (`threadMessagesQueryOptions(threadId)`), using optimistic cache mutations on message dispatch. No local `useState<ChatMessage[]>` or completion `useEffect` hooks.
 - **TanStack Form**: The message composer uses TanStack Form with modern CSS `field-sizing-content` for declarative auto-expanding textareas without refs or imperative height manipulation.
 
-### 3.3 Pure Stream Reducer & Jotai Atoms (No React Tearing)
-High-frequency token streams (often 50–100 tokens/sec) can cause React state tearing or dropped frames if handled via scattered `useState` calls. Fenr uses a single pure reducer function (`apps/web/src/features/chat/state/stream-reducer.ts`) and reactive Jotai atoms:
+### 3.3 Pure Message Reducer & Single Render Loop (Zero Duplication by Construction)
+High-frequency token streams update the authoritative message list in-place via a pure reducer function (`apps/web/src/features/chat/state/chat-messages-reducer.ts`):
 
 ```typescript
-export function streamReducer(
-  state: ActiveTurnProjection,
-  event: AgentStreamEvent,
-): ActiveTurnProjection
+export function chatMessagesReducer(
+  messages: readonly ChatMessage[],
+  action: ChatMessageAction,
+): ChatMessage[]
 ```
-All in-flight state—`streamingText`, `streamingThinking`, `activeItemId`, `turnId`, `threadId`, and `status`—is consolidated into an immutable `ActiveTurnProjection` managed by `activeTurnProjectionAtom`. When `turn_completed` arrives, the final content is atomically committed to the TanStack Query cache.
+- **Single Render Loop**: `ChatMessages` maps over `messages` with a single block (`messages.map(...)`). There is no secondary streaming bubble component, no split-brain projection atom, and no hacky deduplication checks.
+- When `turn_completed` arrives, the active message's status transitions to `"completed"` in-place. Duplication is structurally impossible.
 
 ### 3.4 Zero Layout Jitter
 Before generating any tokens, the upstream Nabu stepper emits `item_started` with the PostgreSQL-persisted `item_id`. The client immediately mounts the assistant message bubble with a pulsing cursor. The UI does not jump or reflow when the first text token arrives.
@@ -139,10 +137,10 @@ Client-side cookies only identify the browser session to the Fenr BFF. The brows
 ### Scenario 1: Starting a New Chat (Turn 0)
 1. **Initial Mount**: Navigating to `/chat`. `threadId` is null. The hero greeting and composer are vertically centered (`bottom-1/2 translate-y-1/2`).
 2. **User Submission**: The operator enters a prompt in `ChatComposer` and presses Enter.
-3. **Optimistic Rendering & Ingress**: `pendingUserMessageAtom` holds the prompt for instant UI rendering. `hasStarted` immediately becomes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
+3. **In-Place Optimistic Dispatch**: `chatMessagesReducer` appends the user message and a streaming agent placeholder to `chatKeys.messages(null)`. `hasStarted` immediately becomes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
 4. **Server Thread Creation**: `send(prompt, undefined, { onTurnStarted })` dispatches the request with no `thread_id`. Nabu atomically creates the thread record in PostgreSQL and emits `turn_started` with the server-minted `thread_id`.
-5. **Cache Seeding & URL Transition**: The `onTurnStarted` callback seeds TanStack Query cache at `chatKeys.messages(serverThreadId)` with the user message, clears `pendingUserMessageAtom`, and navigates to `/chat/$threadId` with `{ replace: true }`.
-6. **Streaming & Completion**: Tokens stream into the assistant bubble via `activeTurnProjectionAtom`. On `turn_completed`, the completed message is committed to TanStack Query cache.
+5. **Cache Migration & URL Transition**: The draft cache data is migrated to `chatKeys.messages(serverThreadId)`, and `onTurnStarted` navigates to `/chat/$threadId` with `{ replace: true }`.
+6. **In-Place Streaming & Completion**: Tokens accumulate into the assistant message in `chatKeys.messages(serverThreadId)` via `chatMessagesReducer`. On `turn_completed`, the message transitions to `status: "completed"`. Exactly one bubble is rendered throughout.
 
 ### Scenario 2: Continuing the Context (Turn 1)
 1. **Subsequent Submission**: The operator types a follow-up prompt on `/chat/<uuid>`. The `threadId` is already bound from route params.

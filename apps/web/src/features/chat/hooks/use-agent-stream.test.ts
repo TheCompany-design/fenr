@@ -6,6 +6,8 @@ import {
 } from "@tanstack/react-query"
 import { GlobalWindow } from "happy-dom"
 import { toast } from "sonner"
+import { chatKeys } from "../queries/chat-queries"
+import type { ChatMessage } from "../types"
 
 if (typeof window === "undefined") {
   const win = new GlobalWindow({ url: "http://localhost:3000" })
@@ -68,7 +70,11 @@ describe("useAgentStream Hook", () => {
 
     function TestComponent() {
       result.current = useAgentStream()
-      return createElement("div", null, result.current.projection.status)
+      return createElement(
+        "div",
+        null,
+        result.current.isStreaming ? "streaming" : "idle",
+      )
     }
 
     act(() => {
@@ -84,15 +90,13 @@ describe("useAgentStream Hook", () => {
     return result
   }
 
-  it("initializes with idle projection", () => {
+  it("initializes with isStreaming=false", () => {
     const hook = renderStreamHook()
     expect(hook.current).toBeDefined()
-    expect(hook.current.projection.status).toBe("idle")
-    expect(hook.current.projection.streamingText).toBe("")
     expect(hook.current.isStreaming).toBe(false)
   })
 
-  it("streams SSE events, accumulates deltas, and completes turn", async () => {
+  it("streams SSE events, accumulates deltas in query cache, and completes turn", async () => {
     const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
     const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
     const itemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
@@ -130,11 +134,25 @@ describe("useAgentStream Hook", () => {
       await hook.current.send("Compare mint chip", threadId)
     })
 
-    expect(hook.current.projection.status).toBe("completed")
-    expect(hook.current.projection.streamingText).toBe("Mint chip is up 12%.")
-    expect(hook.current.projection.streamingThinking).toBe("Checking stats...")
     expect(hook.current.isStreaming).toBe(false)
     expect(invalidateSpy).toHaveBeenCalled()
+
+    // Assert query cache contains user message and finalized agent message
+    const cachedMessages = queryClient.getQueryData<ChatMessage[]>(
+      chatKeys.messages(threadId),
+    )
+    expect(cachedMessages).toBeDefined()
+    expect(cachedMessages).toHaveLength(2)
+
+    const [userMsg, agentMsg] = cachedMessages ?? []
+    expect(userMsg?.role).toBe("user")
+    expect(userMsg?.content).toBe("Compare mint chip")
+
+    expect(agentMsg?.role).toBe("agent")
+    expect(agentMsg?.id).toBe(itemId)
+    expect(agentMsg?.content).toBe("Mint chip is up 12%.")
+    expect(agentMsg?.thinking).toBe("Checking stats...")
+    expect(agentMsg?.status).toBe("completed")
   })
 
   it("handles user stop() cancellation without triggering error toast", async () => {
@@ -172,7 +190,10 @@ describe("useAgentStream Hook", () => {
 
     let sendPromise: Promise<void>
     act(() => {
-      sendPromise = hook.current.send("Long task")
+      sendPromise = hook.current.send(
+        "Long task",
+        "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1",
+      )
     })
 
     expect(hook.current.isStreaming).toBe(true)
@@ -185,9 +206,14 @@ describe("useAgentStream Hook", () => {
       await sendPromise
     })
 
-    expect(hook.current.projection.status).toBe("idle")
     expect(hook.current.isStreaming).toBe(false)
     expect(toastSpy).not.toHaveBeenCalled()
+
+    const cachedMessages = queryClient.getQueryData<ChatMessage[]>(
+      chatKeys.messages("0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"),
+    )
+    expect(cachedMessages).toBeDefined()
+    expect(cachedMessages?.[1]?.status).toBe("completed")
   })
 
   it("surfaces error toast on HTTP failure with request reference", async () => {
@@ -214,10 +240,6 @@ describe("useAgentStream Hook", () => {
       await hook.current.send("Prompt")
     })
 
-    expect(hook.current.projection.status).toBe("error")
-    expect(hook.current.projection.error).toBe(
-      "Agent runtime down (Ref: trace-502-req)",
-    )
     expect(hook.current.lastRequestId).toBe("trace-502-req")
     expect(toastCalls.length).toBe(1)
     expect(toastCalls[0]?.[0]).toBe("Chat error")
@@ -273,7 +295,7 @@ describe("useAgentStream Hook", () => {
 
     const ssePayload = [
       `data: {"type":"turn_started","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}"}}\n\n`,
-      `data: {"type":"turn_completed","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}","status":"completed","usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30}}}\n\n`,
+      `data: {"type":"turn_completed","data":{"thread_id":"${serverThreadId}","turn_id":"${turnId}"}}\n\n`,
     ].join("")
 
     const stream = new ReadableStream({

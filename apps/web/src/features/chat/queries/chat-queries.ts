@@ -6,15 +6,15 @@ export const chatKeys = {
   all: ["chat"] as const,
   threads: () => [...chatKeys.all, "threads"] as const,
   thread: (threadId: string) => [...chatKeys.threads(), threadId] as const,
-  messages: (threadId: string) =>
-    [...chatKeys.thread(threadId), "messages"] as const,
+  messages: (threadId?: string | null) =>
+    threadId
+      ? ([...chatKeys.thread(threadId), "messages"] as const)
+      : ([...chatKeys.all, "draft-messages"] as const),
 }
 
 export function threadMessagesQueryOptions(threadId?: string | null) {
   return queryOptions<ChatMessage[] | null>({
-    queryKey: threadId
-      ? chatKeys.messages(threadId)
-      : ([...chatKeys.all, "empty-messages"] as const),
+    queryKey: chatKeys.messages(threadId),
     queryFn: async () => {
       if (!threadId) return []
       return getThreadMessagesFn({ data: { threadId } })

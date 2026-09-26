@@ -5,6 +5,7 @@ export interface ChatMessage {
   readonly role: "user" | "agent"
   readonly content: string
   readonly thinking?: string | null
+  readonly status?: "pending" | "streaming" | "completed" | "error"
   readonly createdAt?: string
 }
 

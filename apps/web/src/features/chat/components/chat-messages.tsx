@@ -2,25 +2,21 @@ import { AiChat02Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { ActiveTurnProjection, ChatMessage } from "../types"
+import type { ChatMessage } from "../types"
 import { ChatMessageItem } from "./chat-message-item"
 
 export interface ChatMessagesProps {
   readonly messages: readonly ChatMessage[]
-  readonly projection?: ActiveTurnProjection | null
-  readonly isStreaming?: boolean
   readonly showEmptyState?: boolean
 }
 
 /**
  * Message feed using @workspace/ui/components/scroll-area.
- * Handles user scroll detection (stick-to-bottom), smooth auto-scroll on new messages,
- * non-fighting stream auto-scroll, and a floating "Scroll to bottom" button.
+ * Renders the authoritative message list in a single render loop with
+ * intelligent stick-to-bottom auto-scrolling and floating scroll button.
  */
 export function ChatMessages({
   messages,
-  projection,
-  isStreaming = false,
   showEmptyState = true,
 }: ChatMessagesProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -54,47 +50,32 @@ export function ChatMessages({
     }
   }, [])
 
-  // When new messages arrive:
-  // - If user sent a message, always snap to bottom
-  // - If agent responded and user was at bottom, stay at bottom
+  // Auto-scroll mechanics:
+  // - If user sent a message, smoothly snap to bottom
+  // - If agent is streaming or appended and user is at bottom, stick to bottom
+  const lastMessage = messages[messages.length - 1]
+  const lastContentLength =
+    (lastMessage?.content.length ?? 0) + (lastMessage?.thinking?.length ?? 0)
+
   useEffect(() => {
+    if (!lastMessage) return
+
     const countIncreased = messages.length > prevMessageCountRef.current
     prevMessageCountRef.current = messages.length
 
-    if (!countIncreased) return
-
-    const lastMessage = messages[messages.length - 1]
-    const isFromUser = lastMessage?.role === "user"
-
-    if (isFromUser) {
+    if (countIncreased && lastMessage.role === "user") {
       isAtBottomRef.current = true
       scrollToBottom("smooth")
-    } else if (isAtBottomRef.current) {
-      scrollToBottom("smooth")
-    }
-  }, [messages, scrollToBottom])
-
-  // While streaming tokens, only scroll if the user is already at the bottom
-  // and has not intentionally scrolled up to read earlier messages.
-  const streamingContent = `${projection?.streamingThinking ?? ""}${projection?.streamingText ?? ""}`
-  useEffect(() => {
-    if (
-      isStreaming &&
-      streamingContent &&
+    } else if (
       isAtBottomRef.current &&
-      viewportRef.current
+      viewportRef.current &&
+      lastContentLength > 0
     ) {
       viewportRef.current.scrollTop = viewportRef.current.scrollHeight
     }
-  }, [isStreaming, streamingContent])
+  }, [messages.length, lastContentLength, lastMessage, scrollToBottom])
 
-  const hasMessages = messages.length > 0
-  const hasActiveStreaming =
-    Boolean(isStreaming) ||
-    Boolean(projection?.streamingText) ||
-    Boolean(projection?.streamingThinking)
-
-  if (!hasMessages && !hasActiveStreaming) {
+  if (messages.length === 0) {
     if (!showEmptyState) {
       return <div className="min-h-0 flex-1 w-full" />
     }
@@ -125,23 +106,12 @@ export function ChatMessages({
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
           {messages.map((message) => (
-            <ChatMessageItem key={message.id} message={message} />
-          ))}
-
-          {hasActiveStreaming && projection && (
             <ChatMessageItem
-              message={{
-                id:
-                  projection.activeItemId ||
-                  projection.turnId ||
-                  "active-stream-turn",
-                role: "agent",
-                content: projection.streamingText,
-                thinking: projection.streamingThinking || null,
-              }}
-              isStreaming={isStreaming}
+              key={message.id}
+              message={message}
+              isStreaming={message.status === "streaming"}
             />
-          )}
+          ))}
         </div>
       </ScrollArea>
 

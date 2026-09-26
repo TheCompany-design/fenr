@@ -123,53 +123,47 @@ When the form submits on an initial conversation turn (`threadId: null`), `ChatC
 ```typescript
 // apps/web/src/features/chat/components/chat-container.tsx
 const handleSend = async (prompt: string) => {
-  const userMsg: ChatMessage = {
-    id: crypto.randomUUID(),
-    role: "user",
-    content: prompt,
-    createdAt: new Date().toISOString(),
-  }
-
-  if (!effectiveThreadId) {
-    // Turn 0: Omit thread_id so Nabu atomically creates the thread in PostgreSQL
-    setPendingUserMessage(userMsg)
-
-    await send(prompt, undefined, {
-      onTurnStarted: async (serverThreadId) => {
-        setActiveThreadId(serverThreadId)
-
-        // Seed the newly minted server thread in TanStack Query cache
-        queryClient.setQueryData<ChatMessage[]>(
-          chatKeys.messages(serverThreadId),
-          [userMsg],
-        )
-
-        setPendingUserMessage(null)
-
-        // Seamlessly transition URL from /chat to /chat/<real-thread-id>
-        await safeNavigate({
-          to: "/chat/$threadId",
-          params: { threadId: serverThreadId },
-          replace: true,
-        })
-      },
-    })
-  } else {
-    // Turn 1+: Existing thread in PostgreSQL
-    queryClient.setQueryData<ChatMessage[]>(
-      chatKeys.messages(effectiveThreadId),
-      (old = []) => [...old, userMsg],
-    )
-
-    await send(prompt, effectiveThreadId)
-  }
+  await send(prompt, threadId, {
+    onTurnStarted: async (serverThreadId) => {
+      await safeNavigate({
+        to: "/chat/$threadId",
+        params: { threadId: serverThreadId },
+        replace: true,
+      })
+    },
+  })
 }
 ```
 
-### 4.1 UI Transitions & Optimistic Feedback
-1. **Optimistic Display via Atom**: `pendingUserMessage` is set to `userMsg`. Because `hasStarted` checks `Boolean(pendingUserMessage)`, it immediately switches to `true`.
-2. **Hero Greeting Collapse**: The hero greeting collapses with a 500ms spring animation (`opacity-0 max-h-0 -translate-y-4 scale-95 overflow-hidden`), and the composer translates smoothly to the bottom of the viewport (`bottom-0 translate-y-0 pb-6`).
-3. **Display Merging**: `displayMessages` computes `[...safeMessages, pendingUserMessage]`, displaying the user's message bubble immediately with zero wait time.
+### 4.1 UI Transitions & In-Place Optimistic Dispatch
+In `useAgentStream.send(prompt)`:
+1. **Optimistic Append via Pure Reducer**:
+   ```typescript
+   const userMessage: ChatMessage = {
+     id: crypto.randomUUID(),
+     role: "user",
+     content: trimmedPrompt,
+     status: "completed",
+     createdAt: new Date().toISOString(),
+   }
+   const agentPlaceholder: ChatMessage = {
+     id: crypto.randomUUID(),
+     role: "agent",
+     content: "",
+     thinking: "",
+     status: "streaming",
+     createdAt: new Date().toISOString(),
+   }
+
+   queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
+     chatMessagesReducer(old, {
+       type: "client_send",
+       payload: { userMessage, agentMessage: agentPlaceholder },
+     }),
+   )
+   ```
+2. **Hero Greeting Collapse**: `hasStarted` immediately computes `true`, smoothly collapsing the greeting and translating the composer to `bottom-0`.
+3. **Single Render Loop**: `ChatMessages` renders both the user message and the in-flight assistant message through `messages.map(...)`. There is no secondary streaming bubble component, eliminating any risk of duplicate renders.
 
 ### 4.2 Database Invariants: Why Client-Side UUID Generation Fails
 In upstream Nabu (`thebookofnabu/crates/nabu-agent/src/storage/postgres.rs`), when a `thread_id` is supplied in the request body, Nabu assumes the thread already exists in PostgreSQL and executes:
@@ -185,23 +179,11 @@ RETURNING id;
 ```
 It then emits `turn_started` SSE event containing the newly minted, PostgreSQL-persisted thread UUID.
 
-### 4.3 Initiating `useAgentStream.send()`
+### 4.3 Initiating `useAgentStream.send()` & Cache Migration
 In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
 1. Cleans up any prior requests: `stop()`.
-2. Allocates a new `AbortController`:
-   ```typescript
-   const abortController = new AbortController()
-   abortControllerRef.current = abortController
-   ```
-3. Sets stream projection atom to streaming:
-   ```typescript
-   setProjection({
-     ...initialTurnProjection,
-     threadId: targetThreadId ?? null,
-     status: "streaming",
-   })
-   ```
-4. Dispatches the HTTP fetch request (omitting `thread_id` when undefined):
+2. Allocates a new `AbortController`.
+3. Dispatches the HTTP fetch request (omitting `thread_id` when on `/chat`):
    ```typescript
    const response = await fetch("/api/agent/stream", {
      method: "POST",
@@ -211,17 +193,19 @@ In `apps/web/src/features/chat/hooks/use-agent-stream.ts`:
      },
      body: JSON.stringify({
        prompt: trimmedPrompt,
-       thread_id: targetThreadId ?? undefined,
+       thread_id: threadId ?? undefined,
      }),
      signal: abortController.signal,
    })
    ```
-
-### 4.4 URL Route Resolution
-When `turn_started` arrives, `onTurnStarted(serverThreadId)` runs:
-1. `queryClient.setQueryData(chatKeys.messages(serverThreadId), [userMsg])` seeds the cache.
-2. `setPendingUserMessage(null)` clears the temporary optimistic atom.
-3. `safeNavigate({ to: "/chat/$threadId", params: { threadId: serverThreadId }, replace: true })` updates TanStack Router's URL without a 404 or full page reload.
+4. When `turn_started` arrives with `event.data.thread_id`, the draft cache data is migrated:
+   ```typescript
+   const draftData = queryClient.getQueryData<ChatMessage[]>(currentKey) ?? []
+   currentKey = chatKeys.messages(serverThreadId)
+   queryClient.setQueryData(currentKey, draftData)
+   queryClient.removeQueries({ queryKey: chatKeys.messages(null) })
+   ```
+   and `onTurnStarted` navigates to `/chat/$threadId` with `{ replace: true }`.
 *(Note: TanStack Router public route is `/chat/$threadId`, not `/_app/chat/$threadId`, as `_app` is a pathless layout id.)*
 
 ---

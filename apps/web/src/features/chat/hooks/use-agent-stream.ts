@@ -4,15 +4,8 @@ import { useCallback, useRef } from "react"
 import { toast } from "sonner"
 import { agentStreamEventSchema } from "@/lib/schemas/agent-stream"
 import { chatKeys } from "../queries/chat-queries"
-import {
-  activeTurnProjectionAtom,
-  lastRequestIdAtom,
-} from "../state/chat-atoms"
-import {
-  type ActiveTurnProjection,
-  initialTurnProjection,
-  streamReducer,
-} from "../state/stream-reducer"
+import { isStreamingAtom, lastRequestIdAtom } from "../state/chat-atoms"
+import { chatMessagesReducer } from "../state/chat-messages-reducer"
 import type { ChatMessage } from "../types"
 
 export interface SendOptions {
@@ -20,7 +13,6 @@ export interface SendOptions {
 }
 
 export interface UseAgentStreamReturn {
-  readonly projection: ActiveTurnProjection
   readonly lastRequestId: string | null
   readonly send: (
     prompt: string,
@@ -34,30 +26,36 @@ export interface UseAgentStreamReturn {
 
 /**
  * Custom React hook managing real-time SSE streaming connection to the BFF proxy.
- * Encapsulates AbortController cancellation, line-buffered SSE chunk parsing,
- * Zod event validation, Jotai turn projection updates, and TanStack Query cache sync.
+ * Directly drives in-place updates into TanStack Query's cache via chatMessagesReducer,
+ * guaranteeing a single authoritative message timeline with zero duplicate bubbles.
  */
 export function useAgentStream(): UseAgentStreamReturn {
-  const [projection, setProjection] = useAtom(activeTurnProjectionAtom)
+  const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const activeKeyRef = useRef<readonly string[]>(chatKeys.messages(null))
   const queryClient = useQueryClient()
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
-      setProjection((prev) =>
-        prev.status === "streaming" ? { ...prev, status: "idle" } : prev,
+      setIsStreaming(false)
+
+      queryClient.setQueryData<ChatMessage[]>(
+        activeKeyRef.current,
+        (old = []) =>
+          chatMessagesReducer(old, {
+            type: "stream_stopped",
+          }),
       )
     }
-  }, [setProjection])
+  }, [setIsStreaming, queryClient])
 
   const reset = useCallback(() => {
     stop()
-    setProjection(initialTurnProjection)
     setLastRequestId(null)
-  }, [stop, setProjection, setLastRequestId])
+  }, [stop, setLastRequestId])
 
   const send = useCallback(
     async (prompt: string, threadId?: string | null, options?: SendOptions) => {
@@ -70,12 +68,34 @@ export function useAgentStream(): UseAgentStreamReturn {
 
       const abortController = new AbortController()
       abortControllerRef.current = abortController
+      setIsStreaming(true)
 
-      setProjection({
-        ...initialTurnProjection,
-        threadId: threadId ?? null,
+      let currentKey: readonly string[] = chatKeys.messages(threadId)
+      activeKeyRef.current = currentKey
+
+      // Optimistically append user message and in-flight streaming placeholder
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmedPrompt,
+        status: "completed",
+        createdAt: new Date().toISOString(),
+      }
+      const agentPlaceholder: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "agent",
+        content: "",
+        thinking: "",
         status: "streaming",
-      })
+        createdAt: new Date().toISOString(),
+      }
+
+      queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
+        chatMessagesReducer(old, {
+          type: "client_send",
+          payload: { userMessage, agentMessage: agentPlaceholder },
+        }),
+      )
 
       let activeRequestId: string | null = null
 
@@ -134,55 +154,54 @@ export function useAgentStream(): UseAgentStreamReturn {
                 const validation = agentStreamEventSchema.safeParse(parsed)
                 if (validation.success) {
                   const event = validation.data
-                  setProjection((prev) => streamReducer(prev, event))
 
                   if (event.type === "turn_started") {
+                    const serverThreadId = event.data.thread_id
+                    if (!threadId) {
+                      // Migrate cache data from draft key to newly minted server thread key
+                      const draftData =
+                        queryClient.getQueryData<ChatMessage[]>(currentKey) ??
+                        []
+                      currentKey = chatKeys.messages(serverThreadId)
+                      activeKeyRef.current = currentKey
+                      queryClient.setQueryData(currentKey, draftData)
+                      queryClient.removeQueries({
+                        queryKey: chatKeys.messages(null),
+                      })
+                    }
+
                     if (options?.onTurnStarted) {
                       try {
-                        await options.onTurnStarted(event.data.thread_id)
+                        await options.onTurnStarted(serverThreadId)
                       } catch {
                         // Ignore navigation errors during active stream
                       }
                     }
                   }
 
+                  // Dispatch event directly into the query cache via pure reducer
+                  queryClient.setQueryData<ChatMessage[]>(
+                    currentKey,
+                    (old = []) =>
+                      chatMessagesReducer(old, {
+                        type: "agent_event",
+                        event,
+                      }),
+                  )
+
                   if (event.type === "turn_completed") {
-                    const completedThreadId = event.data.thread_id
-
-                    setProjection((current) => {
-                      if (current.streamingText) {
-                        queryClient.setQueryData<ChatMessage[]>(
-                          chatKeys.messages(completedThreadId),
-                          (old = []) => [
-                            ...old,
-                            {
-                              id:
-                                current.activeItemId ||
-                                current.turnId ||
-                                crypto.randomUUID(),
-                              role: "agent",
-                              content: current.streamingText,
-                              thinking: current.streamingThinking || undefined,
-                              createdAt: new Date().toISOString(),
-                            },
-                          ],
-                        )
-                      }
-                      return current
-                    })
-
+                    setIsStreaming(false)
                     void queryClient.invalidateQueries({
-                      queryKey: chatKeys.thread(completedThreadId),
+                      queryKey: chatKeys.thread(event.data.thread_id),
                     })
                   }
 
                   if (event.type === "stream_error") {
+                    setIsStreaming(false)
                     const description = activeRequestId
                       ? `${event.data.message} (Ref: ${activeRequestId})`
                       : event.data.message
-                    toast.error("Agent error", {
-                      description,
-                    })
+                    toast.error("Agent error", { description })
                   }
                 }
               } catch {
@@ -206,26 +225,34 @@ export function useAgentStream(): UseAgentStreamReturn {
             ? `${message} (Ref: ${activeRequestId})`
             : message
         toast.error("Chat error", { description })
-        setProjection((prev) => ({
-          ...prev,
-          status: "error",
-          error: description,
-        }))
+
+        queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
+          chatMessagesReducer(old, {
+            type: "agent_event",
+            event: {
+              type: "stream_error",
+              data: {
+                code: "INTERNAL_ERROR",
+                message: description,
+              },
+            },
+          }),
+        )
       } finally {
+        setIsStreaming(false)
         if (abortControllerRef.current === abortController) {
           abortControllerRef.current = null
         }
       }
     },
-    [stop, setProjection, setLastRequestId, queryClient],
+    [stop, setLastRequestId, setIsStreaming, queryClient],
   )
 
   return {
-    projection,
     lastRequestId,
     send,
     stop,
     reset,
-    isStreaming: projection.status === "streaming",
+    isStreaming,
   }
 }
