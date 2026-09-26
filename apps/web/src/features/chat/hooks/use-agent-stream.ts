@@ -11,6 +11,7 @@ import {
 
 export interface UseAgentStreamReturn {
   readonly projection: ActiveTurnProjection
+  readonly lastRequestId: string | null
   readonly send: (prompt: string, threadId?: string | null) => Promise<void>
   readonly stop: () => void
   readonly reset: () => void
@@ -26,6 +27,7 @@ export function useAgentStream(): UseAgentStreamReturn {
   const [projection, setProjection] = useState<ActiveTurnProjection>(
     initialTurnProjection,
   )
+  const [lastRequestId, setLastRequestId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const queryClient = useQueryClient()
 
@@ -42,6 +44,7 @@ export function useAgentStream(): UseAgentStreamReturn {
   const reset = useCallback(() => {
     stop()
     setProjection(initialTurnProjection)
+    setLastRequestId(null)
   }, [stop])
 
   // Cleanup in-flight requests when component unmounts
@@ -72,6 +75,8 @@ export function useAgentStream(): UseAgentStreamReturn {
         status: "streaming",
       })
 
+      let activeRequestId: string | null = null
+
       try {
         const response = await fetch("/api/agent/stream", {
           method: "POST",
@@ -86,6 +91,9 @@ export function useAgentStream(): UseAgentStreamReturn {
           signal: abortController.signal,
         })
 
+        activeRequestId = response.headers.get("x-request-id")
+        setLastRequestId(activeRequestId)
+
         if (!response.ok || !response.body) {
           let errorText = response.statusText || "Request failed"
           try {
@@ -96,7 +104,10 @@ export function useAgentStream(): UseAgentStreamReturn {
           } catch {
             // Fallback to statusText
           }
-          throw new Error(errorText)
+          const refMessage = activeRequestId
+            ? `${errorText} (Ref: ${activeRequestId})`
+            : errorText
+          throw new Error(refMessage)
         }
 
         const reader = response.body.getReader()
@@ -134,8 +145,11 @@ export function useAgentStream(): UseAgentStreamReturn {
                     })
                   }
                   if (event.type === "stream_error") {
+                    const description = activeRequestId
+                      ? `${event.data.message} (Ref: ${activeRequestId})`
+                      : event.data.message
                     toast.error("Agent error", {
-                      description: event.data.message,
+                      description,
                     })
                   }
                 }
@@ -155,11 +169,15 @@ export function useAgentStream(): UseAgentStreamReturn {
 
         const message =
           err instanceof Error ? err.message : "Failed to stream agent response"
-        toast.error("Chat error", { description: message })
+        const description =
+          activeRequestId && !message.includes("Ref:")
+            ? `${message} (Ref: ${activeRequestId})`
+            : message
+        toast.error("Chat error", { description })
         setProjection((prev) => ({
           ...prev,
           status: "error",
-          error: message,
+          error: description,
         }))
       } finally {
         if (abortControllerRef.current === abortController) {
@@ -172,6 +190,7 @@ export function useAgentStream(): UseAgentStreamReturn {
 
   return {
     projection,
+    lastRequestId,
     send,
     stop,
     reset,
