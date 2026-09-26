@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, spyOn } from "bun:test"
 import { auth } from "@/lib/auth"
+import { isValidUuidV7 } from "@/lib/id"
 import { logger } from "@/lib/logger"
 import { handleAuthRequest } from "./$"
 
@@ -159,6 +160,10 @@ describe("handleAuthRequest (API Auth Wide Event)", () => {
 
       const response = await handleAuthRequest(request)
       expect(response.status).toBe(204)
+      expect(response.headers.get("x-request-id")).toBe("client-trace-id-12345")
+      expect(response.headers.get("Access-Control-Expose-Headers")).toBe(
+        "x-request-id",
+      )
 
       expect(infoSpy).toHaveBeenCalledTimes(1)
       const [event] = infoSpy.mock.calls[0] as [Record<string, unknown>]
@@ -166,6 +171,28 @@ describe("handleAuthRequest (API Auth Wide Event)", () => {
     } finally {
       handlerSpy.mockRestore()
       infoSpy.mockRestore()
+    }
+  })
+
+  it("generates and returns valid UUIDv7 x-request-id header when absent from request", async () => {
+    const handlerSpy = spyOn(auth, "handler").mockImplementation(async () => {
+      return new Response(null, { status: 200 })
+    })
+
+    try {
+      const request = new Request("http://localhost:3000/api/auth/session", {
+        method: "GET",
+      })
+
+      const response = await handleAuthRequest(request)
+      expect(response.status).toBe(200)
+      const echoedId = response.headers.get("x-request-id")
+      expect(isValidUuidV7(echoedId ?? "")).toBe(true)
+      expect(response.headers.get("Access-Control-Expose-Headers")).toBe(
+        "x-request-id",
+      )
+    } finally {
+      handlerSpy.mockRestore()
     }
   })
 })

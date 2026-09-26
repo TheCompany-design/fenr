@@ -8,12 +8,16 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { auth } from "@/lib/auth"
+import {
+  extractOrGenerateRequestId,
+  REQUEST_ID_HEADER,
+} from "@/lib/http/request-id"
 import { logger } from "@/lib/logger"
 
 export async function handleAuthRequest(request: Request): Promise<Response> {
   const startTime = performance.now()
   const pathname = new URL(request.url).pathname
-  const requestId = request.headers.get("x-request-id") || crypto.randomUUID()
+  const { requestId } = extractOrGenerateRequestId(request.headers)
   const mod = "api.auth"
   const action = pathname
   const method = request.method
@@ -25,7 +29,15 @@ export async function handleAuthRequest(request: Request): Promise<Response> {
     | undefined
 
   try {
-    response = await auth.handler(request)
+    const authResponse = await auth.handler(request)
+    const responseHeaders = new Headers(authResponse.headers)
+    responseHeaders.set(REQUEST_ID_HEADER, requestId)
+    responseHeaders.set("Access-Control-Expose-Headers", REQUEST_ID_HEADER)
+    response = new Response(authResponse.body, {
+      status: authResponse.status,
+      statusText: authResponse.statusText,
+      headers: responseHeaders,
+    })
     return response
   } catch (error) {
     if (error instanceof Error) {
@@ -39,7 +51,13 @@ export async function handleAuthRequest(request: Request): Promise<Response> {
     }
     response = Response.json(
       { message: "Internal Server Error" },
-      { status: 500 },
+      {
+        status: 500,
+        headers: {
+          [REQUEST_ID_HEADER]: requestId,
+          "Access-Control-Expose-Headers": REQUEST_ID_HEADER,
+        },
+      },
     )
     return response
   } finally {

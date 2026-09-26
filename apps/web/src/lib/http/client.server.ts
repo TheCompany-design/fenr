@@ -14,6 +14,7 @@
  */
 
 import { serverEnv } from "@/lib/env"
+import { generateUuidV7 } from "@/lib/id"
 import { moduleLogger } from "@/lib/logger"
 import { HttpClientError } from "./errors"
 import { SERVICES } from "./registry"
@@ -105,11 +106,7 @@ export async function executeRequest<
   options: ExecuteRequestOptions<TInput> = {},
 ): Promise<TOutput> {
   const startTime = Date.now()
-  const requestId =
-    options.requestId ||
-    (typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `req_${Date.now()}`)
+  const requestId = options.requestId || generateUuidV7()
 
   // 0. Check cancellation before doing any work
   if (options.signal?.aborted) {
