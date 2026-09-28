@@ -6,7 +6,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start"
-
+import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
 import { maskEmail } from "@/lib/mail"
 import {
@@ -37,7 +37,6 @@ import {
   updateMemberRoleSchema,
   updateOrganizationSchema,
 } from "@/lib/schemas/organizations"
-import { ensureSession } from "@/lib/session"
 import {
   acceptInvitation,
   cancelInvitation,

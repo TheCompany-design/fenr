@@ -36,8 +36,9 @@ import {
   inviteMemberFn,
   setActiveOrganizationFn,
 } from "@/features/organizations/server"
-import { signOut } from "@/lib/auth-client"
-import { safeRedirectPath } from "@/lib/redirect"
+import { signOut } from "@/lib/auth/client"
+import { getSession } from "@/lib/auth/session"
+import { safeRedirectPath } from "@/lib/navigation"
 import type {
   CreateOrganizationInput,
   OrganizationRole,
@@ -46,7 +47,6 @@ import {
   type OnboardingSearch,
   onboardingSearchSchema,
 } from "@/lib/schemas/search"
-import { getSession } from "@/lib/session"
 
 export const Route = createFileRoute("/onboarding")({
   validateSearch: (search: Record<string, unknown>): OnboardingSearch =>

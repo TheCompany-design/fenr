@@ -15,14 +15,14 @@ const mockSession = {
   user: { id: "user-123", email: "builder@example.com" },
 }
 
-mock.module("@/lib/session", () => ({
+mock.module("@/lib/auth/session", () => ({
   getSession: async () => mockSession,
   ensureSession: async () => mockSession,
 }))
 
 const mockSignOut = mock(async () => ({}))
-const actualAuthClient = await import("@/lib/auth-client")
-mock.module("@/lib/auth-client", () => ({
+const actualAuthClient = await import("@/lib/auth/client")
+mock.module("@/lib/auth/client", () => ({
   ...actualAuthClient,
   signOut: mockSignOut,
   authClient: new Proxy(actualAuthClient.authClient, {

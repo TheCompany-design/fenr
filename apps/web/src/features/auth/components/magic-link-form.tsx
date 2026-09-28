@@ -12,7 +12,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
+import { authClient } from "@/lib/auth/client"
 import { magicLinkSchema } from "@/lib/schemas/auth"
 import { FieldError } from "./field-error"
 

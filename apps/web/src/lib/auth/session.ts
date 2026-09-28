@@ -8,11 +8,8 @@
  */
 import { createMiddleware, createServerFn } from "@tanstack/react-start"
 import { getRequestHeaders } from "@tanstack/react-start/server"
-
-import type { Session } from "./auth"
-
-import { auth } from "./auth"
-import { moduleLogger } from "./logger"
+import { moduleLogger } from "@/lib/logger"
+import { auth, type Session } from "./index"
 
 const sessionLogger = moduleLogger("session")
 

@@ -6,6 +6,7 @@
   "scripts": {
     "db:generate": "bun x drizzle-kit generate",
     "db:migrate": "bun x drizzle-kit migrate",
+    "db:migrate:test": "NODE_ENV=test bun x drizzle-kit migrate",
     "db:studio": "bun x drizzle-kit studio",
     "typecheck": "tsc --noEmit"
   },

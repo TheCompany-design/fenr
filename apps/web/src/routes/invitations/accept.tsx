@@ -43,12 +43,12 @@ import {
   OrganizationAvatar,
   organizationKeys,
 } from "@/features/organizations"
-import { signOut } from "@/lib/auth-client"
+import { signOut } from "@/lib/auth/client"
+import { getSession } from "@/lib/auth/session"
 import {
   type InvitationAcceptSearch,
   invitationAcceptSearchSchema,
 } from "@/lib/schemas/search"
-import { getSession } from "@/lib/session"
 
 export const Route = createFileRoute("/invitations/accept")({
   validateSearch: (search: Record<string, unknown>): InvitationAcceptSearch =>

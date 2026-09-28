@@ -7,8 +7,8 @@
 
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
-import { ensureSession } from "@/lib/session"
 import { getThreadMessages } from "./server/chat.server"
 
 const getThreadMessagesInputSchema = z.object({
