@@ -24,7 +24,7 @@ import { Button } from "@workspace/ui/components/button"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
+import { authClient } from "@/lib/auth/client"
 import { moduleLogger } from "@/lib/logger"
 import { AuthErrorBanner } from "./auth-error-banner"
 

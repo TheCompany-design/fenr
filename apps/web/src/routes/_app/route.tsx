@@ -15,9 +15,9 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { AppErrorComponent } from "@/components/shell/app-error"
 import { AppShell } from "@/components/shell/app-shell"
 import { resolveAppOrganizationAccessFn } from "@/features/organizations"
-import { safeRedirectPath } from "@/lib/redirect"
-import { getSession } from "@/lib/session"
-import { getSidebarOpen } from "@/lib/ui-prefs"
+import { getSession } from "@/lib/auth/session"
+import { safeRedirectPath } from "@/lib/navigation"
+import { getSidebarOpen } from "@/lib/preferences"
 
 function GuardLayout() {
   const { session, sidebarOpen, activeOrganization } = Route.useRouteContext()

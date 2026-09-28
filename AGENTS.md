@@ -52,7 +52,7 @@ effects) MUST go through TanStack Query:
   the router's `setupRouterSsrQueryIntegration` handles dehydration/hydration.
 - Use `useSuspenseQuery` / `useQuery` in components. Never fetch with bare
   `fetch()` inside effects, and never store server data in Zustand.
-- Create QueryClients via `apps/web/src/lib/query-client.ts#createQueryClient`
+- Create QueryClients via `apps/web/src/lib/query/client.ts#createQueryClient`
   (one per request on the server).
 
 ### 3. Global state → Zustand

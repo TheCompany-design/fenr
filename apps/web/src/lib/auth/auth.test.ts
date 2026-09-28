@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { db, eq, schema } from "@workspace/database"
-
-import { auth, type Session } from "./auth"
+import { serverEnv } from "@/lib/env"
 import {
   authClient,
   organization,
@@ -11,8 +10,8 @@ import {
   useActiveOrganization,
   useListOrganizations,
   useSession,
-} from "./auth-client"
-import { serverEnv } from "./env"
+} from "./client"
+import { auth, type Session } from "./index"
 
 type DbSession = Session["session"]
 
@@ -181,15 +180,19 @@ describe("Better Auth Configuration & Plugins", () => {
       }
 
       // @ts-expect-error - testing defensive null guard
-      const beforeRes = await createBefore(null)
-      expect(beforeRes?.data).toBeNull()
+      const beforeRes = await createBefore(null, null)
+      const data =
+        beforeRes && typeof beforeRes === "object" && "data" in beforeRes
+          ? beforeRes.data
+          : null
+      expect(data).toBeNull()
 
       // @ts-expect-error - testing defensive null guard
-      await expect(createAfter(null)).resolves.toBeUndefined()
+      await expect(createAfter(null, null)).resolves.toBeUndefined()
       // @ts-expect-error - testing defensive null guard
-      await expect(updateAfter(null)).resolves.toBeUndefined()
+      await expect(updateAfter(null, null)).resolves.toBeUndefined()
       // @ts-expect-error - testing defensive null guard
-      await expect(deleteAfter(null)).resolves.toBeUndefined()
+      await expect(deleteAfter(null, null)).resolves.toBeUndefined()
     })
 
     it("auto-resolves active organization on session.create.before when missing", async () => {
@@ -229,8 +232,13 @@ describe("Better Auth Configuration & Plugins", () => {
           activeOrganizationId: null,
         }
 
-        const res = await sessionHooks?.create?.before?.(mockSession)
-        expect(res?.data?.activeOrganizationId).toBe(testOrg.id)
+        const res = await sessionHooks?.create?.before?.(mockSession, null)
+        const data =
+          res && typeof res === "object" && "data" in res ? res.data : null
+        expect(
+          (data as { activeOrganizationId?: string | null })
+            ?.activeOrganizationId,
+        ).toBe(testOrg.id)
       } finally {
         // Clean up
         await db.delete(schema.user).where(eq(schema.user.id, testUser.id))
@@ -253,10 +261,13 @@ describe("Better Auth Configuration & Plugins", () => {
         activeOrganizationId: "0191ca7f-8e7c-7a91-9c12-999999999999",
       }
 
-      const res = await sessionHooks?.create?.before?.(mockSession)
-      expect(res?.data?.activeOrganizationId).toBe(
-        "0191ca7f-8e7c-7a91-9c12-999999999999",
-      )
+      const res = await sessionHooks?.create?.before?.(mockSession, null)
+      const data =
+        res && typeof res === "object" && "data" in res ? res.data : null
+      expect(
+        (data as { activeOrganizationId?: string | null })
+          ?.activeOrganizationId,
+      ).toBe("0191ca7f-8e7c-7a91-9c12-999999999999")
     })
 
     it("does NOT wipe active organization preference on routine session update (sliding expiration touch)", async () => {
@@ -303,7 +314,7 @@ describe("Better Auth Configuration & Plugins", () => {
           activeOrganizationId: null,
         }
 
-        await sessionHooks?.update?.after?.(touchSession)
+        await sessionHooks?.update?.after?.(touchSession, null)
 
         // Invariant check: Preference MUST NOT be deleted!
         const [pref] = await db
@@ -356,7 +367,7 @@ describe("Better Auth Configuration & Plugins", () => {
           activeOrganizationId: testOrg.id,
         }
 
-        await sessionHooks?.update?.after?.(updateSession)
+        await sessionHooks?.update?.after?.(updateSession, null)
 
         // Invariant check: Preference MUST be recorded!
         const [pref] = await db
@@ -382,7 +393,7 @@ describe("Better Auth Configuration & Plugins", () => {
       expect(typeof createBefore).toBe("function")
       if (typeof createBefore !== "function") return
       // @ts-expect-error - testing defensive null guard
-      const res = await createBefore(null)
+      const res = await createBefore(null, null)
       const data =
         res && typeof res === "object" && "data" in res ? res.data : null
       expect(data).toBeNull()
@@ -403,6 +414,7 @@ describe("Better Auth Configuration & Plugins", () => {
       }
       const res = await createBefore(
         mockAccount as Parameters<typeof createBefore>[0],
+        null,
       )
       const data =
         res && typeof res === "object" && "data" in res ? res.data : null
@@ -425,6 +437,7 @@ describe("Better Auth Configuration & Plugins", () => {
       }
       const res = await createBefore(
         mockAccount as Parameters<typeof createBefore>[0],
+        null,
       )
       const data =
         res && typeof res === "object" && "data" in res ? res.data : null

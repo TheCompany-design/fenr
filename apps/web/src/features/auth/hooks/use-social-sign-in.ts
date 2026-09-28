@@ -11,9 +11,9 @@ import {
 } from "@tanstack/react-query"
 import { toast } from "sonner"
 
-import { authClient } from "@/lib/auth-client"
-import { safeRedirectPath } from "@/lib/redirect"
-import type { SocialProviderId } from "@/lib/social-providers"
+import { authClient } from "@/lib/auth/client"
+import type { SocialProviderId } from "@/lib/auth/providers/social"
+import { safeRedirectPath } from "@/lib/navigation"
 
 export interface SocialSignInVariables {
   provider: SocialProviderId
