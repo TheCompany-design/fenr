@@ -3,7 +3,7 @@ import {
   getSocialProvider,
   SOCIAL_PROVIDERS,
   type SocialProviderId,
-} from "./social-providers"
+} from "./social"
 
 describe("Social Providers Registry", () => {
   it("defines standard social providers with secure logo CDN URLs", () => {

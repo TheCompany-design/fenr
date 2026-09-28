@@ -1,6 +1,5 @@
 import { describe, expect, it } from "bun:test"
-
-import { parseServerEnv } from "./env"
+import { parseServerEnv } from "./index"
 
 describe("Server Environment Validation (SMTP & Mailer)", () => {
   const baseValidEnv = {

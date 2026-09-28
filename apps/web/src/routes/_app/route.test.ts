@@ -47,7 +47,7 @@ let currentAccessResult: {
 let currentSidebarOpen = true
 let currentOrganizationsList: Array<Record<string, unknown>> = []
 
-mock.module("@/lib/session", () => ({
+mock.module("@/lib/auth/session", () => ({
   getSession: async () => currentSession,
   ensureSession: async () => {
     if (!currentSession) throw new Error("Unauthorized")
@@ -55,7 +55,7 @@ mock.module("@/lib/session", () => ({
   },
 }))
 
-mock.module("@/lib/ui-prefs", () => ({
+mock.module("@/lib/preferences", () => ({
   getSidebarOpen: async () => currentSidebarOpen,
 }))
 

@@ -58,7 +58,7 @@ import { createPortal } from "react-dom"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/feedback"
 import { type ThemeMode, useThemeStore } from "@/components/providers"
-import { signOut } from "@/lib/auth-client"
+import { signOut } from "@/lib/auth/client"
 import { initialsOf, type SessionUser, useIsMounted } from "./user-utils"
 
 export type { SessionUser }

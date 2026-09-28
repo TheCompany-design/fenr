@@ -12,9 +12,9 @@ import {
   useMatches,
 } from "@tanstack/react-router"
 import { AuthShell, getAuthTagline } from "@/features/auth"
-import { safeRedirectPath } from "@/lib/redirect"
+import { getSession } from "@/lib/auth/session"
+import { safeRedirectPath } from "@/lib/navigation"
 import { authLayoutSearchSchema } from "@/lib/schemas/search"
-import { getSession } from "@/lib/session"
 
 function AuthLayout() {
   const matches = useMatches()
