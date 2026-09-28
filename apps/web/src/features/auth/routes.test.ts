@@ -6,7 +6,7 @@ let currentSession: {
   user: { id: string; email: string }
 } | null = null
 
-mock.module("@/lib/session", () => ({
+mock.module("@/lib/auth/session", () => ({
   getSession: async () => currentSession,
   ensureSession: async () => {
     if (!currentSession) throw new Error("Unauthorized")

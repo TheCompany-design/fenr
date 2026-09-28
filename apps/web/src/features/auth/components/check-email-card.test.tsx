@@ -45,8 +45,8 @@ const mockMagicLink = mock(
   }),
 )
 
-const actualAuthClient = await import("@/lib/auth-client")
-mock.module("@/lib/auth-client", () => ({
+const actualAuthClient = await import("@/lib/auth/client")
+mock.module("@/lib/auth/client", () => ({
   ...actualAuthClient,
   authClient: new Proxy(actualAuthClient.authClient, {
     get(target, prop, receiver) {

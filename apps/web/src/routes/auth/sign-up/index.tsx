@@ -12,7 +12,7 @@ import {
   AuthMethods,
   useAuthError,
 } from "@/features/auth"
-import { safeRedirectPath } from "@/lib/redirect"
+import { safeRedirectPath } from "@/lib/navigation"
 import { authSignUpSearchSchema } from "@/lib/schemas/search"
 
 export const Route = createFileRoute("/auth/sign-up/")({

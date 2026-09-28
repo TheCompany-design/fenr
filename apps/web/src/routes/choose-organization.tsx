@@ -39,9 +39,9 @@ import {
   organizationListQueryOptions,
   setActiveOrganizationFn,
 } from "@/features/organizations"
-import { safeAppRedirectPath, safeRedirectPath } from "@/lib/redirect"
+import { getSession } from "@/lib/auth/session"
+import { safeAppRedirectPath, safeRedirectPath } from "@/lib/navigation"
 import { chooseOrganizationSearchSchema } from "@/lib/schemas/search"
-import { getSession } from "@/lib/session"
 
 export const Route = createFileRoute("/choose-organization")({
   validateSearch: (search) => chooseOrganizationSearchSchema.parse(search),
