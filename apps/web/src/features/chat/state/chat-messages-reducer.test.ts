@@ -50,6 +50,7 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
         role: "agent",
         content: "",
         status: "streaming",
+        unclaimed: true,
       },
     ]
 
@@ -212,7 +213,13 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
     function streaming(): ChatMessage[] {
       return [
         { id: "local-1", role: "user", content: "hi", status: "completed" },
-        { id: "local-2", role: "agent", content: "", status: "streaming" },
+        {
+          id: "local-2",
+          role: "agent",
+          content: "",
+          status: "streaming",
+          unclaimed: true,
+        },
       ]
     }
 
@@ -383,5 +390,118 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
       })
       expect(next).toEqual(before)
     })
+  })
+})
+
+describe("a turn that calls a tool", () => {
+  const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+  const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+  const step1 = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
+  const step2 = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e4"
+  const toolItem = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e5"
+
+  function start(): ChatMessage[] {
+    return chatMessagesReducer([], {
+      type: "client_send",
+      payload: {
+        userMessage: {
+          id: "user-1",
+          role: "user",
+          content: "what is 2 + 2",
+          status: "completed",
+        },
+        agentMessage: {
+          id: "local-agent",
+          role: "agent",
+          content: "",
+          thinking: "",
+          status: "streaming",
+          unclaimed: true,
+        },
+      },
+    })
+  }
+
+  function apply(messages: ChatMessage[], event: AgentStreamEvent) {
+    return chatMessagesReducer(messages, { type: "agent_event", event })
+  }
+
+  function itemStarted(itemId: string, kind: "agent_message" | "tool_call") {
+    return {
+      type: "item_started",
+      data: {
+        thread_id: threadId,
+        turn_id: turnId,
+        item_id: itemId,
+        kind,
+      },
+    } as AgentStreamEvent
+  }
+
+  function thinking(itemId: string, text: string) {
+    return {
+      type: "item_delta",
+      data: { item_id: itemId, delta: { kind: "thinking_delta", text } },
+    } as AgentStreamEvent
+  }
+
+  it("gives every step its own bubble instead of reusing one", () => {
+    // A tool-using turn emits one assistant item per step. Handing them all to
+    // the same bubble made one message's thought process get rewritten once per
+    // step — the "rendered multiple times, differently worded" report.
+    let messages = start()
+    messages = apply(messages, itemStarted(step1, "agent_message"))
+    messages = apply(messages, thinking(step1, "first step reasoning"))
+    messages = apply(messages, itemStarted(toolItem, "tool_call"))
+    messages = apply(messages, itemStarted(step2, "agent_message"))
+    messages = apply(messages, thinking(step2, "second step reasoning"))
+
+    const agentBubbles = messages.filter((message) => message.role === "agent")
+    expect(agentBubbles).toHaveLength(2)
+    expect(agentBubbles[0]?.thinking).toBe("first step reasoning")
+    expect(agentBubbles[1]?.thinking).toBe("second step reasoning")
+  })
+
+  it("settles the step that a new bubble follows", () => {
+    // Two bubbles cannot both look live.
+    let messages = start()
+    messages = apply(messages, itemStarted(step1, "agent_message"))
+    expect(messages.at(-1)?.status).toBe("streaming")
+
+    messages = apply(messages, itemStarted(step2, "agent_message"))
+    const statuses = messages
+      .filter((message) => message.role === "agent")
+      .map((message) => message.status)
+    expect(statuses).toEqual(["completed", "streaming"])
+  })
+
+  it("still adopts the empty optimistic placeholder rather than duplicating it", () => {
+    // The placeholder exists so the composer has something to stream into. If
+    // every step made a new bubble, the first one would leave an orphan.
+    let messages = start()
+    messages = apply(messages, itemStarted(step1, "agent_message"))
+    expect(messages).toHaveLength(2)
+    expect(messages.at(-1)?.id).toBe(step1)
+  })
+
+  it("keeps a step's own thinking when its item completes", () => {
+    let messages = start()
+    messages = apply(messages, itemStarted(step1, "agent_message"))
+    messages = apply(messages, thinking(step1, "streamed reasoning"))
+    messages = apply(messages, {
+      type: "item_completed",
+      data: {
+        item_id: step1,
+        payload: {
+          kind: "agent_message",
+          text: "the answer",
+          thinking: "streamed reasoning",
+        },
+      },
+    } as AgentStreamEvent)
+
+    const bubble = messages.find((message) => message.id === step1)
+    expect(bubble?.thinking).toBe("streamed reasoning")
+    expect(bubble?.content).toBe("the answer")
   })
 })

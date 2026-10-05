@@ -53,12 +53,45 @@ function reduceAgentEvent(
 
       const lastIdx = messages.length - 1
       const current = messages[lastIdx]
-      if (lastIdx >= 0 && current?.status === "streaming") {
+
+      // Only the optimistic placeholder may be adopted, and only while it is
+      // still empty. A turn that calls a tool produces one assistant item per
+      // step, and every step after the first arrives while the previous bubble
+      // is *still* marked streaming — so adopting on "is streaming" alone handed
+      // every later step the same bubble, renaming it and overwriting its
+      // thinking each time. The reader watched one message's thought process
+      // being rewritten once per step, which is what "rendered multiple times,
+      // differently worded" turned out to be.
+      const claimable =
+        lastIdx >= 0 &&
+        current?.role === "agent" &&
+        current.status === "streaming" &&
+        current.unclaimed === true
+
+      if (claimable && current) {
+        const { unclaimed: _claimed, ...claimed } = current
         const updated = [...messages]
-        updated[lastIdx] = { ...current, id: item_id }
+        updated[lastIdx] = { ...claimed, id: item_id }
         return updated
       }
-      return [...messages]
+
+      // A later step in the same turn gets its own bubble, and the step it
+      // follows is settled: two bubbles cannot both be live.
+      const settled = messages.map((message) =>
+        message.status === "streaming"
+          ? { ...message, status: "completed" as const }
+          : message,
+      )
+      return [
+        ...settled,
+        {
+          id: item_id,
+          role: "agent" as const,
+          content: "",
+          thinking: "",
+          status: "streaming" as const,
+        },
+      ]
     }
 
     case "item_delta": {

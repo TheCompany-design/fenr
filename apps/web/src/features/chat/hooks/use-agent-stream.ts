@@ -163,6 +163,9 @@ export function useAgentStream(): UseAgentStreamReturn {
         thinking: "",
         status: "streaming",
         createdAt: new Date().toISOString(),
+        // Until the runtime names this bubble, the first assistant item claims
+        // it. Every later item gets its own bubble instead.
+        unclaimed: true,
       }
 
       queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
