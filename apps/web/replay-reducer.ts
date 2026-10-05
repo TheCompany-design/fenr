@@ -145,3 +145,18 @@ for (const message of messages) {
     )}`,
   )
 }
+
+// How the timeline is presented: one block per reply.
+const { groupIntoTurns, turnText, turnThinking } = await import(
+  "@/features/chat/state/chat-turns"
+)
+const turns = groupIntoTurns(messages)
+console.log(`\n=== presented as ${turns.length} blocks ===`)
+turns.forEach((turn, index) => {
+  const who = turn.isUser ? "user" : "agent"
+  console.log(
+    `- block ${index} (${who}): ${turn.messages.length} message(s)` +
+      ` thinking=${turnThinking(turn.messages).length} chars` +
+      ` text=${JSON.stringify(turnText(turn.messages).slice(0, 60))}`,
+  )
+})
