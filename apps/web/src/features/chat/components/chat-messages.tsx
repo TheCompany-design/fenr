@@ -2,8 +2,9 @@ import { AiChat02Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { groupIntoTurns } from "../state/chat-turns"
 import type { ChatMessage } from "../types"
-import { ChatMessageItem } from "./chat-message-item"
+import { ChatTurnBlock } from "./chat-turn-block"
 
 export interface ChatMessagesProps {
   readonly messages: readonly ChatMessage[]
@@ -105,12 +106,11 @@ export function ChatMessages({
         className="min-h-0 flex-1 w-full"
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
-          {messages.map((message) => (
-            <ChatMessageItem
-              key={message.id}
-              message={message}
-              isStreaming={message.status === "streaming"}
-            />
+          {/* One block per reply. A turn that calls a tool produces one message
+              per model step, and rendering those as separate bubbles made a
+              single answer look like several. */}
+          {groupIntoTurns(messages).map((turn, index) => (
+            <ChatTurnBlock key={turn.messages[0]?.id ?? index} turn={turn} />
           ))}
         </div>
       </ScrollArea>
