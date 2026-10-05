@@ -1,12 +1,18 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useAtom } from "jotai"
-import { useCallback, useRef } from "react"
+import { useCallback, useRef, useState } from "react"
 import { toast } from "sonner"
 import { moduleLogger } from "@/lib/logger"
 import { parseAgentStreamEvent } from "@/lib/schemas/agent-stream"
 import { chatKeys } from "../queries/chat-queries"
 import { isStreamingAtom, lastRequestIdAtom } from "../state/chat-atoms"
 import { chatMessagesReducer } from "../state/chat-messages-reducer"
+import {
+  type ActiveTurnProjection,
+  applyStreamFrame,
+  initialTurnProjection,
+  streamReducer,
+} from "../state/stream-reducer"
 import type { ChatMessage } from "../types"
 
 export interface SendOptions {
@@ -15,6 +21,13 @@ export interface SendOptions {
 
 export interface UseAgentStreamReturn {
   readonly lastRequestId: string | null
+  /**
+   * The turn as the server describes it.
+   *
+   * `status: "suspended"` is the state that matters: the turn is parked on a
+   * decision, so the interface has to offer one rather than wait.
+   */
+  readonly turn: ActiveTurnProjection
   readonly send: (
     prompt: string,
     threadId?: string | null,
@@ -59,6 +72,7 @@ function describeUnmodelledFrame(raw: unknown): {
 export function useAgentStream(): UseAgentStreamReturn {
   const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
+  const [turn, setTurn] = useState<ActiveTurnProjection>(initialTurnProjection)
   const abortControllerRef = useRef<AbortController | null>(null)
   const activeKeyRef = useRef<readonly string[]>(chatKeys.messages(null))
   const queryClient = useQueryClient()
@@ -68,6 +82,16 @@ export function useAgentStream(): UseAgentStreamReturn {
       abortControllerRef.current.abort()
       abortControllerRef.current = null
       setIsStreaming(false)
+      setTurn((previous) => ({
+        ...previous,
+        // A client-side stop ends the connection, not necessarily the turn: the
+        // runtime may keep working and be read back from its transcript. So the
+        // turn is left identified, and only marked as not streaming here.
+        status: previous.status === "suspended" ? previous.status : "idle",
+        activeItemId: null,
+        streamingText: "",
+        streamingToolArguments: "",
+      }))
 
       queryClient.setQueryData<ChatMessage[]>(
         activeKeyRef.current,
@@ -96,6 +120,9 @@ export function useAgentStream(): UseAgentStreamReturn {
       const abortController = new AbortController()
       abortControllerRef.current = abortController
       setIsStreaming(true)
+      // A new turn starts from nothing: carrying the previous turn's text or
+      // approval item across would attribute them to this one.
+      setTurn(initialTurnProjection)
 
       let currentKey: readonly string[] = chatKeys.messages(threadId)
       activeKeyRef.current = currentKey
@@ -184,84 +211,86 @@ export function useAgentStream(): UseAgentStreamReturn {
                   // The server adds capability as new event types precisely so
                   // an older client keeps working. Dropping the frame quietly is
                   // how a suspended turn turns into an unexplained spinner, so
-                  // it is recorded and the stream continues.
+                  // it is recorded, the projection is left alone, and the
+                  // stream continues.
                   const detail = describeUnmodelledFrame(parsed)
-                  log.warn(
-                    {
-                      ...detail,
-                      validation_error: validation.error,
-                      request_id: activeRequestId,
-                    },
-                    "an agent stream frame was not applied",
+                  setTurn((previous) =>
+                    applyStreamFrame(previous, parsed, (unmodelled) =>
+                      log.warn(
+                        {
+                          ...detail,
+                          validation_error: unmodelled.error,
+                          request_id: activeRequestId,
+                        },
+                        "an agent stream frame was not applied",
+                      ),
+                    ),
                   )
                   continue
                 }
 
-                {
-                  const event = validation.event
-
-                  if (event.type === "turn_started") {
-                    const serverThreadId = event.data.thread_id
-                    if (!threadId) {
-                      // Migrate cache data from draft key to newly minted server thread key
-                      const draftData =
-                        queryClient.getQueryData<ChatMessage[]>(currentKey) ??
-                        []
-                      currentKey = chatKeys.messages(serverThreadId)
-                      activeKeyRef.current = currentKey
-                      queryClient.setQueryData(currentKey, draftData)
-                      queryClient.removeQueries({
-                        queryKey: chatKeys.messages(null),
-                      })
-                    }
-
-                    if (options?.onTurnStarted) {
-                      try {
-                        await options.onTurnStarted(serverThreadId)
-                      } catch {
-                        // Ignore navigation errors during active stream
-                      }
-                    }
-                  }
-
-                  // Dispatch event directly into the query cache via pure reducer
-                  queryClient.setQueryData<ChatMessage[]>(
-                    currentKey,
-                    (old = []) =>
-                      chatMessagesReducer(old, {
-                        type: "agent_event",
-                        event,
-                      }),
-                  )
-
-                  if (event.type === "turn_suspended") {
-                    // The turn is parked on a human decision. The stream stays
-                    // open, but the composer must not be blocked by a turn that
-                    // is no longer running.
-                    setIsStreaming(false)
-                  }
-
-                  if (event.type === "turn_resumed") {
-                    setIsStreaming(true)
-                  }
-
-                  if (event.type === "turn_completed") {
-                    // Every terminal status ends the turn, including a cancelled
-                    // one: leaving the composer disabled here is what made a
-                    // cancelled turn look like a hung request.
-                    setIsStreaming(false)
-                    void queryClient.invalidateQueries({
-                      queryKey: chatKeys.thread(event.data.thread_id),
+                const event = validation.event
+                setTurn((previous) => streamReducer(previous, event))
+                if (event.type === "turn_started") {
+                  const serverThreadId = event.data.thread_id
+                  if (!threadId) {
+                    // Migrate cache data from draft key to newly minted server thread key
+                    const draftData =
+                      queryClient.getQueryData<ChatMessage[]>(currentKey) ?? []
+                    currentKey = chatKeys.messages(serverThreadId)
+                    activeKeyRef.current = currentKey
+                    queryClient.setQueryData(currentKey, draftData)
+                    queryClient.removeQueries({
+                      queryKey: chatKeys.messages(null),
                     })
                   }
 
-                  if (event.type === "stream_error") {
-                    setIsStreaming(false)
-                    const description = activeRequestId
-                      ? `${event.data.message} (Ref: ${activeRequestId})`
-                      : event.data.message
-                    toast.error("Agent error", { description })
+                  if (options?.onTurnStarted) {
+                    try {
+                      await options.onTurnStarted(serverThreadId)
+                    } catch {
+                      // Ignore navigation errors during active stream
+                    }
                   }
+                }
+
+                // Dispatch event directly into the query cache via pure reducer
+                queryClient.setQueryData<ChatMessage[]>(
+                  currentKey,
+                  (old = []) =>
+                    chatMessagesReducer(old, {
+                      type: "agent_event",
+                      event,
+                    }),
+                )
+
+                if (event.type === "turn_suspended") {
+                  // The turn is parked on a human decision. The stream stays
+                  // open, but the composer must not be blocked by a turn that
+                  // is no longer running.
+                  setIsStreaming(false)
+                }
+
+                if (event.type === "turn_resumed") {
+                  setIsStreaming(true)
+                }
+
+                if (event.type === "turn_completed") {
+                  // Every terminal status ends the turn, including a cancelled
+                  // one: leaving the composer disabled here is what made a
+                  // cancelled turn look like a hung request.
+                  setIsStreaming(false)
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.thread(event.data.thread_id),
+                  })
+                }
+
+                if (event.type === "stream_error") {
+                  setIsStreaming(false)
+                  const description = activeRequestId
+                    ? `${event.data.message} (Ref: ${activeRequestId})`
+                    : event.data.message
+                  toast.error("Agent error", { description })
                 }
               } catch {
                 // Ignore malformed ping or non-JSON comments safely
@@ -309,6 +338,7 @@ export function useAgentStream(): UseAgentStreamReturn {
 
   return {
     lastRequestId,
+    turn,
     send,
     stop,
     reset,

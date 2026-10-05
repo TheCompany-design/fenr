@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useCallback } from "react"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
+import { ApprovalPrompt } from "./approval-prompt"
 import { ChatComposer } from "./chat-composer"
 import { ChatMessages } from "./chat-messages"
 
@@ -24,7 +25,7 @@ export interface ChatContainerProps {
  */
 export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
-  const { send, stop, reset, isStreaming } = useAgentStream()
+  const { send, stop, reset, isStreaming, turn } = useAgentStream()
 
   const routerNavigate = useNavigate()
 
@@ -74,6 +75,16 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
 
   const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
 
+  // A suspended turn is waiting on a decision, not on the model. Offering the
+  // composer here would let a new turn start while this one is parked, and the
+  // approval request would then belong to a conversation nobody is looking at.
+  const awaitingApproval =
+    turn.status === "suspended" &&
+    turn.turnId !== null &&
+    turn.awaitingApprovalItemId !== null
+      ? { turnId: turn.turnId, itemId: turn.awaitingApprovalItemId }
+      : null
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       {/* Chat Header */}
@@ -89,10 +100,20 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <span
                 className={`size-1.5 rounded-full ${
-                  isStreaming ? "bg-amber-500 animate-pulse" : "bg-emerald-500"
+                  isStreaming
+                    ? "bg-amber-500 animate-pulse"
+                    : awaitingApproval
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
                 }`}
               />
-              <span>{isStreaming ? "Streaming response..." : "Online"}</span>
+              <span>
+                {isStreaming
+                  ? "Streaming response..."
+                  : awaitingApproval
+                    ? "Waiting for your approval"
+                    : "Online"}
+              </span>
             </div>
           </div>
         </div>
@@ -113,6 +134,17 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
       <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
         {/* Messages Feed (Scrolls behind floating composer) */}
         <ChatMessages messages={safeMessages} showEmptyState={false} />
+
+        {/* A parked turn needs a decision, not a spinner. */}
+        {awaitingApproval ? (
+          <div className="pointer-events-auto absolute inset-x-0 bottom-28 z-20 px-4 sm:px-8">
+            <ApprovalPrompt
+              turnId={awaitingApproval.turnId}
+              itemId={awaitingApproval.itemId}
+              attempt={turn.approvalAttempt ?? 1}
+            />
+          </div>
+        ) : null}
 
         {/* Floating / Centered Composer Layer */}
         <div
