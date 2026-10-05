@@ -2,7 +2,6 @@ import {
   AiChat02Icon,
   CheckmarkCircle02Icon,
   Copy01Icon,
-  UserIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useAtom } from "jotai"
@@ -38,12 +37,9 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
 
     return (
       <div className="flex w-full justify-end px-2 py-1.5">
-        <div className="flex max-w-[85%] items-start gap-2.5 sm:max-w-[75%]">
+        <div className="flex max-w-[85%] sm:max-w-[75%]">
           <div className="rounded-2xl bg-muted px-4 py-2.5 text-[13px] leading-relaxed text-foreground shadow-xs">
             <p className="whitespace-pre-wrap">{message.content}</p>
-          </div>
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <HugeiconsIcon icon={UserIcon} size={15} />
           </div>
         </div>
       </div>

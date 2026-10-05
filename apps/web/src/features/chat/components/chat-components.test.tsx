@@ -28,7 +28,8 @@ const { createRoot } = await import("react-dom/client")
 notifyManager.setScheduler((cb) => act(cb))
 
 const { ThinkingTrace } = await import("./thinking-trace")
-const { ChatMessageItem } = await import("./chat-message-item")
+const { ChatTurnBlock } = await import("./chat-turn-block")
+const { groupIntoTurns } = await import("../state/chat-turns")
 const { ChatComposer } = await import("./chat-composer")
 const { ChatMessages } = await import("./chat-messages")
 const { ChatContainer } = await import("./chat-container")
@@ -122,7 +123,24 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
     })
   })
 
-  describe("ChatMessageItem", () => {
+  describe("ChatTurnBlock", () => {
+    it("renders a user message without an avatar", () => {
+      const msg: ChatMessage = {
+        id: "msg-user-avatar",
+        role: "user",
+        content: "no avatar here",
+      }
+
+      act(() => {
+        root?.render(
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
+        )
+      })
+
+      expect(container?.textContent).toContain("no avatar here")
+      expect(container?.querySelector("svg")).toBeNull()
+    })
+
     it("renders user message bubble cleanly", () => {
       const msg: ChatMessage = {
         id: "msg-user-1",
@@ -132,7 +150,9 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(createElement(ChatMessageItem, { message: msg }))
+        root?.render(
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
+        )
       })
 
       expect(container?.textContent).toContain("What is my ledger balance?")
@@ -149,7 +169,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       act(() => {
         root?.render(
-          createElement(ChatMessageItem, { message: msg, isStreaming: true }),
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
         )
       })
 
@@ -181,7 +201,9 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       toast.success = toastSuccessSpy as unknown as typeof toast.success
 
       act(() => {
-        root?.render(createElement(ChatMessageItem, { message: msg }))
+        root?.render(
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
+        )
       })
 
       const copyBtn = container?.querySelector(
