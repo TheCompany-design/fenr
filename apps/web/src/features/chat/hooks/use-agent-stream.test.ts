@@ -106,7 +106,7 @@ describe("useAgentStream Hook", () => {
     const ssePayload = [
       `data: {"type":"turn_started","data":{"thread_id":"${threadId}","turn_id":"${turnId}"}}\n\n`,
       `data: {"type":"item_started","data":{"thread_id":"${threadId}","turn_id":"${turnId}","item_id":"${itemId}","kind":"agent_message"}}\n\n`,
-      `data: {"type":"item_delta","data":{"item_id":"${itemId}","delta":{"kind":"thinking_delta","text":"Checking stats..."}}}\n\n`,
+      `data: {"type":"item_delta","data":{"item_id":"${itemId}","delta":{"kind":"thinking_delta","block_id":"r-1","text":"Checking stats..."}}}\n\n`,
       `data: {"type":"item_delta","data":{"item_id":"${itemId}","delta":{"kind":"text_delta","text":"Mint chip is up 12%."}}}\n\n`,
       `data: {"type":"turn_completed","data":{"thread_id":"${threadId}","turn_id":"${turnId}","status":"completed","usage":{"prompt_tokens":10,"completion_tokens":20,"total_tokens":30}}}\n\n`,
     ].join("")

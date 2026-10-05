@@ -62,11 +62,33 @@ export const ITEM_STARTED_APPROVAL_REQUEST_FIXTURE = {
   },
 }
 
+/**
+ * Captured from a live turn after the block id reached the wire.
+ *
+ * `block_id` is the provider's correlator, rendered by rig rather than issued
+ * verbatim, so the fixture asserts the field is present and non-empty rather than
+ * pinning an opaque value.
+ */
+export const ITEM_DELTA_THINKING_FIXTURE = {
+  type: "item_delta",
+  data: {
+    item_id: FIXTURE_ITEM_ID,
+    delta: {
+      kind: "thinking_delta",
+      block_id: "-DPhAyr0VEpO_BV92Qbha",
+      text: "User",
+    },
+  },
+}
+
 export const ITEM_DELTA_TOOL_ARGUMENTS_FIXTURE = {
   type: "item_delta",
   data: {
     item_id: FIXTURE_ITEM_ID,
-    delta: { kind: "tool_arguments_delta", text: '{"a":' },
+    delta: {
+      kind: "tool_arguments_delta",
+      text: '{"a":',
+    },
   },
 }
 
@@ -171,6 +193,7 @@ export const ALL_AGENT_STREAM_FIXTURES = [
   TURN_RESUMED_FIXTURE,
   ITEM_STARTED_TOOL_CALL_FIXTURE,
   ITEM_STARTED_APPROVAL_REQUEST_FIXTURE,
+  ITEM_DELTA_THINKING_FIXTURE,
   ITEM_DELTA_TOOL_ARGUMENTS_FIXTURE,
   ITEM_COMPLETED_TOOL_CALL_FIXTURE,
   ITEM_COMPLETED_TOOL_RESULT_FIXTURE,

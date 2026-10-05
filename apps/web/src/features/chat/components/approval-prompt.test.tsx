@@ -24,6 +24,7 @@ function projection(
     activeItemId: null,
     streamingText: "",
     streamingThinking: "",
+    streamingThinkingBlockId: null,
     streamingToolArguments: "",
     status: "streaming",
     awaitingApprovalItemId: null,

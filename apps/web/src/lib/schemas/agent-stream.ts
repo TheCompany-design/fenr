@@ -93,6 +93,15 @@ export type ToolOutcome = z.infer<typeof toolOutcomeSchema>
 export const itemDeltaPayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("thinking_delta"),
+    /**
+     * Which reasoning block this fragment belongs to.
+     *
+     * A provider can stream more than one block per response — thinking, a tool
+     * call, thinking again. Required rather than optional: Zod strips unknown
+     * keys, so an optional `block_id` would be accepted and thrown away, which is
+     * how every block arrived here already concatenated into one trace.
+     */
+    block_id: z.string().min(1),
     text: z.string(),
   }),
   z.object({

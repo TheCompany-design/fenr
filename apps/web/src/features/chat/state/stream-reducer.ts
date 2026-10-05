@@ -11,6 +11,8 @@ export interface ActiveTurnProjection {
   readonly activeItemId: string | null
   readonly streamingText: string
   readonly streamingThinking: string
+  /** The reasoning block `streamingThinking` belongs to. */
+  readonly streamingThinkingBlockId: string | null
   /** Tool-call arguments seen so far, before they parse as JSON. */
   readonly streamingToolArguments: string
   /**
@@ -51,6 +53,7 @@ export const initialTurnProjection: ActiveTurnProjection = {
   activeItemId: null,
   streamingText: "",
   streamingThinking: "",
+  streamingThinkingBlockId: null,
   streamingToolArguments: "",
   status: "idle",
   awaitingApprovalItemId: null,
@@ -106,6 +109,16 @@ function applyDelta(
     case "text_delta":
       return { ...state, streamingText: state.streamingText + delta.text }
     case "thinking_delta":
+      // A new block starts a new thought rather than continuing the last one.
+      // Without this the projection cannot tell "still going" from "started
+      // again", which is the difference between one trace and several.
+      if (state.streamingThinkingBlockId !== delta.block_id) {
+        return {
+          ...state,
+          streamingThinking: delta.text,
+          streamingThinkingBlockId: delta.block_id,
+        }
+      }
       return {
         ...state,
         streamingThinking: state.streamingThinking + delta.text,
@@ -134,6 +147,7 @@ export function streamReducer(
         turnId: event.data.turn_id,
         streamingText: "",
         streamingThinking: "",
+        streamingThinkingBlockId: null,
         streamingToolArguments: "",
         // Cleared rather than carried over: an active item belongs to the turn
         // that created it, and keeping the old id would make the next delta

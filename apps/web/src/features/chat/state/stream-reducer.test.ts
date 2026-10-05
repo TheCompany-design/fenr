@@ -94,14 +94,18 @@ describe("streamReducer (Pure Event Reducer)", () => {
       type: "item_delta",
       data: {
         item_id: itemId,
-        delta: { kind: "thinking_delta", text: "Analyzing " },
+        delta: { kind: "thinking_delta", block_id: "r-1", text: "Analyzing " },
       },
     }
     const think2: AgentStreamEvent = {
       type: "item_delta",
       data: {
         item_id: itemId,
-        delta: { kind: "thinking_delta", text: "summer batch data..." },
+        delta: {
+          kind: "thinking_delta",
+          block_id: "r-1",
+          text: "summer batch data...",
+        },
       },
     }
     const text1: AgentStreamEvent = {
@@ -384,5 +388,56 @@ describe("a failure keeps its code", () => {
 
     expect(next.error).toBeNull()
     expect(next.errorCode).toBeNull()
+  })
+})
+
+describe("reasoning blocks", () => {
+  const itemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
+
+  function thinking(blockId: string, text: string) {
+    return {
+      type: "item_delta",
+      data: {
+        item_id: itemId,
+        delta: { kind: "thinking_delta", block_id: blockId, text },
+      },
+    } as const
+  }
+
+  it("keeps one block's fragments together", () => {
+    const once = streamReducer(initialTurnProjection, thinking("a", "first"))
+    const twice = streamReducer(once, thinking("a", " second"))
+    expect(twice.streamingThinking).toBe("first second")
+    expect(twice.streamingThinkingBlockId).toBe("a")
+  })
+
+  it("starts a new thought when the provider starts a new block", () => {
+    // The provider can think, call a tool, and think again. Without the block id
+    // the two run together and read as one continuous train of thought that never
+    // went anywhere.
+    const first = streamReducer(
+      initialTurnProjection,
+      thinking("a", "about the question"),
+    )
+    const second = streamReducer(first, thinking("b", "about the answer"))
+
+    expect(second.streamingThinking).toBe("about the answer")
+    expect(second.streamingThinkingBlockId).toBe("b")
+  })
+
+  it("does not inherit a block into the next turn", () => {
+    const streaming = streamReducer(
+      initialTurnProjection,
+      thinking("a", "thinking"),
+    )
+    const next = streamReducer(streaming, {
+      type: "turn_started",
+      data: {
+        thread_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1",
+        turn_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2",
+      },
+    })
+    expect(next.streamingThinking).toBe("")
+    expect(next.streamingThinkingBlockId).toBeNull()
   })
 })

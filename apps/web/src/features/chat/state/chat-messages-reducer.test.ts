@@ -89,7 +89,11 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
       type: "item_delta",
       data: {
         item_id: "item-123",
-        delta: { kind: "thinking_delta", text: "Reasoning..." },
+        delta: {
+          kind: "thinking_delta",
+          block_id: "r-1",
+          text: "Reasoning...",
+        },
       },
     }
 

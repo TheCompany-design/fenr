@@ -68,10 +68,12 @@ describe("agent-stream schemas", () => {
 
     const thinkingDelta = itemDeltaPayloadSchema.parse({
       kind: "thinking_delta",
+      block_id: "r-1",
       text: "Analyzing...",
     })
     expect(thinkingDelta).toEqual({
       kind: "thinking_delta",
+      block_id: "r-1",
       text: "Analyzing...",
     })
 
