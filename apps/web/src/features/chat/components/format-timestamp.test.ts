@@ -1,30 +1,34 @@
 import { describe, expect, it } from "bun:test"
 import { formatTimestamp } from "./format-timestamp"
 
+function at(hours: number, minutes: number, day = 5, month = 9): Date {
+  // Built in local time so the assertions read in the same clock the formatter
+  // uses, whatever timezone the suite runs in.
+  const when = new Date()
+  when.setFullYear(2026, month, day)
+  when.setHours(hours, minutes, 0, 0)
+  return when
+}
+
 describe("formatTimestamp", () => {
-  const reference = new Date("2026-10-05T23:02:43.721Z")
-
-  it("gives a plain time for a reply from today", () => {
-    const today = new Date()
-    today.setHours(9, 5, 0, 0)
-    const stamp = new Date(today).toISOString()
-
-    expect(formatTimestamp(stamp, today)).toBe("09:05")
+  it("gives a date and a four digit time", () => {
+    expect(formatTimestamp(at(9, 5).toISOString())).toBe("5 Oct 0905 hrs")
   })
 
-  it("gives a date with the time for an older reply", () => {
-    const stamp = new Date("2026-10-05T09:15:00.000Z").toISOString()
-    const later = new Date("2026-11-20T12:00:00.000Z")
-
-    const formatted = formatTimestamp(stamp, later)
-    expect(formatted).toMatch(/^\d{1,2} [A-Za-z]{3}, \d{2}:\d{2}$/)
+  it("gives a date and a time for every reply, not only older ones", () => {
+    // A conversation read out of context has to say which day each answer
+    // belongs to, whichever day it happens to be read.
+    expect(formatTimestamp(at(23, 2).toISOString())).toBe("5 Oct 2302 hrs")
   })
 
   it("pads the hours and minutes", () => {
-    const morning = new Date()
-    morning.setHours(4, 7, 0, 0)
+    expect(formatTimestamp(at(4, 7).toISOString())).toBe("5 Oct 0407 hrs")
+    expect(formatTimestamp(at(0, 0).toISOString())).toBe("5 Oct 0000 hrs")
+  })
 
-    expect(formatTimestamp(morning.toISOString(), morning)).toBe("04:07")
+  it("keeps the day and the month", () => {
+    const formatted = formatTimestamp(at(14, 32, 28, 1).toISOString())
+    expect(formatted).toBe("28 Feb 1432 hrs")
   })
 
   it("never renders an unparseable timestamp", () => {

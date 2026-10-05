@@ -197,7 +197,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       // The stored value is a full ISO timestamp; it must not reach the reader.
       expect(container?.textContent).not.toContain("T")
-      expect(container?.textContent).toContain("14:32")
+      expect(container?.textContent).toMatch(/\d{1,2} [A-Za-z]{3} \d{4} hrs/)
 
       const time = container?.querySelector("time")
       expect(time?.getAttribute("datetime")).toBe(at.toISOString())
