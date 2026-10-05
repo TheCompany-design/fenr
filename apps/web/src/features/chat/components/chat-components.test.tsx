@@ -158,6 +158,25 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(container?.textContent).toContain("What is my ledger balance?")
     })
 
+    it("names the reply without an avatar beside it", () => {
+      const msg: ChatMessage = {
+        id: "msg-agent-avatar",
+        role: "agent",
+        content: "no badge here",
+      }
+
+      act(() => {
+        root?.render(
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
+        )
+      })
+
+      // The name identifies the reply; a round badge beside it repeated what the
+      // label already said and indented the text away from the reader's messages.
+      expect(container?.textContent).toContain("Nabu Agent")
+      expect(container?.querySelector(".size-7")).toBeNull()
+    })
+
     it("renders agent message with thinking trace and streaming indicator", () => {
       const msg: ChatMessage = {
         id: "msg-agent-1",

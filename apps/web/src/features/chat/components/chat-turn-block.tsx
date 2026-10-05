@@ -1,8 +1,4 @@
-import {
-  AiChat02Icon,
-  CheckmarkCircle02Icon,
-  Copy01Icon,
-} from "@hugeicons/core-free-icons"
+import { CheckmarkCircle02Icon, Copy01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useAtom } from "jotai"
 import { toast } from "sonner"
@@ -69,11 +65,7 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
 
   return (
     <div className="flex w-full justify-start px-2 py-2">
-      <div className="flex w-full max-w-[95%] items-start gap-3 sm:max-w-[90%]">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <HugeiconsIcon icon={AiChat02Icon} size={15} />
-        </div>
-
+      <div className="flex w-full max-w-[95%] flex-col sm:max-w-[90%]">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">Nabu Agent</span>
