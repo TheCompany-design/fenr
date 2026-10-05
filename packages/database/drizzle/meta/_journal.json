@@ -15,27 +15,6 @@
       "when": 1789933746183,
       "tag": "0001_mysterious_stardust",
       "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1790282149796,
-      "tag": "0002_cold_ultimates",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1790359802892,
-      "tag": "0003_stormy_leech",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1790367788637,
-      "tag": "0004_peaceful_mad_thinker",
-      "breakpoints": true
     }
   ]
 }

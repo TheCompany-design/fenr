@@ -1,6 +1,5 @@
 import {
   index,
-  integer,
   pgTable,
   text,
   timestamp,
@@ -10,6 +9,18 @@ import {
 import { idColumn } from "../id"
 import { organization } from "../organizations/organization"
 
+/**
+ * Threads as the agent runtime owns them.
+ *
+ * These tables are written by `thebookofnabu`, not by this application: it
+ * mints every identifier, and it owns the schema (see its migration
+ * `0001_runtime_schema.sql`). This mirror exists so the transcript can be read
+ * without a second source of truth, so it must not carry columns the runtime
+ * does not have — `turn_count` was one, and querying it failed at runtime.
+ *
+ * Row level security is enforced by the runtime's own policies; this schema
+ * declares no tenant scoping of its own.
+ */
 export const agentThreads = pgTable(
   "agent_threads",
   {
@@ -18,7 +29,6 @@ export const agentThreads = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     title: text("title"),
-    turnCount: integer("turn_count").default(0).notNull(),
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",

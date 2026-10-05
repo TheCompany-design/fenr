@@ -1,4 +1,4 @@
-import { and, asc, db, eq, schema } from "@workspace/database"
+import { and, asc, db, eq, isNotNull, schema } from "@workspace/database"
 import { moduleLogger } from "@/lib/logger"
 import type { ChatMessage } from "../types"
 
@@ -47,28 +47,45 @@ export async function getThreadMessages(
       createdAt: schema.agentItems.createdAt,
     })
     .from(schema.agentItems)
-    .where(eq(schema.agentItems.threadId, threadId))
+    .where(
+      and(
+        eq(schema.agentItems.threadId, threadId),
+        isNotNull(schema.agentItems.completedAt),
+      ),
+    )
     .orderBy(asc(schema.agentItems.createdAt))
 
-  return items.map((item): ChatMessage => {
-    const payload = item.payload as Record<string, unknown> | null
-    const isUser = item.kind === "user_message"
+  // Only message kinds are bubbles. A tool call, a tool result and the two
+  // halves of an approval are real transcript items with their own identity;
+  // mapping them to a message produced a row of empty agent bubbles on every
+  // reload, which is how a thread came to look like the agent had said nothing
+  // five times.
+  return items
+    .filter(
+      (
+        item,
+      ): item is typeof item & { kind: "user_message" | "agent_message" } =>
+        item.kind === "user_message" || item.kind === "agent_message",
+    )
+    .map((item): ChatMessage => {
+      const payload = item.payload as Record<string, unknown> | null
+      const isUser = item.kind === "user_message"
 
-    return {
-      id: item.id,
-      role: isUser ? "user" : "agent",
-      content: isUser
-        ? typeof payload?.content === "string"
-          ? payload.content
-          : ""
-        : typeof payload?.text === "string"
-          ? payload.text
-          : "",
-      thinking:
-        !isUser && typeof payload?.thinking === "string"
-          ? payload.thinking
-          : undefined,
-      createdAt: item.createdAt.toISOString(),
-    }
-  })
+      return {
+        id: item.id,
+        role: isUser ? "user" : "agent",
+        content: isUser
+          ? typeof payload?.content === "string"
+            ? payload.content
+            : ""
+          : typeof payload?.text === "string"
+            ? payload.text
+            : "",
+        thinking:
+          !isUser && typeof payload?.thinking === "string"
+            ? payload.thinking
+            : undefined,
+        createdAt: item.createdAt.toISOString(),
+      }
+    })
 }

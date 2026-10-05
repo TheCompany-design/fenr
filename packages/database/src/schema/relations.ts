@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm"
+import { agentApprovals } from "./agent/agent-approvals"
 import { agentItems } from "./agent/agent-items"
 import { agentThreads } from "./agent/agent-threads"
 import { agentTurns } from "./agent/agent-turns"
@@ -92,6 +93,7 @@ export const agentThreadsRelations = relations(
     }),
     turns: many(agentTurns),
     items: many(agentItems),
+    approvals: many(agentApprovals),
   }),
 )
 
