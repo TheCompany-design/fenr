@@ -13,12 +13,11 @@ import {
 } from "@/lib/http"
 import { executeRequest } from "@/lib/http/client.server"
 import type { ExecuteRequestOptions } from "@/lib/http/types"
+import type { ApprovalDecision } from "@/lib/schemas/agent-stream"
 import type {
-  AgentTaskResult,
-  CreateAgentTaskInput,
+  NabuCapabilities,
   NabuSystemStatus,
-  ReconciliationMatchInput,
-  ReconciliationMatchResult,
+  TurnItemsResponse,
 } from "@/lib/schemas/nabu"
 
 export class OrganizationRequiredError extends Error {
@@ -118,31 +117,82 @@ export async function getNabuSystemStatus(
 }
 
 /**
- * Submits an inflow payment transaction for deterministic reconciliation matching.
+ * Retrieves what a turn may do in this deployment.
  */
-export async function matchInflowReconciliation(
-  input: ReconciliationMatchInput,
-  options?: Omit<ExecuteRequestOptions<ReconciliationMatchInput>, "input">,
-): Promise<ReconciliationMatchResult> {
+export async function getNabuCapabilities(
+  options?: ExecuteRequestOptions<void>,
+): Promise<NabuCapabilities> {
   return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.matchReconciliation, {
+    executeRequest(nabuEndpoints.capabilities, options),
+  )
+}
+
+/**
+ * Reads a turn's completed transcript items, oldest first.
+ */
+export async function getTurnItems(
+  input: { turnId: string; after?: string; limit?: number },
+  options?: Omit<
+    ExecuteRequestOptions<{ turnId: string; after?: string; limit?: number }>,
+    "input"
+  >,
+): Promise<TurnItemsResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.turnItems, { ...options, input }),
+  )
+}
+
+/**
+ * Records a human decision on an approval request.
+ *
+ * A decision is what resumes a suspended turn, so this is the call that ends the
+ * wait — not a local state change. The runtime refuses a second decision, so a
+ * retry after an ambiguous failure must carry the same answer rather than a new
+ * one.
+ */
+export async function decideApproval(
+  input: { turnId: string; itemId: string; decision: ApprovalDecision },
+  options?: Omit<
+    ExecuteRequestOptions<{
+      turnId: string
+      itemId: string
+      decision: ApprovalDecision
+    }>,
+    "input"
+  >,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.decideApproval, {
       ...options,
-      input,
+      input: {
+        turnId: input.turnId,
+        item_id: input.itemId,
+        decision: input.decision,
+      },
     }),
   )
 }
 
 /**
- * Dispatches an operational agent task turn to thebookofnabu.
+ * Cancels a running or suspended turn.
  */
-export async function dispatchAgentTask(
-  input: CreateAgentTaskInput,
-  options?: Omit<ExecuteRequestOptions<CreateAgentTaskInput>, "input">,
-): Promise<AgentTaskResult> {
-  return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.dispatchTask, {
-      ...options,
-      input,
-    }),
+export async function cancelTurn(
+  input: { turnId: string },
+  options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.cancelTurn, { ...options, input }),
+  )
+}
+
+/**
+ * Resumes a suspended turn once a decision has been recorded.
+ */
+export async function resumeTurn(
+  input: { turnId: string },
+  options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.resumeTurn, { ...options, input }),
   )
 }

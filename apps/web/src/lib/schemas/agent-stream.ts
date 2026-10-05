@@ -111,6 +111,33 @@ export const itemDeltaPayloadSchema = z.discriminatedUnion("kind", [
 ])
 export type ItemDeltaPayload = z.infer<typeof itemDeltaPayloadSchema>
 
+/**
+ * A JSON value.
+ *
+ * Tool arguments are whatever JSON the model produced, so this is recursive
+ * rather than a fixed shape. It is spelled out rather than left as `unknown`
+ * because this data crosses the server-function boundary, and an `unknown` in a
+ * return type is not something that can be proven to survive serialisation.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue }
+
+export const jsonValueSchema: z.ZodType<JsonValue, unknown> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
+  ]),
+)
+
 const toolNameSchema = z.string().min(1)
 
 export const itemPayloadSchema = z.discriminatedUnion("kind", [
@@ -130,7 +157,7 @@ export const itemPayloadSchema = z.discriminatedUnion("kind", [
     call_id: z.string(),
     name: toolNameSchema,
     /** Already parsed: the runtime buffers argument deltas until they do. */
-    arguments: z.unknown(),
+    arguments: jsonValueSchema,
   }),
   z.object({
     kind: z.literal("tool_result"),
@@ -145,7 +172,7 @@ export const itemPayloadSchema = z.discriminatedUnion("kind", [
     kind: z.literal("approval_request"),
     call_id: z.string(),
     tool: toolNameSchema,
-    arguments: z.unknown(),
+    arguments: jsonValueSchema,
   }),
   z.object({
     kind: z.literal("approval_decision"),

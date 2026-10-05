@@ -1,8 +1,11 @@
 export * from "@/lib/schemas/nabu"
 export * from "./components/nabu-status-card"
 export {
-  dispatchAgentTaskFn,
+  cancelTurnFn,
+  decideApprovalFn,
+  getNabuCapabilitiesFn,
   getNabuSystemStatusFn,
-  matchInflowReconciliationFn,
+  getTurnItemsFn,
+  resumeTurnFn,
 } from "./nabu.functions"
 export * from "./queries"

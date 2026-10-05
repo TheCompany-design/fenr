@@ -201,8 +201,16 @@ export async function executeRequest<
       endpoint.method === "PUT" ||
       endpoint.method === "PATCH")
   ) {
+    // The body is whatever the endpoint declares, not the whole input: a path
+    // segment that happens to travel in the input is routing, not payload, and
+    // an endpoint that takes no payload sends none.
+    const payload = endpoint.body
+      ? endpoint.body(validatedInput)
+      : validatedInput
     try {
-      body = JSON.stringify(validatedInput)
+      if (payload !== undefined) {
+        body = JSON.stringify(payload)
+      }
     } catch (err) {
       throw new HttpClientError(
         `Failed to serialize request for ${endpoint.service}`,
@@ -215,7 +223,7 @@ export async function executeRequest<
         },
       )
     }
-    if (!headers.has("Content-Type")) {
+    if (body !== undefined && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json")
     }
   }

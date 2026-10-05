@@ -1,12 +1,20 @@
+/**
+ * What the agent runtime can currently do.
+ *
+ * Shown on the dashboard so the deployment's real limits are visible before a
+ * conversation starts. It used to drive two endpoints the runtime never served —
+ * a reconciliation match and an agent task dispatch — so both buttons failed;
+ * the runtime replaced them with turns, capabilities and approvals.
+ */
+
 import {
   Activity01Icon,
   CheckmarkCircle02Icon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
@@ -14,81 +22,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
-import { toast } from "sonner"
 import {
-  dispatchAgentTaskFn,
-  matchInflowReconciliationFn,
-} from "../nabu.functions"
-import { nabuSystemStatusQueryOptions } from "../queries"
+  nabuCapabilitiesQueryOptions,
+  nabuSystemStatusQueryOptions,
+} from "../queries"
 
 export function NabuStatusCard() {
-  const queryClient = useQueryClient()
   const {
     data: status,
     isLoading,
     isError,
-    refetch,
   } = useQuery(nabuSystemStatusQueryOptions())
 
-  const matchMutation = useMutation({
-    mutationFn: async () => {
-      return matchInflowReconciliationFn({
-        data: {
-          transaction_id: `tx_${Date.now()}`,
-          amount: 1500,
-          currency: "KES",
-          reference: "INV-2026-004",
-          sender_name: "Acme Studio",
-        },
-      })
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({
-        queryKey: nabuSystemStatusQueryOptions().queryKey,
-      })
-      toast.success(
-        `Matched: ${result.invoice_number} (${result.match_status})`,
-        {
-          description: result.reasons.join(" • "),
-        },
-      )
-    },
-    onError: () => {
-      toast.error("Reconciliation failed", {
-        description:
-          "Nabu could not complete the reconciliation. Please try again. If the problem continues, contact support.",
-      })
-    },
-  })
-
-  const dispatchMutation = useMutation({
-    mutationFn: async () => {
-      return dispatchAgentTaskFn({
-        data: {
-          prompt: "Scan overdue invoices and prepare reconciliation report",
-          task_type: "receivables_audit",
-          dry_run: true,
-        },
-      })
-    },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({
-        queryKey: nabuSystemStatusQueryOptions().queryKey,
-      })
-      toast.success("Agent task completed", {
-        description: `${result.summary} (analyzed ${result.items_analyzed} items in ${result.execution_time_ms}ms)`,
-      })
-    },
-    onError: () => {
-      toast.error("Agent task failed", {
-        description:
-          "Nabu could not complete the agent task. Please try again. If the problem continues, contact support.",
-      })
-    },
-  })
+  // Capabilities are fetched separately so an unavailable capability report does
+  // not also hide whether the engine is reachable at all.
+  const { data: capabilities } = useQuery(nabuCapabilitiesQueryOptions())
 
   return (
-    <Card className="flex flex-col justify-between">
+    <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -121,7 +72,7 @@ export function NabuStatusCard() {
           )}
         </div>
         <CardDescription>
-          Sub-ledger reconciliation and operational agent runtime
+          Conversational agent runtime with durable turns
         </CardDescription>
       </CardHeader>
 
@@ -141,64 +92,43 @@ export function NabuStatusCard() {
           </div>
         ) : (
           <p className="text-muted-foreground text-xs">
-            Nabu provides automated sub-ledger reconciliation and operational
-            agent runs. Click below to test reconciliation or dispatch an agent
-            task.
+            Nabu runs conversation turns durably: a turn survives a disconnect,
+            and a turn that needs a person waits for one instead of guessing.
           </p>
         )}
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => matchMutation.mutate()}
-            disabled={matchMutation.isPending}
-            className="flex-1 text-xs"
-          >
-            {matchMutation.isPending ? (
-              <>
-                <HugeiconsIcon
-                  icon={Loading03Icon}
-                  size={14}
-                  className="mr-1 animate-spin"
-                />
-                Matching...
-              </>
-            ) : (
-              "Test Reconciliation"
-            )}
-          </Button>
-
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => dispatchMutation.mutate()}
-            disabled={dispatchMutation.isPending}
-            className="flex-1 text-xs"
-          >
-            {dispatchMutation.isPending ? (
-              <>
-                <HugeiconsIcon
-                  icon={Loading03Icon}
-                  size={14}
-                  className="mr-1 animate-spin"
-                />
-                Running...
-              </>
-            ) : (
-              "Dispatch Task"
-            )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            className="text-xs"
-          >
-            Ping
-          </Button>
-        </div>
+        {capabilities ? (
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">Tools</span>
+              <span className="font-mono font-medium">
+                {capabilities.tools.length > 0
+                  ? capabilities.tools.join(", ")
+                  : "none"}
+              </span>
+            </div>
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">Attempts</span>
+              <span className="font-mono font-medium">
+                {capabilities.max_attempts}
+              </span>
+            </div>
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">
+                Model steps / attempt
+              </span>
+              <span className="font-mono font-medium">
+                {capabilities.max_model_steps}
+              </span>
+            </div>
+            <div className="rounded border p-2">
+              <span className="text-muted-foreground block">On disconnect</span>
+              <span className="font-mono font-medium">
+                {capabilities.detach_on_disconnect ? "detaches" : "ends turn"}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

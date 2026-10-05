@@ -22,6 +22,18 @@ export type ResponseSchema<T> = z.ZodType<T>
 export type InputSchema<T> = z.ZodType<T>
 
 /**
+ * A turn-scoped read: which turn, and where to page from.
+ *
+ * The turn is part of the path, so it belongs to the input rather than to the
+ * endpoint definition.
+ */
+export interface TurnItemsInput {
+  readonly turnId: string
+  readonly after?: string
+  readonly limit?: number
+}
+
+/**
  * An immutable definition of an outbound HTTP endpoint.
  */
 export interface EndpointDefinition<
@@ -32,6 +44,14 @@ export interface EndpointDefinition<
   readonly id: string
   readonly service: string
   readonly path: string | ((input: TInput) => string)
+  /**
+   * What to send as the request body.
+   *
+   * Defaults to the validated input. Override it when part of the input is
+   * routing rather than payload — a turn id in the path has no business in the
+   * body, and an endpoint that takes no payload should send none.
+   */
+  readonly body?: (input: TInput) => unknown
   readonly method: HttpMethod
   readonly auth: TAuth
   readonly responseSchema: ResponseSchema<TOutput>

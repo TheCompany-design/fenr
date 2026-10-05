@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { auth } from "@/lib/auth"
 import { HttpClientError } from "@/lib/http"
 import {
-  dispatchAgentTask,
+  cancelTurn,
+  decideApproval,
+  getNabuCapabilities,
   getNabuSystemStatus,
-  matchInflowReconciliation,
+  getTurnItems,
   NabuClientError,
+  resumeTurn,
 } from "./nabu.server"
 
 describe("Nabu HTTP Client", () => {
@@ -114,95 +117,125 @@ describe("Nabu HTTP Client", () => {
     })
   })
 
-  describe("matchInflowReconciliation", () => {
-    it("validates input, injects token, and returns parsed match result", async () => {
+  describe("decideApproval", () => {
+    it("routes to the turn's approvals endpoint and sends the decision", async () => {
+      let capturedUrl = ""
       let capturedAuth: string | null = null
-      globalThis.fetch = mock(async (_url, init) => {
-        expect(init?.method).toBe("POST")
+      let capturedBody: unknown = null
+
+      globalThis.fetch = mock(async (url, init) => {
+        capturedUrl = String(url)
         const headers = new Headers(init?.headers)
         capturedAuth = headers.get("Authorization")
-        const body = JSON.parse(init?.body as string)
-        expect(body.reference).toBe("INV-2026-004")
-
-        return Response.json({
-          match_status: "confident",
-          confidence_score: 0.96,
-          matched_invoice_id: "inv_123",
-          invoice_number: "INV-2026-004",
-          variance: 0,
-          reasons: ["Exact match"],
-          suggested_action: "auto_reconcile",
-        })
+        capturedBody = JSON.parse(init?.body as string)
+        // The runtime answers with 202 and no body.
+        return new Response(null, { status: 202 })
       }) as unknown as typeof fetch
 
-      const result = await matchInflowReconciliation(
+      await decideApproval(
         {
-          transaction_id: "tx_01",
-          amount: 1500,
-          reference: "INV-2026-004",
-          sender_name: "Acme Corp",
+          turnId: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2",
+          itemId: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3",
+          decision: "approved",
         },
-        { token: "reconciliation-jwt" },
+        { token: "approval-jwt" },
       )
 
-      expect(result.match_status).toBe("confident")
-      expect(result.confidence_score).toBe(0.96)
-      expect(result.invoice_number).toBe("INV-2026-004")
-      expect(String(capturedAuth)).toBe("Bearer reconciliation-jwt")
+      // Pinned literally: this path is what was wrong once, when the client
+      // still pointed at an endpoint the runtime had replaced.
+      expect(capturedUrl).toContain(
+        "/api/v1/threads/0191eb5d-7a6c-7e6d-9290-349c2a61c3e2/approvals",
+      )
+      expect(String(capturedAuth)).toBe("Bearer approval-jwt")
+      // Exactly what the runtime declares, and nothing else: turn_id is a path
+      // segment, not a field it reads from the body.
+      expect(capturedBody).toEqual({
+        item_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3",
+        decision: "approved",
+      })
     })
 
-    it("rejects invalid input before making network request", async () => {
-      let fetchCalled = false
-      globalThis.fetch = mock(async () => {
-        fetchCalled = true
-        return Response.json({})
+    it("routes cancellation and resumption to their own turn endpoints", async () => {
+      const urls: string[] = []
+      const bodies: (string | undefined)[] = []
+      globalThis.fetch = mock(async (url, init) => {
+        urls.push(String(url))
+        bodies.push((init?.body as string | undefined) ?? undefined)
+        return new Response(null, { status: 202 })
       }) as unknown as typeof fetch
 
-      await expect(
-        matchInflowReconciliation({
-          transaction_id: "",
-          amount: -10,
-          reference: "",
-          sender_name: "",
-        }),
-      ).rejects.toThrow()
+      const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+      await cancelTurn({ turnId }, { token: "jwt" })
+      await resumeTurn({ turnId }, { token: "jwt" })
 
-      expect(fetchCalled).toBe(false)
+      expect(urls[0]).toContain(`/api/v1/threads/${turnId}/cancel`)
+      expect(urls[1]).toContain(`/api/v1/threads/${turnId}/resume`)
+      // Neither endpoint takes a payload, so neither is sent one.
+      expect(bodies).toEqual([undefined, undefined])
     })
   })
 
-  describe("dispatchAgentTask", () => {
-    it("dispatches task payload, attaches bearer token, and returns result", async () => {
-      let capturedAuth: string | null = null
-      globalThis.fetch = mock(async (_url, init) => {
-        expect(init?.method).toBe("POST")
-        const headers = new Headers(init?.headers)
-        capturedAuth = headers.get("Authorization")
-        const body = JSON.parse(init?.body as string)
-        expect(body.prompt).toBe("Scan overdue accounts")
-
+  describe("getTurnItems", () => {
+    it("reads a turn's items and keeps tool payloads intact", async () => {
+      let capturedUrl = ""
+      globalThis.fetch = mock(async (url) => {
+        capturedUrl = String(url)
         return Response.json({
-          task_id: "task_01",
-          status: "completed",
-          summary: "Scan complete",
-          items_analyzed: 5,
-          hitl_required: false,
-          execution_time_ms: 45,
+          turn_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2",
+          has_more: false,
+          items: [
+            {
+              id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3",
+              thread_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1",
+              turn_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2",
+              tenant_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e4",
+              kind: "tool_result",
+              payload: {
+                kind: "tool_result",
+                call_id: "call_1",
+                name: "echo",
+                output: "ok",
+                truncated: false,
+                outcome: "succeeded",
+              },
+              created_at: "2026-01-01T00:00:00Z",
+            },
+          ],
         })
       }) as unknown as typeof fetch
 
-      const result = await dispatchAgentTask(
-        {
-          prompt: "Scan overdue accounts",
-          task_type: "receivables_audit",
-          dry_run: true,
-        },
-        { token: "dispatch-jwt" },
+      const result = await getTurnItems(
+        { turnId: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2" },
+        { token: "jwt" },
       )
 
-      expect(result.status).toBe("completed")
-      expect(result.items_analyzed).toBe(5)
-      expect(String(capturedAuth)).toBe("Bearer dispatch-jwt")
+      expect(capturedUrl).toContain(
+        "/api/v1/threads/0191eb5d-7a6c-7e6d-9290-349c2a61c3e2/items",
+      )
+      // The item kinds the transcript gained are the point: a tool result is
+      // data now, not an event that fails to parse.
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]?.kind).toBe("tool_result")
+    })
+  })
+
+  describe("getNabuCapabilities", () => {
+    it("reads the deployment's real limits", async () => {
+      let capturedUrl = ""
+      globalThis.fetch = mock(async (url) => {
+        capturedUrl = String(url)
+        return Response.json({
+          tools: ["echo"],
+          max_model_steps: 8,
+          max_attempts: 3,
+          detach_on_disconnect: true,
+        })
+      }) as unknown as typeof fetch
+
+      const capabilities = await getNabuCapabilities({ token: "jwt" })
+      expect(capturedUrl).toContain("/api/v1/capabilities")
+      expect(capabilities.tools).toEqual(["echo"])
+      expect(capabilities.detach_on_disconnect).toBe(true)
     })
   })
 })
