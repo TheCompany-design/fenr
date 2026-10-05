@@ -28,7 +28,9 @@ const { createRoot } = await import("react-dom/client")
 
 notifyManager.setScheduler((cb) => act(cb))
 
-const { useAgentStream } = await import("./use-agent-stream")
+const { describeStreamError, useAgentStream } = await import(
+  "./use-agent-stream"
+)
 
 describe("useAgentStream Hook", () => {
   let container: HTMLDivElement | null = null
@@ -284,8 +286,11 @@ describe("useAgentStream Hook", () => {
     expect(hook.current.lastRequestId).toBe("trace-sse-err-123")
     expect(toastCalls.length).toBe(1)
     expect(toastCalls[0]?.[0]).toBe("Agent error")
+    // The code is shown beside the message. Without it the toast said only
+    // "Model timed out", which is a sentence rather than something you can look
+    // up in the server's logs.
     expect(toastCalls[0]?.[1]).toEqual({
-      description: "Model timed out (Ref: trace-sse-err-123)",
+      description: "Model timed out (MODEL_TIMEOUT, Ref: trace-sse-err-123)",
     })
   })
 
@@ -358,5 +363,41 @@ describe("useAgentStream Hook", () => {
     }
     expect(secondBody.prompt).toBe("Second prompt")
     expect(secondBody.thread_id).toBe(serverThreadId)
+  })
+})
+
+describe("what a failure tells the reader", () => {
+  const REF = "01a10c08-4039-7555-8ad0-2d2f62e36043"
+
+  it("says what happened, why, and which request", () => {
+    // All three: the message for the reader, the code for the log, and the
+    // reference that ties them together. A reference on its own sends you
+    // hunting; a message on its own cannot be acted on.
+    const description = describeStreamError(
+      "the model provider could not be reached",
+      "model_provider_unreachable",
+      REF,
+    )
+    expect(description).toContain("could not be reached")
+    expect(description).toContain("model_provider_unreachable")
+    expect(description).toContain(REF)
+  })
+
+  it("still reports when the runtime sends no code", () => {
+    const description = describeStreamError("something went wrong", "", REF)
+    expect(description).toContain("something went wrong")
+    expect(description).toContain(REF)
+  })
+
+  it("does not invent a reference it was not given", () => {
+    expect(describeStreamError("it failed", "model_timeout", null)).toBe(
+      "it failed (model_timeout)",
+    )
+  })
+
+  it("keeps the code out of the sentence it is not part of", () => {
+    // A stray pair of empty parentheses reads like a rendering bug and tells the
+    // reader nothing.
+    expect(describeStreamError("it failed", "", null)).toBe("it failed")
   })
 })

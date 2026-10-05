@@ -69,6 +69,27 @@ function describeUnmodelledFrame(raw: unknown): {
   }
 }
 
+/**
+ * What the toast says when a turn fails.
+ *
+ * The runtime sends a message written for a person and a code written for a
+ * machine, and both are shown: the message says what happened, the code is what
+ * makes the report findable in the server's logs, and the reference ties the two
+ * together. The message alone once left every failure reading identically.
+ */
+export function describeStreamError(
+  message: string,
+  code: string,
+  requestId: string | null,
+): string {
+  const reason = code ? `${message} (${code}` : message
+  return requestId
+    ? `${reason}, Ref: ${requestId})`
+    : code
+      ? `${message} (${code})`
+      : message
+}
+
 export function useAgentStream(): UseAgentStreamReturn {
   const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
@@ -287,10 +308,13 @@ export function useAgentStream(): UseAgentStreamReturn {
 
                 if (event.type === "stream_error") {
                   setIsStreaming(false)
-                  const description = activeRequestId
-                    ? `${event.data.message} (Ref: ${activeRequestId})`
-                    : event.data.message
-                  toast.error("Agent error", { description })
+                  toast.error("Agent error", {
+                    description: describeStreamError(
+                      event.data.message,
+                      event.data.code,
+                      activeRequestId,
+                    ),
+                  })
                 }
               } catch {
                 // Ignore malformed ping or non-JSON comments safely

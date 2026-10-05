@@ -32,7 +32,17 @@ export interface ActiveTurnProjection {
   /** The approval item a suspended turn is waiting on, when it is waiting. */
   readonly awaitingApprovalItemId: string | null
   readonly approvalAttempt: number | null
+  /** What a reader is told, in words. */
   readonly error: string | null
+  /**
+   * Why the turn failed, as the runtime's own token.
+   *
+   * Kept beside the message rather than merged into it: the message is for the
+   * person reading, the code is what makes the report actionable, and either one
+   * alone leaves the reader guessing. Discarding the code is how a stopped
+   * gateway and a rejected request looked identical in the UI.
+   */
+  readonly errorCode: string | null
 }
 
 export const initialTurnProjection: ActiveTurnProjection = {
@@ -46,6 +56,7 @@ export const initialTurnProjection: ActiveTurnProjection = {
   awaitingApprovalItemId: null,
   approvalAttempt: null,
   error: null,
+  errorCode: null,
 }
 
 /** Whether the turn has settled, one way or another. */
@@ -132,6 +143,7 @@ export function streamReducer(
         awaitingApprovalItemId: null,
         approvalAttempt: null,
         error: null,
+        errorCode: null,
       }
 
     case "turn_suspended":
@@ -183,6 +195,7 @@ export function streamReducer(
         ...state,
         status: "error",
         error: event.data.message,
+        errorCode: event.data.code,
         awaitingApprovalItemId: null,
         approvalAttempt: null,
       }

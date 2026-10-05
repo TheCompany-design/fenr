@@ -332,3 +332,57 @@ describe("streamReducer (Pure Event Reducer)", () => {
     expect(next.threadId).toBe(threadId)
   })
 })
+
+describe("a failure keeps its code", () => {
+  const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+  const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+
+  it("carries both what happened and why", () => {
+    // The code is the discriminating half. It used to be validated and then
+    // thrown away, which is why a gateway that was not running and a provider
+    // that refused looked the same on screen.
+    const next = streamReducer(initialTurnProjection, {
+      type: "stream_error",
+      data: {
+        code: "model_provider_unreachable",
+        message: "the model provider could not be reached",
+      },
+    })
+
+    expect(next.error).toBe("the model provider could not be reached")
+    expect(next.errorCode).toBe("model_provider_unreachable")
+  })
+
+  it("distinguishes an unreachable provider from one that refused", () => {
+    const unreachable = streamReducer(initialTurnProjection, {
+      type: "stream_error",
+      data: {
+        code: "model_provider_unreachable",
+        message: "the model provider could not be reached",
+      },
+    })
+    const refused = streamReducer(initialTurnProjection, {
+      type: "stream_error",
+      data: {
+        code: "model_provider_rejected",
+        message: "the model provider rejected the request",
+      },
+    })
+
+    expect(unreachable.errorCode).not.toBe(refused.errorCode)
+  })
+
+  it("does not carry a previous turn's failure into the next one", () => {
+    const failed = streamReducer(initialTurnProjection, {
+      type: "stream_error",
+      data: { code: "model_timeout", message: "did not respond in time" },
+    })
+    const next = streamReducer(failed, {
+      type: "turn_started",
+      data: { thread_id: threadId, turn_id: turnId },
+    })
+
+    expect(next.error).toBeNull()
+    expect(next.errorCode).toBeNull()
+  })
+})

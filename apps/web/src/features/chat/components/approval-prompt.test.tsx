@@ -29,6 +29,7 @@ function projection(
     awaitingApprovalItemId: null,
     approvalAttempt: null,
     error: null,
+    errorCode: null,
     ...overrides,
   }
 }
