@@ -43,7 +43,7 @@ sequenceDiagram
     participant Hook as useAgentStream Hook
     participant BFF as TanStack Start BFF Proxy (/api/agent/stream)
     participant Auth as Better-Auth / Token Server
-    participant Nabu as Upstream Nabu Engine (/api/v1/agent/run)
+    participant Nabu as Upstream Nabu Engine (/api/v1/threads/turns)
 
     Note over User, UI: Initial state at /chat (Centered Composer)
     User->>UI: Types prompt & hits Enter
@@ -56,7 +56,7 @@ sequenceDiagram
     Auth-->>BFF: Valid session with activeOrganizationId
     BFF->>Auth: acquireOutboundJwt({ service: "nabu", audience: "nabu" })
     Auth-->>BFF: Signed Ed25519 Bearer token
-    BFF->>Nabu: POST /api/v1/agent/run (Bearer token, duplex: "half")
+    BFF->>Nabu: POST /api/v1/threads/turns (Bearer token, duplex: "half")
     Nabu->>Nabu: Postgres INSERT INTO agent_threads (new thread created)
     Nabu-->>BFF: HTTP 200 text/event-stream
     BFF-->>Hook: HTTP 200 text/event-stream (Zero-buffering pipeline)

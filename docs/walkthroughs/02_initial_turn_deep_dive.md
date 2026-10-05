@@ -247,7 +247,7 @@ The token includes standard claims:
 
 ### 5.3 Step 3: Upstream Call to Nabu Agent Runner
 ```typescript
-const nabuUrl = `${serverEnv.NABU_SERVER_URL}/api/v1/agent/run`
+const nabuUrl = `${serverEnv.NABU_SERVER_URL}/api/v1/threads/turns`
 const nabuResponse = await fetch(nabuUrl, {
   method: "POST",
   headers: {
