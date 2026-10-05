@@ -171,10 +171,36 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // The name identifies the reply; a round badge beside it repeated what the
-      // label already said and indented the text away from the reader's messages.
-      expect(container?.textContent).toContain("Nabu Agent")
+      // Nothing marks the reply as the agent's: it sits on the left, opposite
+      // the reader's messages. A badge and a label both said what position
+      // already says.
+      expect(container?.textContent).toContain("no badge here")
+      expect(container?.textContent).not.toContain("Nabu Agent")
       expect(container?.querySelector(".size-7")).toBeNull()
+    })
+
+    it("dates the reply at its end, as a formatted time", () => {
+      const at = new Date()
+      at.setHours(14, 32, 0, 0)
+      const msg: ChatMessage = {
+        id: "msg-agent-stamp",
+        role: "agent",
+        content: "answered",
+        createdAt: at.toISOString(),
+      }
+
+      act(() => {
+        root?.render(
+          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
+        )
+      })
+
+      // The stored value is a full ISO timestamp; it must not reach the reader.
+      expect(container?.textContent).not.toContain("T")
+      expect(container?.textContent).toContain("14:32")
+
+      const time = container?.querySelector("time")
+      expect(time?.getAttribute("datetime")).toBe(at.toISOString())
     })
 
     it("renders agent message with thinking trace and streaming indicator", () => {
@@ -192,7 +218,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      expect(container?.textContent).toContain("Nabu Agent")
       expect(container?.textContent).toContain("Your balance is $5,240.00")
       expect(container?.textContent).toContain(
         "Fetched from core ledger database",

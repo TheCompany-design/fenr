@@ -4,6 +4,7 @@ import { useAtom } from "jotai"
 import { toast } from "sonner"
 import { copiedMessageIdAtom } from "../state/chat-atoms"
 import { type ChatTurn, turnText, turnThinking } from "../state/chat-turns"
+import { formatTimestamp } from "./format-timestamp"
 import { ThinkingTrace } from "./thinking-trace"
 
 export interface ChatTurnBlockProps {
@@ -67,13 +68,6 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
     <div className="flex w-full justify-start px-2 py-2">
       <div className="flex w-full max-w-[95%] flex-col sm:max-w-[90%]">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">Nabu Agent</span>
-            {startedAt && (
-              <span className="text-[11px] opacity-70">{startedAt}</span>
-            )}
-          </div>
-
           {thinking && (
             <ThinkingTrace
               thinking={thinking}
@@ -95,19 +89,37 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
             </div>
           )}
 
-          {text && !turn.isStreaming && (
-            <div className="mt-1 flex items-center gap-1 opacity-0 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
-              <button
-                type="button"
-                aria-label={isCopied ? "Copied" : "Copy response"}
-                onClick={handleCopy}
-                className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <HugeiconsIcon
-                  icon={isCopied ? CheckmarkCircle02Icon : Copy01Icon}
-                  size={13}
-                />
-              </button>
+          {/* Footer: actions on the left, when it finished, on the right.
+              The time belongs after what it times — a timestamp above the
+              answer describes the moment it arrived rather than the reply. */}
+          {(text || startedAt) && (
+            <div className="mt-1.5 flex min-h-5 items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {text && !turn.isStreaming && (
+                  <div className="opacity-0 transition-opacity duration-150 hover:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+                    <button
+                      type="button"
+                      aria-label={isCopied ? "Copied" : "Copy response"}
+                      onClick={handleCopy}
+                      className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <HugeiconsIcon
+                        icon={isCopied ? CheckmarkCircle02Icon : Copy01Icon}
+                        size={13}
+                      />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {startedAt && (
+                <time
+                  dateTime={startedAt}
+                  className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70"
+                >
+                  {formatTimestamp(startedAt)}
+                </time>
+              )}
             </div>
           )}
         </div>
