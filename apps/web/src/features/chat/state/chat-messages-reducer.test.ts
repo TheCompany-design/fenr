@@ -202,4 +202,186 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
     expect(next).toHaveLength(1)
     expect(next[0]?.status).toBe("error")
   })
+
+  describe("transcript items that are not bubbles", () => {
+    const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+    const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+    const itemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
+    const toolItemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e4"
+
+    function streaming(): ChatMessage[] {
+      return [
+        { id: "local-1", role: "user", content: "hi", status: "completed" },
+        { id: "local-2", role: "agent", content: "", status: "streaming" },
+      ]
+    }
+
+    function apply(messages: ChatMessage[], event: AgentStreamEvent) {
+      return chatMessagesReducer(messages, { type: "agent_event", event })
+    }
+
+    it("does not rename the streaming bubble to a tool item", () => {
+      // Adopting a tool item's id here would send every later text delta to a
+      // message that does not exist, splitting one answer into two bubbles.
+      const next = apply(streaming(), {
+        type: "item_started",
+        data: {
+          thread_id: threadId,
+          turn_id: turnId,
+          item_id: toolItemId,
+          kind: "tool_call",
+        },
+      })
+      expect(next[1]?.id).toBe("local-2")
+    })
+
+    it("does not rename the streaming bubble to an approval request", () => {
+      const next = apply(streaming(), {
+        type: "item_started",
+        data: {
+          thread_id: threadId,
+          turn_id: turnId,
+          item_id: toolItemId,
+          kind: "approval_request",
+        },
+      })
+      expect(next[1]?.id).toBe("local-2")
+    })
+
+    it("still adopts the id of a real message item", () => {
+      const next = apply(streaming(), {
+        type: "item_started",
+        data: {
+          thread_id: threadId,
+          turn_id: turnId,
+          item_id: itemId,
+          kind: "agent_message",
+        },
+      })
+      expect(next[1]?.id).toBe(itemId)
+    })
+
+    it("ignores tool argument deltas rather than writing them into the answer", () => {
+      const messages = streaming().map((message) =>
+        message.id === "local-2" ? { ...message, id: itemId } : message,
+      )
+      const next = apply(messages, {
+        type: "item_delta",
+        data: {
+          item_id: itemId,
+          delta: { kind: "tool_arguments_delta", text: '{"text":' },
+        },
+      })
+      expect(next[1]?.content).toBe("")
+    })
+
+    it("ignores a completed tool result", () => {
+      const next = apply(streaming(), {
+        type: "item_completed",
+        data: {
+          item_id: toolItemId,
+          payload: {
+            kind: "tool_result",
+            call_id: "call_1",
+            name: "echo",
+            output: "ok",
+            truncated: false,
+            outcome: "succeeded",
+          },
+        },
+      })
+      expect(next).toEqual(streaming())
+    })
+  })
+
+  describe("turn lifecycle the server can now report", () => {
+    const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+    const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+
+    function streaming(): ChatMessage[] {
+      return [
+        { id: "user-1", role: "user", content: "hi", status: "completed" },
+        {
+          id: "agent-1",
+          role: "agent",
+          content: "partial",
+          status: "streaming",
+        },
+      ]
+    }
+
+    it("settles the bubble when a turn suspends for approval", () => {
+      // Not an error: the turn is parked on a decision, and a bubble left in
+      // "streaming" reads as a request that never came back.
+      const next = chatMessagesReducer(streaming(), {
+        type: "agent_event",
+        event: {
+          type: "turn_suspended",
+          data: {
+            thread_id: threadId,
+            turn_id: turnId,
+            item_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3",
+            attempt: 1,
+          },
+        },
+      })
+      expect(next[1]?.status).toBe("completed")
+      expect(next[1]?.content).toBe("partial")
+    })
+
+    it("marks the bubble as an error when the turn fails", () => {
+      const next = chatMessagesReducer(streaming(), {
+        type: "agent_event",
+        event: {
+          type: "turn_completed",
+          data: {
+            thread_id: threadId,
+            turn_id: turnId,
+            status: "failed",
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          },
+        },
+      })
+      expect(next[1]?.status).toBe("error")
+    })
+
+    it("keeps a cancelled turn's partial answer as completed", () => {
+      // A cancelled turn is one the reader stopped; dressing it as a failure
+      // would blame them for the model's failure.
+      const next = chatMessagesReducer(streaming(), {
+        type: "agent_event",
+        event: {
+          type: "turn_completed",
+          data: {
+            thread_id: threadId,
+            turn_id: turnId,
+            status: "cancelled",
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          },
+        },
+      })
+      expect(next[1]?.status).toBe("completed")
+      expect(next[1]?.content).toBe("partial")
+    })
+
+    it("leaves settled messages alone when a suspended turn resumes", () => {
+      const before = streaming().map((message) => ({
+        ...message,
+        status: "completed" as const,
+      }))
+      const next = chatMessagesReducer(before, {
+        type: "agent_event",
+        event: {
+          type: "turn_resumed",
+          data: {
+            thread_id: threadId,
+            turn_id: turnId,
+            attempt: 2,
+            decision: "approved",
+          },
+        },
+      })
+      expect(next).toEqual(before)
+    })
+  })
 })

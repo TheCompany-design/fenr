@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test"
 import type { AgentStreamEvent } from "@/lib/schemas/agent-stream"
-import { initialTurnProjection, streamReducer } from "./stream-reducer"
+import {
+  type ActiveTurnProjection,
+  applyStreamFrame,
+  initialTurnProjection,
+  isSettled,
+  streamReducer,
+} from "./stream-reducer"
 
 describe("streamReducer (Pure Event Reducer)", () => {
   const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
@@ -8,13 +14,14 @@ describe("streamReducer (Pure Event Reducer)", () => {
   const itemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
 
   it("handles turn_started by resetting state and setting streaming status", () => {
-    const dirtyState = {
+    const dirtyState: ActiveTurnProjection = {
+      ...initialTurnProjection,
       threadId: "old-thread",
       turnId: "old-turn",
       activeItemId: "old-item",
       streamingText: "Old response",
       streamingThinking: "Old thoughts",
-      status: "completed" as const,
+      status: "completed",
       error: "Old error",
     }
 
@@ -25,13 +32,12 @@ describe("streamReducer (Pure Event Reducer)", () => {
 
     const next = streamReducer(dirtyState, event)
     expect(next).toEqual({
+      ...initialTurnProjection,
       threadId,
       turnId,
-      activeItemId: "old-item",
-      streamingText: "",
-      streamingThinking: "",
+      // A new turn does not inherit the previous turn's active item.
+      activeItemId: null,
       status: "streaming",
-      error: null,
     })
   })
 
@@ -115,7 +121,8 @@ describe("streamReducer (Pure Event Reducer)", () => {
   })
 
   it("handles item_completed safely without altering accumulated deltas", () => {
-    const activeState = {
+    const activeState: ActiveTurnProjection = {
+      ...initialTurnProjection,
       threadId,
       turnId,
       activeItemId: itemId,
@@ -142,7 +149,8 @@ describe("streamReducer (Pure Event Reducer)", () => {
   })
 
   it("handles turn_completed by setting status to completed", () => {
-    const activeState = {
+    const activeState: ActiveTurnProjection = {
+      ...initialTurnProjection,
       threadId,
       turnId,
       activeItemId: itemId,
@@ -168,7 +176,8 @@ describe("streamReducer (Pure Event Reducer)", () => {
   })
 
   it("handles stream_error by transitioning to error state with diagnostic message", () => {
-    const activeState = {
+    const activeState: ActiveTurnProjection = {
+      ...initialTurnProjection,
       threadId,
       turnId,
       activeItemId: itemId,
@@ -190,5 +199,136 @@ describe("streamReducer (Pure Event Reducer)", () => {
     expect(next.status).toBe("error")
     expect(next.error).toBe("Upstream LLM provider timed out after 30s")
     expect(next.streamingText).toBe("Partial text")
+  })
+
+  it("reports a suspended turn as suspended, not as an error or a finish", () => {
+    const event: AgentStreamEvent = {
+      type: "turn_suspended",
+      data: {
+        thread_id: threadId,
+        turn_id: turnId,
+        item_id: itemId,
+        attempt: 1,
+      },
+    }
+
+    const next = streamReducer(
+      { ...initialTurnProjection, status: "streaming" },
+      event,
+    )
+    expect(next.status).toBe("suspended")
+    expect(isSettled(next.status)).toBe(false)
+    expect(next.awaitingApprovalItemId).toBe(itemId)
+    expect(next.approvalAttempt).toBe(1)
+  })
+
+  it("returns to streaming when a suspended turn is resumed", () => {
+    const suspended: ActiveTurnProjection = {
+      ...initialTurnProjection,
+      status: "suspended",
+      awaitingApprovalItemId: itemId,
+      approvalAttempt: 1,
+    }
+
+    const next = streamReducer(suspended, {
+      type: "turn_resumed",
+      data: {
+        thread_id: threadId,
+        turn_id: turnId,
+        attempt: 2,
+        decision: "approved",
+      },
+    })
+    expect(next.status).toBe("streaming")
+    // A stale decision prompt is worse than none.
+    expect(next.awaitingApprovalItemId).toBeNull()
+  })
+
+  it("keeps the server's own reason for a turn ending", () => {
+    const cases = [
+      ["completed", "completed"],
+      ["failed", "failed"],
+      ["cancelled", "cancelled"],
+    ] as const
+
+    for (const [serverStatus, expected] of cases) {
+      const next = streamReducer(
+        { ...initialTurnProjection, status: "streaming" },
+        {
+          type: "turn_completed",
+          data: {
+            thread_id: threadId,
+            turn_id: turnId,
+            status: serverStatus,
+            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+          },
+        },
+      )
+      expect(next.status).toBe(expected)
+      expect(isSettled(next.status)).toBe(true)
+    }
+  })
+
+  it("clears the approval item when the turn finishes", () => {
+    const next = streamReducer(
+      {
+        ...initialTurnProjection,
+        status: "suspended",
+        awaitingApprovalItemId: itemId,
+        approvalAttempt: 1,
+      },
+      {
+        type: "turn_completed",
+        data: {
+          thread_id: threadId,
+          turn_id: turnId,
+          status: "completed",
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        },
+      },
+    )
+    expect(next.awaitingApprovalItemId).toBeNull()
+  })
+
+  it("accumulates tool argument deltas separately from text", () => {
+    const next = streamReducer(initialTurnProjection, {
+      type: "item_delta",
+      data: {
+        item_id: itemId,
+        delta: { kind: "tool_arguments_delta", text: '{"text":' },
+      },
+    })
+    expect(next.streamingToolArguments).toBe('{"text":')
+    expect(next.streamingText).toBe("")
+  })
+
+  it("ignores a frame it cannot model instead of ending the turn", () => {
+    // The server adds capability as new event types so older clients keep
+    // working. Throwing here would defeat that on the first unknown frame.
+    const reported: { error: string; received: unknown }[] = []
+    const streaming: ActiveTurnProjection = {
+      ...initialTurnProjection,
+      status: "streaming",
+      streamingText: "kept",
+    }
+
+    const next = applyStreamFrame(
+      streaming,
+      { type: "telemetry_sample", data: { latency_ms: 12 } },
+      (detail) => reported.push(detail),
+    )
+
+    expect(next).toBe(streaming)
+    expect(reported).toHaveLength(1)
+    expect(reported[0]?.error).toContain("")
+  })
+
+  it("still applies frames it can model", () => {
+    const next = applyStreamFrame(initialTurnProjection, {
+      type: "turn_started",
+      data: { thread_id: threadId, turn_id: turnId },
+    })
+    expect(next.status).toBe("streaming")
+    expect(next.threadId).toBe(threadId)
   })
 })

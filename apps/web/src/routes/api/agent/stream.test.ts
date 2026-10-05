@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { auth } from "@/lib/auth"
 import { isValidUuidV7 } from "@/lib/id"
 import { logger } from "@/lib/logger"
-import { handleAgentStreamRequest } from "./stream"
+import { handleAgentStreamRequest, NABU_START_TURN_PATH } from "./stream"
 
 describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
   const originalGetSession = auth.api.getSession
@@ -153,7 +153,11 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
 
     globalThis.fetch = mock(
       async (url: string | URL | Request, init?: RequestInit) => {
-        expect(url.toString()).toContain("/api/v1/agent/run")
+        // Pinned literally: the constant is the thing that drifted once, so a
+        // test that only compares it to itself cannot catch the next drift.
+        expect(url.toString()).toContain("/api/v1/threads/turns")
+        expect(url.toString()).not.toContain("/api/v1/agent/run")
+        expect(NABU_START_TURN_PATH).toBe("/api/v1/threads/turns")
         expect((init?.headers as Record<string, string>)?.Authorization).toBe(
           "Bearer mock-jwt-token",
         )

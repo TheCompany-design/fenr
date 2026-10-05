@@ -2,7 +2,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useAtom } from "jotai"
 import { useCallback, useRef } from "react"
 import { toast } from "sonner"
-import { agentStreamEventSchema } from "@/lib/schemas/agent-stream"
+import { moduleLogger } from "@/lib/logger"
+import { parseAgentStreamEvent } from "@/lib/schemas/agent-stream"
 import { chatKeys } from "../queries/chat-queries"
 import { isStreamingAtom, lastRequestIdAtom } from "../state/chat-atoms"
 import { chatMessagesReducer } from "../state/chat-messages-reducer"
@@ -29,6 +30,32 @@ export interface UseAgentStreamReturn {
  * Directly drives in-place updates into TanStack Query's cache via chatMessagesReducer,
  * guaranteeing a single authoritative message timeline with zero duplicate bubbles.
  */
+const log = moduleLogger("chat:agent-stream")
+
+/**
+ * The reason a frame was not applied.
+ *
+ * `type` is taken from the raw frame rather than from a schema so that an event
+ * this client has never heard of can still be *named* in the log. A frame with
+ * no usable type is reported as such instead of vanishing.
+ */
+function describeUnmodelledFrame(raw: unknown): {
+  event_type: string | null
+  reason: string
+} {
+  const candidate =
+    typeof raw === "object" && raw !== null && "type" in raw
+      ? (raw as { type?: unknown }).type
+      : undefined
+  const event_type = typeof candidate === "string" ? candidate : null
+  return {
+    event_type,
+    reason: event_type
+      ? "event type is not in the client contract"
+      : "frame is not an agent stream event",
+  }
+}
+
 export function useAgentStream(): UseAgentStreamReturn {
   const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
@@ -151,9 +178,27 @@ export function useAgentStream(): UseAgentStreamReturn {
               if (!rawJson) continue
               try {
                 const parsed: unknown = JSON.parse(rawJson)
-                const validation = agentStreamEventSchema.safeParse(parsed)
-                if (validation.success) {
-                  const event = validation.data
+                const validation = parseAgentStreamEvent(parsed)
+
+                if (!validation.ok) {
+                  // The server adds capability as new event types precisely so
+                  // an older client keeps working. Dropping the frame quietly is
+                  // how a suspended turn turns into an unexplained spinner, so
+                  // it is recorded and the stream continues.
+                  const detail = describeUnmodelledFrame(parsed)
+                  log.warn(
+                    {
+                      ...detail,
+                      validation_error: validation.error,
+                      request_id: activeRequestId,
+                    },
+                    "an agent stream frame was not applied",
+                  )
+                  continue
+                }
+
+                {
+                  const event = validation.event
 
                   if (event.type === "turn_started") {
                     const serverThreadId = event.data.thread_id
@@ -189,7 +234,21 @@ export function useAgentStream(): UseAgentStreamReturn {
                       }),
                   )
 
+                  if (event.type === "turn_suspended") {
+                    // The turn is parked on a human decision. The stream stays
+                    // open, but the composer must not be blocked by a turn that
+                    // is no longer running.
+                    setIsStreaming(false)
+                  }
+
+                  if (event.type === "turn_resumed") {
+                    setIsStreaming(true)
+                  }
+
                   if (event.type === "turn_completed") {
+                    // Every terminal status ends the turn, including a cancelled
+                    // one: leaving the composer disabled here is what made a
+                    // cancelled turn look like a hung request.
                     setIsStreaming(false)
                     void queryClient.invalidateQueries({
                       queryKey: chatKeys.thread(event.data.thread_id),

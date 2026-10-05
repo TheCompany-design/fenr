@@ -4,7 +4,24 @@
  * Authenticates user session, mints a short-lived outbound JWT with tenant context
  * (audience: "nabu"), and pipes the upstream SSE stream directly to the browser
  * with zero buffering and wide-event observability.
+ *
+ * The upstream path is the one the agent runtime actually serves. It used to be
+ * `POST /api/v1/agent/run`, which the runtime no longer routes: every request
+ * answered 404 and chat failed at the first turn. A turn is now started with
+ * `POST /api/v1/threads/turns`, and the rest of the surface is keyed by turn id:
+ *
+ *   POST   /api/v1/threads/{turn_id}/approvals   record a decision
+ *   POST   /api/v1/threads/{turn_id}/cancel      stop a turn
+ *   POST   /api/v1/threads/{turn_id}/resume      resume a suspended turn
+ *   GET    /api/v1/threads/{turn_id}/items       replay the transcript
+ *   GET    /api/v1/capabilities                  what a turn may do
+ *
+ * Keep this in step with `thebookofnabu`'s `routes::api_v1_router`; the route
+ * table there is the only authority for what exists.
  */
+
+/** Where a turn is started upstream. Mirrors `api_v1_router` in the runtime. */
+export const NABU_START_TURN_PATH = "/api/v1/threads/turns"
 
 import { createFileRoute } from "@tanstack/react-router"
 import { auth } from "@/lib/auth"
@@ -113,7 +130,7 @@ export async function handleAgentStreamRequest(
     )
 
     // 5. Connect to upstream Nabu SSE runtime
-    const nabuUrl = `${serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")}/api/v1/agent/run`
+    const nabuUrl = `${serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")}${NABU_START_TURN_PATH}`
     const nabuResponse = await fetch(nabuUrl, {
       method: "POST",
       headers: {
