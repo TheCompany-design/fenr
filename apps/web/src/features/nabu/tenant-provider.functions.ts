@@ -9,9 +9,11 @@
 
 import { createServerFn } from "@tanstack/react-start"
 
+import { getActiveOrganizationRole } from "@/features/organizations"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
 import { putTenantProviderInputSchema } from "@/lib/schemas/nabu"
+import type { OrganizationRole } from "@/lib/schemas/organizations"
 
 import {
   deleteTenantProvider,
@@ -23,30 +25,31 @@ import {
 /**
  * The caller's authority in their active workspace.
  *
- * Throws rather than defaulting. A missing active organization is a genuine
- * "we do not know who you are acting for", and answering it with `member` would
- * turn a broken session context into a confusing refusal several layers away.
+ * Read from membership, not from the session. The session carries an active
+ * *organization* but no role — an earlier version of this read a
+ * `session.session.activeOrganizationRole` through a cast, which compiled, and
+ * then failed at runtime for every caller because the field does not exist. The
+ * cast is what hid it: it told the compiler to trust a shape nobody had checked.
+ *
+ * Throws rather than defaulting, for the same reason the resolver returns `null`
+ * rather than `member`: "we cannot name your authority" must not become "you have
+ * the least of it", or an owner is stranded unable to save their own settings.
  */
-async function activeRole(): Promise<"owner" | "admin" | "member"> {
+async function activeRole(): Promise<OrganizationRole> {
   const session = await ensureSession()
   const organizationId = session.session.activeOrganizationId
-  if (!organizationId) {
-    throw new Error("Active organization required")
+
+  const role = await getActiveOrganizationRole(session.user.id, organizationId)
+
+  if (!role) {
+    throw new Error(
+      organizationId
+        ? "Your role in this workspace could not be determined"
+        : "No active workspace is selected",
+    )
   }
 
-  // The session does not carry a role, so it is read from the membership the
-  // organization plugin already resolved. `session.session` is the trusted,
-  // server-derived shape here — never a client-supplied field.
-  const role = (session.session as { activeOrganizationRole?: unknown })
-    .activeOrganizationRole
-
-  if (role === "owner" || role === "admin" || role === "member") {
-    return role
-  }
-
-  // Unknown role: refuse rather than guess. `member` would silently under-report
-  // an owner's authority and strand them unable to save their own settings.
-  throw new Error("Workspace role could not be determined")
+  return role
 }
 
 export const getTenantProviderFn = createServerFn({ method: "GET" }).handler(
@@ -69,7 +72,7 @@ export const getTenantProviderFn = createServerFn({ method: "GET" }).handler(
 )
 
 export const putTenantProviderFn = createServerFn({ method: "POST" })
-  .inputValidator(putTenantProviderInputSchema)
+  .validator(putTenantProviderInputSchema)
   .handler(async ({ data }) => {
     return withWideEvent(
       "nabu",
