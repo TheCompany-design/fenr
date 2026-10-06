@@ -11,6 +11,7 @@
  * and the transport is deliberately free of database access.
  */
 
+import { serverEnv } from "@/lib/env"
 import {
   HttpClientError,
   type HttpClientErrorCode,
@@ -18,6 +19,10 @@ import {
 } from "@/lib/http"
 import { executeRequest } from "@/lib/http/client.server"
 import type { ExecuteRequestOptions } from "@/lib/http/types"
+import { moduleLogger } from "@/lib/logger"
+
+const log = moduleLogger("nabu-provider")
+
 import type {
   PutTenantProviderInput,
   TenantProvider,
@@ -57,9 +62,39 @@ export async function putTenantProvider(
   input: PutTenantProviderInput,
   options: TenantProviderRequestOptions,
 ): Promise<TenantProvider> {
-  return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.putTenantProvider, { ...options, input }),
+  // Narrow and credential-free on purpose. The endpoint and model are what an
+  // operator needs to see in a log to explain a failure; the key is never in this
+  // object, and the fingerprint does not exist yet.
+  const { api_key: _key, ...visible } = input
+  log.info(
+    {
+      ...visible,
+      tenantRole: options.tenantRole,
+      target: serverEnv.NABU_SERVER_URL,
+    },
+    "sending a provider configuration to the runtime",
   )
+
+  try {
+    const saved = await runNabuRequest(() =>
+      executeRequest(nabuEndpoints.putTenantProvider, { ...options, input }),
+    )
+    log.info(
+      { configured: saved.configured, model: saved.model },
+      "the runtime accepted the provider configuration",
+    )
+    return saved
+  } catch (error) {
+    log.error(
+      {
+        err: error instanceof Error ? error.message : String(error),
+        tenantRole: options.tenantRole,
+        target: serverEnv.NABU_SERVER_URL,
+      },
+      "the runtime did not accept the provider configuration",
+    )
+    throw error
+  }
 }
 
 /**

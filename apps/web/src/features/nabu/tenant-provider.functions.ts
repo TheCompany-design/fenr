@@ -11,7 +11,7 @@ import { createServerFn } from "@tanstack/react-start"
 
 import { getActiveOrganizationRole } from "@/features/organizations"
 import { ensureSession } from "@/lib/auth/session"
-import { withWideEvent } from "@/lib/logger"
+import { moduleLogger, withWideEvent } from "@/lib/logger"
 import { putTenantProviderInputSchema } from "@/lib/schemas/nabu"
 import type { OrganizationRole } from "@/lib/schemas/organizations"
 
@@ -42,6 +42,13 @@ async function activeRole(): Promise<OrganizationRole> {
   const role = await getActiveOrganizationRole(session.user.id, organizationId)
 
   if (!role) {
+    moduleLogger("nabu-provider").error(
+      {
+        organizationId: organizationId ?? null,
+        userId: session.user.id,
+      },
+      "the caller has an active workspace but no resolvable role",
+    )
     throw new Error(
       organizationId
         ? "Your role in this workspace could not be determined"
@@ -72,7 +79,13 @@ export const getTenantProviderFn = createServerFn({ method: "GET" }).handler(
 )
 
 export const putTenantProviderFn = createServerFn({ method: "POST" })
-  .validator(putTenantProviderInputSchema)
+  // Written as a parse function, not as a bare schema, because that is the form
+  // every other server function in this app uses. Passing the schema object
+  // directly typechecks — `ConstrainValidator` accepts anything with a
+  // `~standard` shape, which Zod v4 has — and then behaves differently at
+  // runtime, which is the worst combination available: it survives `tsc` and
+  // `bun run check` and fails only when somebody presses the button.
+  .validator((input: unknown) => putTenantProviderInputSchema.parse(input))
   .handler(async ({ data }) => {
     return withWideEvent(
       "nabu",
