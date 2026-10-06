@@ -1,34 +1,55 @@
 import { describe, expect, it } from "bun:test"
 import { formatTimestamp } from "./format-timestamp"
 
-function at(hours: number, minutes: number, day = 5, month = 9): Date {
-  // Built in local time so the assertions read in the same clock the formatter
-  // uses, whatever timezone the suite runs in.
-  const when = new Date()
-  when.setFullYear(2026, month, day)
+/** A local wall-clock time `days` before `from`. */
+function before(from: Date, days: number, hours = 9, minutes = 5): Date {
+  const when = new Date(from)
+  when.setDate(when.getDate() - days)
   when.setHours(hours, minutes, 0, 0)
   return when
 }
 
 describe("formatTimestamp", () => {
-  it("gives a date and a four digit time", () => {
-    expect(formatTimestamp(at(9, 5).toISOString())).toBe("5 Oct 0905 hrs")
+  // Tuesday 6 October 2026.
+  const now = new Date(2026, 9, 6, 12, 0, 0)
+
+  it("leaves today's reply unnamed", () => {
+    // Everyone already knows which day today is.
+    expect(formatTimestamp(before(now, 0, 14, 32).toISOString(), now)).toBe(
+      "6 Oct 1432 hrs",
+    )
   })
 
-  it("gives a date and a time for every reply, not only older ones", () => {
-    // A conversation read out of context has to say which day each answer
-    // belongs to, whichever day it happens to be read.
-    expect(formatTimestamp(at(23, 2).toISOString())).toBe("5 Oct 2302 hrs")
+  it("leaves yesterday's reply unnamed", () => {
+    // As with today: the reader knows what yesterday was.
+    expect(formatTimestamp(before(now, 1, 9, 12).toISOString(), now)).toBe(
+      "5 Oct 0912 hrs",
+    )
+  })
+
+  it("names the weekday on anything older", () => {
+    // Four days back from Tuesday is Friday.
+    expect(formatTimestamp(before(now, 4, 8, 30).toISOString(), now)).toBe(
+      "Friday, 2 Oct 0830 hrs",
+    )
+  })
+
+  it("names the weekday across a year boundary", () => {
+    const newYear = new Date(2027, 0, 2, 12, 0, 0)
+    const stamp = new Date(2026, 11, 28, 23, 59, 0)
+
+    expect(formatTimestamp(stamp.toISOString(), newYear)).toBe(
+      "Monday, 28 Dec 2359 hrs",
+    )
   })
 
   it("pads the hours and minutes", () => {
-    expect(formatTimestamp(at(4, 7).toISOString())).toBe("5 Oct 0407 hrs")
-    expect(formatTimestamp(at(0, 0).toISOString())).toBe("5 Oct 0000 hrs")
-  })
-
-  it("keeps the day and the month", () => {
-    const formatted = formatTimestamp(at(14, 32, 28, 1).toISOString())
-    expect(formatted).toBe("28 Feb 1432 hrs")
+    expect(formatTimestamp(before(now, 0, 4, 7).toISOString(), now)).toBe(
+      "6 Oct 0407 hrs",
+    )
+    expect(formatTimestamp(before(now, 0, 0, 0).toISOString(), now)).toBe(
+      "6 Oct 0000 hrs",
+    )
   })
 
   it("never renders an unparseable timestamp", () => {
