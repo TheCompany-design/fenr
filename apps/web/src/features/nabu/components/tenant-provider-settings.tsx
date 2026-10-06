@@ -26,11 +26,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useForm } from "@tanstack/react-form"
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -45,6 +41,7 @@ import { Label } from "@workspace/ui/components/label"
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
+import type { TenantProvider } from "@/lib/schemas/nabu"
 import { useConfirmStore } from "@/lib/stores/confirm.store"
 
 import { tenantProviderKeys, tenantProviderQueryOptions } from "../queries"
@@ -85,14 +82,64 @@ export interface TenantProviderSettingsProps {
   canAdminister: boolean
 }
 
+/**
+ * Reads the workspace's provider, then renders the form.
+ *
+ * Split from the form on purpose. `useForm` reads `defaultValues` only when it
+ * first mounts, so the component that creates the form must only mount once the
+ * data exists — one component doing both either suspends (and a suspended subtree
+ * never gets its submit handler attached, so the button did a native GET and
+ * saved nothing) or has to re-seed imperatively, which empties the fields the
+ * moment a save succeeds.
+ */
 export function TenantProviderSettings({
   canAdminister,
 }: TenantProviderSettingsProps) {
+  // `useQuery`, never `useSuspenseQuery`. Suspending here is what broke the whole
+  // screen: the server ships this form's HTML, but the client subtree stays
+  // suspended waiting for data it does not have, so React never attaches the
+  // form's submit handler and the button performs a native GET instead.
+  const { data: provider, isPending } = useQuery(tenantProviderQueryOptions())
+
+  if (!provider) {
+    return (
+      <section id="provider" aria-labelledby="provider-heading">
+        <Card aria-busy={isPending}>
+          <CardHeader>
+            <CardTitle
+              id="provider-heading"
+              className="flex items-center gap-2 text-base"
+            >
+              <HugeiconsIcon icon={CloudServerIcon} size={18} />
+              Model provider
+            </CardTitle>
+            <CardDescription>
+              The OpenAI-compatible endpoint this workspace&rsquo;s turns run
+              on, and the credential it authenticates with.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-40 animate-pulse rounded-lg bg-muted/50" />
+          </CardContent>
+        </Card>
+      </section>
+    )
+  }
+
+  return <ProviderForm provider={provider} canAdminister={canAdminister} />
+}
+
+/** The form itself, mounted only once the stored configuration is known. */
+function ProviderForm({
+  provider,
+  canAdminister,
+}: {
+  provider: TenantProvider
+  canAdminister: boolean
+}) {
   const queryClient = useQueryClient()
   const openConfirm = useConfirmStore((state) => state.openConfirm)
   const [justSaved, setJustSaved] = useState(false)
-
-  const { data: provider } = useSuspenseQuery(tenantProviderQueryOptions())
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: tenantProviderKeys.detail() })
@@ -133,6 +180,10 @@ export function TenantProviderSettings({
   })
 
   const form = useForm({
+    // Read once, when this form first mounts — which, because of the split above,
+    // is after the read has landed. Never re-seeded when the query changes: a
+    // save refetches, and re-seeding on that empties the fields at the exact
+    // moment somebody is reading whether it worked.
     defaultValues: {
       baseUrl: provider.base_url,
       model: provider.model,
@@ -187,9 +238,9 @@ export function TenantProviderSettings({
     })
   }
 
-  const configured = provider.configured
-  const fingerprint = provider.fingerprint
   const readOnly = !canAdminister
+  const fingerprint = provider.fingerprint
+  const configured = provider.configured
 
   return (
     <section id="provider" aria-labelledby="provider-heading">

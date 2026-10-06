@@ -9,7 +9,13 @@
 
 import { createServerFn } from "@tanstack/react-start"
 
-import { getActiveOrganizationRole } from "@/features/organizations"
+// A `.server.ts` module, imported by path rather than through the feature
+// barrel. The resolver reads membership, the membership module pulls in the
+// database driver, and that driver runs `Buffer.allocUnsafe` at import time —
+// which throws in a browser. Reaching it through the barrel made it a live client
+// export, so the bundler kept it, `pg` reached the browser, and every route in
+// the app stopped hydrating.
+import { getActiveOrganizationRole } from "@/features/organizations/operations/organization-role.server"
 import { ensureSession } from "@/lib/auth/session"
 import { moduleLogger, withWideEvent } from "@/lib/logger"
 import { putTenantProviderInputSchema } from "@/lib/schemas/nabu"

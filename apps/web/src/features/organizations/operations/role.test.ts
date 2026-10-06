@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "bun:test"
 
-import { narrowOrganizationRole } from "./organizations"
+import { narrowOrganizationRole } from "./organization-role.server"
 
 describe("narrowing a membership role", () => {
   it("passes through the three roles the product recognises", () => {
