@@ -65,7 +65,18 @@ export async function getThreadMessages(
           isNotNull(schema.agentItems.completedAt),
         ),
       )
-      .orderBy(asc(schema.agentItems.createdAt))
+      // The id is the tiebreaker, and it is what makes this order correct rather
+      // than merely plausible. A turn's opening user message and its first
+      // assistant item are inserted in one transaction, and PostgreSQL's now()
+      // is the *transaction start time*, so both rows carry an identical
+      // timestamp. Ordering by that alone leaves the two in whatever order the
+      // planner happens to return, which put the reply above the question that
+      // prompted it.
+      //
+      // Identifiers are uuidv7, so they increase in issue order even inside one
+      // transaction, and a tie on time can be broken by the sequence the rows
+      // were actually written in.
+      .orderBy(asc(schema.agentItems.createdAt), asc(schema.agentItems.id))
 
     // Only message kinds are bubbles. A tool call, a tool result and the two
     // halves of an approval are real transcript items with their own identity;

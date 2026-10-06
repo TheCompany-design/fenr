@@ -118,3 +118,81 @@ describe("reading a transcript the runtime owns", () => {
     }
   })
 })
+
+describe("transcript order", () => {
+  /**
+   * A uuidv7-shaped identifier that increases with issue order.
+   *
+   * The runtime mints uuidv7, and the ordering below depends on that. A random
+   * uuid carries no order, so a test built from one would be asserting nothing.
+   */
+  const orderedId = (n: number) =>
+    `018f0000-0000-7000-8000-${n.toString(16).padStart(12, "0")}`
+
+  it("puts the question before the answer when they share a timestamp", async () => {
+    // A turn opens by inserting the user's message and a placeholder assistant
+    // item in one transaction, and PostgreSQL's now() is the transaction start
+    // time — so both rows carry the same timestamp. Sorting on that alone has no
+    // answer, and physical row order drifts from issue order, which is how the
+    // transcript came to show the reply above the question that prompted it.
+    const tenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const instant = new Date()
+
+    await withTenantScope(tenantId, async (scoped) => {
+      await scoped.insert(schema.agentThreads).values({
+        id: threadId,
+        tenantId,
+        createdAt: instant,
+        updatedAt: instant,
+      })
+      await scoped.insert(schema.agentTurns).values({
+        id: turnId,
+        threadId,
+        tenantId,
+        turnIndex: 0,
+        status: "completed",
+        createdAt: instant,
+        completedAt: instant,
+      })
+
+      // Written in the wrong order on purpose. Physical row order is not the
+      // order rows were issued in, so only the identifiers record it.
+      await scoped.insert(schema.agentItems).values({
+        id: orderedId(9),
+        threadId,
+        turnId,
+        tenantId,
+        kind: "agent_message",
+        payload: { text: "the answer" },
+        createdAt: instant,
+        completedAt: instant,
+      })
+      await scoped.insert(schema.agentItems).values({
+        id: orderedId(1),
+        threadId,
+        turnId,
+        tenantId,
+        kind: "user_message",
+        payload: { content: "the question" },
+        createdAt: instant,
+        completedAt: instant,
+      })
+    })
+
+    try {
+      const messages = await getThreadMessages(threadId, tenantId)
+      expect(messages?.map((message) => message.content)).toEqual([
+        "the question",
+        "the answer",
+      ])
+    } finally {
+      await withTenantScope(tenantId, async (scoped) => {
+        await scoped.delete(schema.agentItems)
+        await scoped.delete(schema.agentTurns)
+        await scoped.delete(schema.agentThreads)
+      })
+    }
+  })
+})
