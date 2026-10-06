@@ -90,6 +90,34 @@ export function describeStreamError(
       : message
 }
 
+/**
+ * What to call a turn that could not run.
+ *
+ * Most failures are "Agent error", which is honest and unhelpful in equal measure.
+ * Two codes are the user having a problem this interface can point at, so they get
+ * a title that names the problem rather than the subsystem:
+ *
+ * - `tenant_provider_unconfigured` is the workspace having nobody set its model
+ *   endpoint up yet. It is the first thing every new workspace meets, and calling
+ *   it an agent error sends the reader looking in the wrong place.
+ * - `tenant_provider_endpoint_blocked` is a deployment-level refusal to dial an
+ *   address. Nothing about the user's key or message is wrong, and the title says
+ *   so — otherwise it reads as though their input caused it.
+ *
+ * Anything unrecognised falls through to the generic title, which is also what
+ * makes adding a code here optional rather than required.
+ */
+export function streamErrorTitle(code: string): string {
+  switch (code) {
+    case "tenant_provider_unconfigured":
+      return "This workspace has no model provider"
+    case "tenant_provider_endpoint_blocked":
+      return "The model endpoint is unreachable from the runtime"
+    default:
+      return "Agent error"
+  }
+}
+
 export function useAgentStream(): UseAgentStreamReturn {
   const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
@@ -311,7 +339,7 @@ export function useAgentStream(): UseAgentStreamReturn {
 
                 if (event.type === "stream_error") {
                   setIsStreaming(false)
-                  toast.error("Agent error", {
+                  toast.error(streamErrorTitle(event.data.code), {
                     description: describeStreamError(
                       event.data.message,
                       event.data.code,

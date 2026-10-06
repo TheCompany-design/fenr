@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test"
 import type { AgentStreamEvent } from "@/lib/schemas/agent-stream"
 import {
+  describeStreamError,
+  streamErrorTitle,
+} from "../hooks/use-agent-stream"
+import {
   type ActiveTurnProjection,
   applyStreamFrame,
   initialTurnProjection,
@@ -439,5 +443,42 @@ describe("reasoning blocks", () => {
     })
     expect(next.streamingThinking).toBe("")
     expect(next.streamingThinkingBlockId).toBeNull()
+  })
+})
+
+describe("naming a turn that could not run", () => {
+  it("names the workspace setup problem rather than the subsystem", () => {
+    // The code the runtime sends when nothing is configured yet. Calling this an
+    // "Agent error" sends the reader looking at the agent instead of at settings.
+    expect(streamErrorTitle("tenant_provider_unconfigured")).toBe(
+      "This workspace has no model provider",
+    )
+  })
+
+  it("does not blame the user for a deployment-level refusal", () => {
+    expect(streamErrorTitle("tenant_provider_endpoint_blocked")).toBe(
+      "The model endpoint is unreachable from the runtime",
+    )
+  })
+
+  it("keeps the generic title for everything it does not recognise", () => {
+    // Including a code it has never heard of, which is what makes the mapping
+    // forward-compatible: an older client talking to a newer runtime still says
+    // something true.
+    expect(streamErrorTitle("TURN_STEP_FAILED")).toBe("Agent error")
+    expect(streamErrorTitle("model_provider_unreachable")).toBe("Agent error")
+    expect(streamErrorTitle("something_invented_later")).toBe("Agent error")
+    expect(streamErrorTitle("")).toBe("Agent error")
+  })
+
+  it("keeps the runtime's own sentence and the reference in the description", () => {
+    const description = describeStreamError(
+      "this workspace has no model provider configured yet",
+      "tenant_provider_unconfigured",
+      "req-1",
+    )
+    expect(description).toContain("no model provider configured yet")
+    expect(description).toContain("tenant_provider_unconfigured")
+    expect(description).toContain("req-1")
   })
 })
