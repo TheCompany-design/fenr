@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useCallback } from "react"
+import { ProviderBanner } from "@/features/nabu/components/provider-notice"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
 import { ApprovalPrompt } from "./approval-prompt"
@@ -11,6 +12,13 @@ import { ChatMessages } from "./chat-messages"
 
 export interface ChatContainerProps {
   readonly threadId?: string
+  /**
+   * Whether the viewer may change the workspace's model provider.
+   *
+   * Passed in rather than read here: the chat feature does not own membership, and
+   * the route that renders it already has the answer.
+   */
+  readonly canAdministerProvider?: boolean
   readonly onNavigate?: (opts: {
     to: string
     params?: Record<string, string>
@@ -23,7 +31,11 @@ export interface ChatContainerProps {
  * Sourced directly from TanStack Query's cache and route tree.
  * Coordinates smooth CSS transition from centered hero greeting to bottom-docked composer.
  */
-export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
+export function ChatContainer({
+  threadId,
+  canAdministerProvider = false,
+  onNavigate,
+}: ChatContainerProps) {
   const queryClient = useQueryClient()
   const { send, stop, reset, isStreaming, turn } = useAgentStream()
 
@@ -145,6 +157,16 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
             />
           </div>
         ) : null}
+
+        {/*
+         * Sits directly above the composer and below the feed, because it answers
+         * a question someone has at the moment they are about to type: can this
+         * workspace say anything at all?
+         */}
+        <div className="absolute inset-x-0 bottom-0 z-20 translate-y-full pb-0 sm:hidden" />
+        <div className="pointer-events-auto absolute inset-x-0 bottom-[4.75rem] z-20 sm:bottom-[5.25rem]">
+          <ProviderBanner canAdminister={canAdministerProvider} />
+        </div>
 
         {/* Floating / Centered Composer Layer */}
         <div

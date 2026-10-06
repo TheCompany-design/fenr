@@ -16,5 +16,13 @@ export const Route = createFileRoute("/_app/chat/$threadId")({
 
 function ThreadChatRouteComponent() {
   const { threadId } = Route.useParams()
-  return <ChatContainer threadId={threadId} />
+  const { activeOrganization } = Route.useRouteContext()
+  const role = activeOrganization.role
+
+  return (
+    <ChatContainer
+      threadId={threadId}
+      canAdministerProvider={role === "owner" || role === "admin"}
+    />
+  )
 }
