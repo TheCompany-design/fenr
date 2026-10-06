@@ -13,21 +13,19 @@ describe("formatTimestamp", () => {
   // Tuesday 6 October 2026.
   const now = new Date(2026, 9, 6, 12, 0, 0)
 
-  it("leaves today's reply unnamed", () => {
-    // Everyone already knows which day today is.
-    expect(formatTimestamp(before(now, 0, 14, 32).toISOString(), now)).toBe(
-      "6 Oct 1432 hrs",
+  it("names today's reply", () => {
+    expect(formatTimestamp(before(now, 0, 2, 2).toISOString(), now)).toBe(
+      "Today, 6 Oct 0202 hrs",
     )
   })
 
-  it("leaves yesterday's reply unnamed", () => {
-    // As with today: the reader knows what yesterday was.
+  it("names yesterday's reply", () => {
     expect(formatTimestamp(before(now, 1, 9, 12).toISOString(), now)).toBe(
-      "5 Oct 0912 hrs",
+      "Yesterday, 5 Oct 0912 hrs",
     )
   })
 
-  it("names the weekday on anything older", () => {
+  it("names anything older by its weekday", () => {
     // Four days back from Tuesday is Friday.
     expect(formatTimestamp(before(now, 4, 8, 30).toISOString(), now)).toBe(
       "Friday, 2 Oct 0830 hrs",
@@ -45,10 +43,10 @@ describe("formatTimestamp", () => {
 
   it("pads the hours and minutes", () => {
     expect(formatTimestamp(before(now, 0, 4, 7).toISOString(), now)).toBe(
-      "6 Oct 0407 hrs",
+      "Today, 6 Oct 0407 hrs",
     )
     expect(formatTimestamp(before(now, 0, 0, 0).toISOString(), now)).toBe(
-      "6 Oct 0000 hrs",
+      "Today, 6 Oct 0000 hrs",
     )
   })
 
