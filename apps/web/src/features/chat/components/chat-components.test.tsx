@@ -542,6 +542,61 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   })
 
   describe("ChatContainer", () => {
+    it("lays the provider banner out in the composer, never over it", () => {
+      // A regression test for a bug that made the chat unusable: the banner was
+      // an absolutely positioned strip at `bottom-[4.75rem] z-20` with pointer
+      // events on, which lands inside the composer's own height — so it swallowed
+      // every click and keystroke aimed at the textarea, and nobody could send a
+      // message at all.
+      //
+      // Asserted structurally rather than visually, because the failure is a
+      // layering mistake and a screenshot would not have shown which of two
+      // full-width strips was on top.
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      const composer = container?.querySelector(
+        '[data-slot="composer-container"]',
+      )
+      const banner = container?.querySelector('[data-slot="provider-banner"]')
+      const textarea = container?.querySelector("textarea")
+
+      expect(composer).not.toBeNull()
+      expect(banner).not.toBeNull()
+      expect(textarea).not.toBeNull()
+
+      // In the composer's own column, so it is laid out rather than overlaid.
+      expect(composer?.contains(banner as Node)).toBe(true)
+
+      // The real assertion: the composer is the only full-width absolutely
+      // positioned layer in the conversation area. A second one is what steals
+      // its input, and it need not come after the composer in the DOM — an
+      // earlier version of this test only looked at following siblings and
+      // therefore passed with the bug still in place.
+      const fullWidthAbsolute = Array.from(
+        container?.querySelectorAll("*") ?? [],
+      ).filter((element) => {
+        const className = (element as HTMLElement).className ?? ""
+        return (
+          typeof className === "string" &&
+          className.includes("absolute") &&
+          className.includes("inset-x-0")
+        )
+      })
+
+      expect(fullWidthAbsolute).toHaveLength(1)
+      expect(fullWidthAbsolute[0] as unknown as Node | undefined).toBe(
+        composer as unknown as Node,
+      )
+    })
+
     it("renders header, message feed, and composer inside query provider", () => {
       act(() => {
         root?.render(

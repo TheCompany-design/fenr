@@ -158,16 +158,6 @@ export function ChatContainer({
           </div>
         ) : null}
 
-        {/*
-         * Sits directly above the composer and below the feed, because it answers
-         * a question someone has at the moment they are about to type: can this
-         * workspace say anything at all?
-         */}
-        <div className="absolute inset-x-0 bottom-0 z-20 translate-y-full pb-0 sm:hidden" />
-        <div className="pointer-events-auto absolute inset-x-0 bottom-[4.75rem] z-20 sm:bottom-[5.25rem]">
-          <ProviderBanner canAdminister={canAdministerProvider} />
-        </div>
-
         {/* Floating / Centered Composer Layer */}
         <div
           data-slot="composer-container"
@@ -198,6 +188,21 @@ export function ChatContainer({
                 calculations, or trigger autonomous workflows with real-time
                 streaming.
               </p>
+            </div>
+
+            {/*
+             * In the composer's own column, above the input — never an absolutely
+             * positioned strip laid over it.
+             *
+             * That was the bug: the banner sat at `bottom-[4.75rem] z-20` with
+             * pointer events on, which is *inside* the composer's own height, so
+             * it swallowed every click and keystroke aimed at the textarea. A
+             * supplementary status line must never be able to take the composer
+             * down with it, and the only reliable way to guarantee that is for it
+             * not to be positioned over the thing it decorates.
+             */}
+            <div className="w-full" data-slot="provider-banner">
+              <ProviderBanner canAdminister={canAdministerProvider} />
             </div>
 
             {/* Message Composer */}
