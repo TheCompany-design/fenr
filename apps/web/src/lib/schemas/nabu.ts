@@ -101,3 +101,80 @@ export const turnItemsResponseSchema = z.object({
   has_more: z.boolean(),
 })
 export type TurnItemsResponse = z.infer<typeof turnItemsResponseSchema>
+
+/**
+ * A workspace's own model provider.
+ *
+ * `GET /api/v1/provider`
+ *
+ * There is deliberately no field here that could carry a credential. The runtime
+ * answers with a fingerprint — six hex digits that identify which key is stored
+ * without being able to produce it — and this schema has no way to accept a
+ * plaintext key, so a mistake upstream cannot smuggle one into the browser.
+ */
+export const tenantProviderSchema = z.object({
+  /** Whether a provider has been configured at all. */
+  configured: z.boolean(),
+  /** The endpoint as the workspace configured it. */
+  base_url: z.string(),
+  /** The model identifier as the workspace configured it. */
+  model: z.string(),
+  /**
+   * A non-reversible marker for the stored credential, e.g. `a1b2c3`.
+   *
+   * Present so a settings screen can say "the key ending a1b2c3 is the one you
+   * pasted" — which is the only way to confirm a save without showing the key.
+   */
+  fingerprint: z.string().max(64),
+  max_output_tokens: z.number().int().positive().nullable(),
+  temperature: z.number().nonnegative().nullable(),
+  /** Whether the caller may change any of this. */
+  can_administer: z.boolean(),
+  /** RFC 3339, or empty when nothing is configured. */
+  updated_at: z.string(),
+})
+export type TenantProvider = z.infer<typeof tenantProviderSchema>
+
+/**
+ * A request to configure a workspace's model provider.
+ *
+ * `PUT /api/v1/provider`
+ *
+ * The API key is accepted here and nowhere else in the read path. It is never
+ * returned by any endpoint, which is what makes the field safe to send from a
+ * form.
+ */
+// Trimmed before the length check, because `min(1)` alone accepts `"   "` — and a
+// whitespace-only credential is not a credential. It would save "successfully"
+// and then fail every turn, which is the worst place to discover it.
+const trimmed = (max: number, message: string) =>
+  z.string().trim().min(1, message).max(max)
+
+export const putTenantProviderInputSchema = z.object({
+  base_url: trimmed(2048, "An endpoint is required"),
+  model: trimmed(256, "A model id is required"),
+  api_key: trimmed(4096, "An API key is required"),
+  max_output_tokens: z.number().int().positive().nullable().optional(),
+  temperature: z.number().nonnegative().nullable().optional(),
+})
+export type PutTenantProviderInput = z.input<
+  typeof putTenantProviderInputSchema
+>
+
+/**
+ * The result of testing a workspace's endpoint.
+ *
+ * `POST /api/v1/provider/verify`
+ *
+ * `ok: false` means the endpoint *answered* and refused — a wrong key is a
+ * result, not a malfunction. An endpoint that could not be reached comes back as
+ * an error status instead, so the two are never confused by a client that only
+ * checks `ok`.
+ */
+export const verifyTenantProviderResponseSchema = z.object({
+  ok: z.boolean(),
+  message: z.string(),
+})
+export type VerifyTenantProviderResponse = z.infer<
+  typeof verifyTenantProviderResponseSchema
+>

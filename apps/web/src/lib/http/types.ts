@@ -102,6 +102,20 @@ export interface ExecuteRequestOptions<TInput = void> {
   readonly tokenProvider?: (
     auth: Extract<EndpointAuth, { type: "authenticated" }>,
   ) => Promise<string>
+  /**
+   * The caller's authority inside the active workspace, added to the outbound
+   * token as a `role` claim.
+   *
+   * Why it is passed per request rather than resolved inside the transport: the
+   * transport is deliberately free of database access, and authority is a
+   * question about membership, which the feature that owns membership answers.
+   *
+   * Omitting it means the token carries no role, and the runtime treats that as
+   * the *least* privilege. So a caller who forgets to pass one cannot
+   * administer anything — the failure is a refused write, not an unauthorized
+   * one.
+   */
+  readonly tenantRole?: "owner" | "admin" | "member"
 }
 
 /**

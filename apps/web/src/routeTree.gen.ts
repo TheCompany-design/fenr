@@ -28,6 +28,7 @@ import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index
 import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index'
 import { Route as AppSettingsDangerIndexRouteImport } from './routes/_app/settings/danger/index'
 import { Route as AppSettingsMembersIndexRouteImport } from './routes/_app/settings/members/index'
+import { Route as AppSettingsProviderIndexRouteImport } from './routes/_app/settings/provider/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -123,6 +124,12 @@ const AppSettingsMembersIndexRoute = AppSettingsMembersIndexRouteImport.update({
   path: '/members/',
   getParentRoute: () => AppSettingsRouteRoute,
 } as any)
+const AppSettingsProviderIndexRoute =
+  AppSettingsProviderIndexRouteImport.update({
+    id: '/provider/',
+    path: '/provider/',
+    getParentRoute: () => AppSettingsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
   '/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/settings/members/': typeof AppSettingsMembersIndexRoute
+  '/settings/provider/': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -161,6 +169,7 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof AuthSignUpIndexRoute
   '/settings/danger': typeof AppSettingsDangerIndexRoute
   '/settings/members': typeof AppSettingsMembersIndexRoute
+  '/settings/provider': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -183,6 +192,7 @@ export interface FileRoutesById {
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
   '/_app/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/_app/settings/members/': typeof AppSettingsMembersIndexRoute
+  '/_app/settings/provider/': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up/'
     | '/settings/danger/'
     | '/settings/members/'
+    | '/settings/provider/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -223,6 +234,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/settings/danger'
     | '/settings/members'
+    | '/settings/provider'
   id:
     | '__root__'
     | '/_app'
@@ -244,6 +256,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up/'
     | '/_app/settings/danger/'
     | '/_app/settings/members/'
+    | '/_app/settings/provider/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -391,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsMembersIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
     }
+    '/_app/settings/provider/': {
+      id: '/_app/settings/provider/'
+      path: '/provider'
+      fullPath: '/settings/provider/'
+      preLoaderRoute: typeof AppSettingsProviderIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
   }
 }
 
@@ -398,12 +418,14 @@ interface AppSettingsRouteRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSettingsDangerIndexRoute: typeof AppSettingsDangerIndexRoute
   AppSettingsMembersIndexRoute: typeof AppSettingsMembersIndexRoute
+  AppSettingsProviderIndexRoute: typeof AppSettingsProviderIndexRoute
 }
 
 const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSettingsDangerIndexRoute: AppSettingsDangerIndexRoute,
   AppSettingsMembersIndexRoute: AppSettingsMembersIndexRoute,
+  AppSettingsProviderIndexRoute: AppSettingsProviderIndexRoute,
 }
 
 const AppSettingsRouteRouteWithChildren =
@@ -459,12 +481,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

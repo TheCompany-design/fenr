@@ -5,6 +5,7 @@
 import {
   Alert02Icon,
   Building01Icon,
+  CloudServerIcon,
   CrownIcon,
   Shield01Icon,
 } from "@hugeicons/core-free-icons"
@@ -33,6 +34,12 @@ import {
 
 const SETTINGS_SECTIONS = [
   { id: "general", label: "General", icon: Building01Icon, to: "/settings" },
+  {
+    id: "provider",
+    label: "Model provider",
+    icon: CloudServerIcon,
+    to: "/settings/provider",
+  },
   {
     id: "members",
     label: "Members & invites",

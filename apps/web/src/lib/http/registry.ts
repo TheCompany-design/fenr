@@ -16,8 +16,13 @@ import {
   type NabuSystemStatus,
   nabuCapabilitiesSchema,
   nabuSystemStatusSchema,
+  putTenantProviderInputSchema,
+  type TenantProvider,
   type TurnItemsResponse,
+  tenantProviderSchema,
   turnItemsResponseSchema,
+  type VerifyTenantProviderResponse,
+  verifyTenantProviderResponseSchema,
 } from "@/lib/schemas/nabu"
 import type { TurnItemsInput } from "./types"
 
@@ -48,6 +53,15 @@ const approvalDecisionRequestSchema = approvalDecisionInputSchema.extend({
   turnId: z.string().uuid(),
 })
 type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>
+
+/**
+ * The body of a provider write.
+ *
+ * Named separately from the schema's inferred type so the endpoint registry
+ * carries a request shape whose nullable overrides are genuinely optional on the
+ * way out but always present on the way in.
+ */
+type PutTenantProviderRequest = z.infer<typeof putTenantProviderInputSchema>
 
 export const SERVICES = {
   NABU: "nabu",
@@ -88,6 +102,98 @@ export const nabuEndpoints = {
     timeoutMs: 10_000,
     description:
       "Report which tools a model may request, how many attempts a turn has, and whether a disconnected client ends the turn.",
+  }),
+
+  /**
+   * The workspace's own model provider.
+   *
+   * `GET /api/v1/provider`
+   *
+   * Readable by any member: a chat header needs to be able to say which model is
+   * answering, and hiding that from a member helps nobody. The response carries a
+   * fingerprint, never a key.
+   */
+  tenantProvider: defineAuthenticatedEndpoint<void, TenantProvider>({
+    id: "nabu.tenant-provider",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: "/api/v1/provider",
+    responseSchema: tenantProviderSchema,
+    timeoutMs: 10_000,
+    description:
+      "Read the workspace's model endpoint, model, and credential fingerprint.",
+  }),
+
+  /**
+   * Configure the workspace's own model provider.
+   *
+   * `PUT /api/v1/provider`
+   *
+   * The credential travels in the body and is sealed by the runtime before it is
+   * stored. Nothing echoes it back: the response is the same shape as the read,
+   * so a client cannot accidentally persist the key it just sent.
+   */
+  putTenantProvider: defineAuthenticatedEndpoint<
+    PutTenantProviderRequest,
+    TenantProvider
+  >({
+    id: "nabu.put-tenant-provider",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "PUT",
+    path: "/api/v1/provider",
+    inputSchema: putTenantProviderInputSchema,
+    responseSchema: tenantProviderSchema,
+    timeoutMs: 15_000,
+    description:
+      "Set the workspace's model endpoint, model, and sealed credential.",
+  }),
+
+  /**
+   * Remove the workspace's model provider.
+   *
+   * `DELETE /api/v1/provider`
+   *
+   * Answers `204` whether or not there was anything to remove, so a retried save
+   * that races a delete is not reported as a failure.
+   */
+  deleteTenantProvider: defineAuthenticatedEndpoint<void, unknown>({
+    id: "nabu.delete-tenant-provider",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "DELETE",
+    path: "/api/v1/provider",
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 15_000,
+    description: "Remove the workspace's model provider configuration.",
+  }),
+
+  /**
+   * Test the workspace's stored provider.
+   *
+   * `POST /api/v1/provider/verify`
+   *
+   * The runtime dials, not this service. That is the whole reason the endpoint
+   * exists on the far side of the boundary: the process that holds the egress
+   * guard and the sealing key is the one that should open the socket, so there
+   * is exactly one implementation of "is this endpoint safe to call" rather than
+   * two that can drift.
+   */
+  verifyTenantProvider: defineAuthenticatedEndpoint<
+    void,
+    VerifyTenantProviderResponse
+  >({
+    id: "nabu.verify-tenant-provider",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: "/api/v1/provider/verify",
+    body: () => undefined,
+    responseSchema: verifyTenantProviderResponseSchema,
+    timeoutMs: 20_000,
+    description:
+      "Call the workspace's stored model endpoint with its stored credential.",
   }),
 
   /**

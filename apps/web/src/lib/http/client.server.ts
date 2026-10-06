@@ -186,6 +186,7 @@ export async function executeRequest<
       token: options.token,
       tokenProvider: options.tokenProvider,
       signal: options.signal,
+      tenantRole: options.tenantRole,
     })
     headers.set("Authorization", `Bearer ${token}`)
   } else {

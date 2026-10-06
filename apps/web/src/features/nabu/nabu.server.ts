@@ -84,7 +84,7 @@ export class NabuClientError extends HttpClientError {
   }
 }
 
-async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
+export async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (err) {

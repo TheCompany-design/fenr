@@ -23,6 +23,14 @@ export interface TokenAcquisitionOptions {
     auth: Extract<EndpointAuth, { type: "authenticated" }>,
   ) => Promise<string>
   readonly signal?: AbortSignal
+  /**
+   * The caller's authority in the active workspace, minted as a `role` claim.
+   *
+   * The runtime uses this to decide who may change a workspace's model
+   * provider — the one thing it stores that is not a document. Omitted means the
+   * claim is absent, which the runtime reads as the least privilege.
+   */
+  readonly tenantRole?: "owner" | "admin" | "member"
 }
 
 /**
@@ -231,7 +239,12 @@ export async function acquireOutboundJwt(
     return candidateToken
   }
 
-  // 5. Mint a fresh short-lived JWT token from active session context
+  // 5. Mint a fresh short-lived JWT token from active session context.
+  //
+  // The role claim is omitted rather than defaulted when the caller did not
+  // supply one. The runtime reads an absent claim as the least privilege, so
+  // forgetting to pass a role can only ever *reduce* what the token authorises —
+  // it cannot quietly grant an admin.
   let signRes: { token?: string } | null = null
   try {
     signRes = await auth.api.signJWT({
@@ -240,6 +253,7 @@ export async function acquireOutboundJwt(
           sub: session.user.id,
           email: session.user.email,
           activeOrganizationId: activeOrgId,
+          ...(options.tenantRole ? { role: options.tenantRole } : {}),
         },
         overrideOptions: {
           jwt: {
