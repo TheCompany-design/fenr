@@ -51,6 +51,5 @@ export const db = drizzle(client, { schema })
 
 export * from "drizzle-orm"
 export * from "./schema/index"
-export * from "./tenant-scope"
 export { schema }
 export type Database = typeof db

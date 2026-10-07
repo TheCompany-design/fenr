@@ -1,6 +1,14 @@
 import { describe, expect, it } from "bun:test"
-import { db, schema, withTenantScope } from "@workspace/database"
+import { db, eq, schema } from "@workspace/database"
 import { getThreadMessages } from "./chat.server"
+
+async function seedOrganization(id: string) {
+  await db.insert(schema.organization).values({
+    id,
+    name: `Test ${id}`,
+    slug: `test-${id}`,
+  })
+}
 
 /**
  * A transcript item that is not a message.
@@ -44,24 +52,18 @@ describe("Chat Server Operations (Thread Messages)", () => {
 })
 
 describe("reading a transcript the runtime owns", () => {
-  it("sees a thread only when the read is scoped to its tenant", async () => {
-    // The agent tables use row level security, so an unscoped read is not an
-    // error — it is an empty transcript. That is how a completed conversation
-    // came to look like it had been lost: every message vanished at once, with
-    // nothing in any log to explain why.
-    //
-    // Seeding is deliberate here. The runtime owns these tables in production,
-    // but a test has to put a row there to prove the scope is what makes it
-    // visible.
+  it("reads only items explicitly scoped to its tenant", async () => {
+    // RLS is gone. Both the thread lookup and the item lookup must name the
+    // tenant explicitly; an unscoped raw query is intentionally not isolated.
     const tenantId = crypto.randomUUID()
     const threadId = crypto.randomUUID()
     const turnId = crypto.randomUUID()
     const now = new Date()
+    await seedOrganization(tenantId)
 
-    // Seeded through the same scope a read needs, because row level security
-    // refuses the write otherwise: these tables are not writable by this
-    // application in production either, and the policy is what says so.
-    await withTenantScope(tenantId, async (scoped) => {
+    // Seed directly in a transaction. The runtime owns these tables in
+    // production, but tenant predicates are now ordinary SQL rather than RLS.
+    await db.transaction(async (scoped) => {
       await scoped.insert(schema.agentThreads).values({
         id: threadId,
         tenantId,
@@ -95,25 +97,26 @@ describe("reading a transcript the runtime owns", () => {
         "a scoped question",
       ])
 
-      // The same read, unscoped, sees nothing at all — which is the whole reason
-      // the scoped helper exists and the reason a missing scope is so quiet.
-      const unscoped = await db
+      // A different tenant's explicit predicate does not see the item.
+      const foreign = await db
         .select({ id: schema.agentItems.id })
         .from(schema.agentItems)
-      expect(unscoped.some((row) => row.id === messages?.[0]?.id)).toBe(false)
-
-      // And another tenant's scope does not see it either.
-      const foreign = await withTenantScope(
-        crypto.randomUUID(),
-        async (scoped) =>
-          scoped.select({ id: schema.agentItems.id }).from(schema.agentItems),
-      )
+        .where(eq(schema.agentItems.tenantId, crypto.randomUUID()))
       expect(foreign.some((row) => row.id === messages?.[0]?.id)).toBe(false)
     } finally {
-      await withTenantScope(tenantId, async (scoped) => {
-        await scoped.delete(schema.agentItems)
-        await scoped.delete(schema.agentTurns)
-        await scoped.delete(schema.agentThreads)
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
       })
     }
   })
@@ -139,8 +142,9 @@ describe("transcript order", () => {
     const threadId = crypto.randomUUID()
     const turnId = crypto.randomUUID()
     const instant = new Date()
+    await seedOrganization(tenantId)
 
-    await withTenantScope(tenantId, async (scoped) => {
+    await db.transaction(async (scoped) => {
       await scoped.insert(schema.agentThreads).values({
         id: threadId,
         tenantId,
@@ -188,10 +192,19 @@ describe("transcript order", () => {
         "the answer",
       ])
     } finally {
-      await withTenantScope(tenantId, async (scoped) => {
-        await scoped.delete(schema.agentItems)
-        await scoped.delete(schema.agentTurns)
-        await scoped.delete(schema.agentThreads)
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
       })
     }
   })

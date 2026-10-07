@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm"
 import {
   check,
+  foreignKey,
   index,
   jsonb,
   pgTable,
@@ -8,6 +9,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core"
+import { organization } from "../organizations/organization"
 import { agentItems } from "./agent-items"
 
 /**
@@ -28,10 +30,10 @@ export const agentApprovals = pgTable(
      * that records it. That is what makes a second decision a conflict rather
      * than a second row.
      */
-    itemId: uuid("item_id")
-      .primaryKey()
-      .references(() => agentItems.id, { onDelete: "cascade" }),
-    tenantId: uuid("tenant_id").notNull(),
+    itemId: uuid("item_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
     /** The tool call being approved, as the model named it. */
     callId: text("call_id").notNull(),
     tool: text("tool").notNull(),
@@ -51,6 +53,10 @@ export const agentApprovals = pgTable(
     }),
   },
   (table) => [
+    foreignKey({
+      columns: [table.itemId, table.tenantId],
+      foreignColumns: [agentItems.id, agentItems.tenantId],
+    }).onDelete("cascade"),
     index("idx_agent_approvals_tenant_requested").on(
       table.tenantId,
       table.requestedAt,

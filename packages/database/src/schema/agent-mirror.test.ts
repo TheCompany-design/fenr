@@ -3,10 +3,10 @@
  *
  * `thebookofnabu` owns `agent_threads`, `agent_turns`, `agent_items`,
  * `agent_approvals` and `agent_tool_intents`: it mints their identifiers, writes
- * their rows, and enforces isolation on them with row level security that this
- * application must not be able to weaken. Fenr therefore does not migrate them
- * and does not write them — its Drizzle tables exist only so the transcript can
- * be read.
+ * their rows, and enforces isolation through explicit `tenant_id` predicates
+ * and foreign keys to Fenr's `organization` table. Fenr therefore does not
+ * migrate them and does not write them — its Drizzle tables exist only so the
+ * transcript can be read.
  *
  * That leaves one obligation in this direction: a mirror drifts silently. When
  * the runtime added `tenant_id`, `attempt` and `completed_at`, fenr's mirror
@@ -93,9 +93,8 @@ describe("agent table mirror matches the runtime schema", () => {
   })
 
   it("mirrors the tenancy columns isolation depends on", async () => {
-    // These are what the runtime's row level security policies filter on. If the
-    // mirror omits them, a query written through it can silently lose its tenant
-    // predicate.
+    // These columns are what every reader must explicitly filter on. The
+    // database no longer supplies isolation implicitly through RLS.
     expect(declaredColumns(agentTurns)).toContain("tenant_id")
     expect(declaredColumns(agentItems)).toContain("tenant_id")
     expect(declaredColumns(agentApprovals)).toContain("tenant_id")

@@ -1,4 +1,5 @@
 import {
+  foreignKey,
   index,
   integer,
   pgTable,
@@ -8,17 +9,18 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { idColumn } from "../id"
+import { organization } from "../organizations/organization"
 import { agentThreads } from "./agent-threads"
 
 export const agentTurns = pgTable(
   "agent_turns",
   {
     id: idColumn(),
-    threadId: uuid("thread_id")
-      .notNull()
-      .references(() => agentThreads.id, { onDelete: "cascade" }),
+    threadId: uuid("thread_id").notNull(),
     /** The tenant the runtime scoped this turn to. */
-    tenantId: uuid("tenant_id").notNull(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
     turnIndex: integer("turn_index").notNull(),
     /** Which attempt this row is. Attempts are counted from one. */
     attempt: integer("attempt").default(1).notNull(),
@@ -45,7 +47,11 @@ export const agentTurns = pgTable(
       table.threadId,
       table.turnIndex,
     ),
-    uniqueIndex("uidx_agent_turns_id_thread").on(table.id, table.threadId),
+    uniqueIndex("uidx_agent_turns_id_tenant").on(table.id, table.tenantId),
+    foreignKey({
+      columns: [table.threadId, table.tenantId],
+      foreignColumns: [agentThreads.id, agentThreads.tenantId],
+    }).onDelete("cascade"),
     index("idx_agent_turns_tenant_status").on(table.tenantId, table.status),
   ],
 )

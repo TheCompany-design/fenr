@@ -18,8 +18,9 @@ import { organization } from "../organizations/organization"
  * without a second source of truth, so it must not carry columns the runtime
  * does not have — `turn_count` was one, and querying it failed at runtime.
  *
- * Row level security is enforced by the runtime's own policies; this schema
- * declares no tenant scoping of its own.
+ * Composite tenant constraints and explicit predicates are part of the runtime
+ * contract; this mirror declares the same ownership relationships without
+ * migrating or writing these tables.
  */
 export const agentThreads = pgTable(
   "agent_threads",
