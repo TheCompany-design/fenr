@@ -1,28 +1,4 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test"
-import { GlobalWindow } from "happy-dom"
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    Element: win.Element,
-    HTMLElement: win.HTMLElement,
-    HTMLInputElement: win.HTMLInputElement,
-    HTMLTextAreaElement: win.HTMLTextAreaElement,
-    Node: win.Node,
-    Event: win.Event,
-    UIEvent: win.UIEvent,
-    MouseEvent: win.MouseEvent,
-    KeyboardEvent: win.KeyboardEvent,
-    InputEvent: win.InputEvent ?? win.Event,
-    customElements: win.customElements,
-    scrollTo: () => {},
-    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-    cancelAnimationFrame: (id: number) => clearTimeout(id),
-  })
-}
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 

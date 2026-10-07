@@ -19,7 +19,6 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router"
-import { GlobalWindow } from "happy-dom"
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
 
@@ -85,22 +84,6 @@ mock.module("sonner", () => ({
   }),
 }))
 
-const win = new GlobalWindow({ url: "http://localhost:3000/settings/provider" })
-Object.assign(globalThis, {
-  window: win,
-  document: win.document,
-  navigator: win.navigator,
-  HTMLElement: win.HTMLElement,
-  HTMLInputElement: win.HTMLInputElement,
-  HTMLTextAreaElement: win.HTMLTextAreaElement,
-  customElements: win.customElements,
-  Event: win.Event,
-  InputEvent: win.InputEvent,
-  scrollTo: () => {},
-  requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-  cancelAnimationFrame: (id: number) => clearTimeout(id),
-})
-
 const { TenantProviderSettings } = await import("./tenant-provider-settings")
 const { tenantProviderKeys, tenantProviderQueryOptions } = await import(
   "../queries"
@@ -139,8 +122,8 @@ async function mount(provider: TenantProvider) {
   })
   await router.load()
 
-  container = win.document.createElement("div") as unknown as HTMLDivElement
-  ;(win.document.body as unknown as HTMLBodyElement).appendChild(container)
+  container = window.document.createElement("div") as unknown as HTMLDivElement
+  ;(window.document.body as unknown as HTMLBodyElement).appendChild(container)
   root = createRoot(container)
 
   act(() => {
@@ -155,14 +138,14 @@ function type(fieldId: string, value: string) {
   if (!input) throw new Error(`no field ${fieldId}`)
 
   const setter = Object.getOwnPropertyDescriptor(
-    win.HTMLInputElement.prototype,
+    window.HTMLInputElement.prototype,
     "value",
   )?.set
   setter?.call(input, value)
 
   act(() => {
     input.dispatchEvent(
-      new win.Event("input", { bubbles: true }) as unknown as Event,
+      new window.Event("input", { bubbles: true }) as unknown as Event,
     )
   })
 }

@@ -6,30 +6,8 @@ import {
   isRedirect,
   RouterProvider,
 } from "@tanstack/react-router"
-import { GlobalWindow } from "happy-dom"
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
-
-const win = new GlobalWindow({ url: "http://localhost:3000" })
-Object.assign(globalThis, {
-  window: win,
-  document: win.document,
-  navigator: win.navigator,
-  Element: win.Element,
-  HTMLElement: win.HTMLElement,
-  HTMLInputElement: win.HTMLInputElement,
-  HTMLTextAreaElement: win.HTMLTextAreaElement,
-  Node: win.Node,
-  Event: win.Event,
-  UIEvent: win.UIEvent,
-  MouseEvent: win.MouseEvent,
-  KeyboardEvent: win.KeyboardEvent,
-  InputEvent: win.InputEvent ?? win.Event,
-  customElements: win.customElements,
-  scrollTo: () => {},
-  requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-  cancelAnimationFrame: (id: number) => clearTimeout(id),
-})
 
 // DOM globals persist across test suite for DOM-dependent component tests
 

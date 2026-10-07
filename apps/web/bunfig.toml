@@ -1,0 +1,15 @@
+# apps/web test configuration.
+#
+# The repo-root bunfig.toml already preloads the shared DOM setup. It is
+# repeated here because bun resolves `bunfig.toml` from the working directory
+# and does NOT walk up: running `bun test` from inside apps/web (a natural thing
+# to do while working on the app) silently skipped the preload, and the test
+# files that each carried their own copy of the setup started racing to install
+# *different* globals — whichever loaded first won, and files that loaded later
+# short-circuited and never got the constructors they needed. The suite was green
+# or red depending on file order.
+#
+# One source of truth: apps/web/src/test-dom.ts. Test files must not install DOM
+# globals themselves.
+[test]
+preload = ["./src/test-dom.ts"]

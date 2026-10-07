@@ -4,21 +4,8 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query"
-import { GlobalWindow } from "happy-dom"
 import { toast } from "sonner"
 import type { ChatMessage } from "../types"
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    Element: win.Element,
-    HTMLElement: win.HTMLElement,
-    customElements: win.customElements,
-  })
-}
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,8 +34,8 @@ function setNativeValue(el: HTMLElement, val: string) {
     tracker.setValue("__prev_diff_value__")
   }
   set?.call(el, val)
-  el.dispatchEvent(new Event("input", { bubbles: true }))
-  el.dispatchEvent(new Event("change", { bubbles: true }))
+  el.dispatchEvent(new window.Event("input", { bubbles: true }))
+  el.dispatchEvent(new window.Event("change", { bubbles: true }))
 }
 
 describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
@@ -428,7 +415,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       // Trigger scroll event
       act(() => {
-        viewport.dispatchEvent(new Event("scroll"))
+        viewport.dispatchEvent(new window.Event("scroll"))
       })
 
       const scrollBottomBtn = container?.querySelector(
@@ -490,7 +477,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       })
 
       act(() => {
-        viewport.dispatchEvent(new Event("scroll"))
+        viewport.dispatchEvent(new window.Event("scroll"))
       })
 
       // Simulate next streaming token arriving in-place

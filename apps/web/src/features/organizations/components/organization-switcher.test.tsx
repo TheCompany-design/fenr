@@ -6,7 +6,6 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router"
-import { GlobalWindow } from "happy-dom"
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -15,17 +14,6 @@ import { organizationKeys } from "../queries"
 import { OrganizationSwitcher } from "./organization-switcher"
 
 // Setup DOM globals for interactive dropdown tests
-const win = new GlobalWindow({ url: "http://localhost:3000" })
-Object.assign(globalThis, {
-  window: win,
-  document: win.document,
-  navigator: win.navigator,
-  HTMLElement: win.HTMLElement,
-  customElements: win.customElements,
-  scrollTo: () => {},
-  requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-  cancelAnimationFrame: (id: number) => clearTimeout(id),
-})
 
 function createTestRouter(component: () => React.ReactNode) {
   const rootRoute = createRootRoute({ component })

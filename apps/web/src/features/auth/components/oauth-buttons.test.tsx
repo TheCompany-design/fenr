@@ -1,26 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { GlobalWindow } from "happy-dom"
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    Element: win.Element,
-    HTMLElement: win.HTMLElement,
-    HTMLButtonElement: win.HTMLButtonElement,
-    HTMLImageElement: win.HTMLImageElement,
-    Node: win.Node,
-    Event: win.Event,
-    UIEvent: win.UIEvent,
-    MouseEvent: win.MouseEvent,
-    customElements: win.customElements,
-    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-    cancelAnimationFrame: (id: number) => clearTimeout(id),
-  })
-}
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
