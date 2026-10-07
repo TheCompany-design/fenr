@@ -16,10 +16,7 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
-import {
-  type ActiveOrganization,
-  OrganizationSwitcher,
-} from "@/features/organizations"
+import type { ActiveOrganization } from "@/features/organizations"
 
 import { AppSidebar } from "./app-sidebar"
 
@@ -42,7 +39,7 @@ export function AppShell({
     <LazyMotion features={domAnimation}>
       <TooltipProvider delay={0}>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar />
+          <AppSidebar activeOrganization={activeOrganization} />
           <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
             <header className="relative z-30 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md pointer-events-none">
               {/* Free-standing left items */}
@@ -51,7 +48,6 @@ export function AppShell({
                   aria-label="Toggle navigation"
                   className="size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
                 />
-                <OrganizationSwitcher activeOrganization={activeOrganization} />
               </div>
 
               {/* Free-standing right items */}

@@ -9,107 +9,37 @@
  * - Active item is derived from TanStack Router state, never pathname
  *   string-parsing in components.
  */
-import { RocketIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
   Sidebar,
+  SidebarCollapsibleLabel,
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  useSidebar,
 } from "@workspace/ui/components/sidebar"
 import {
-  LABEL_ENTER_TRANSITION,
-  LABEL_EXIT_TRANSITION,
-  REDUCED_TRANSITION,
-} from "@workspace/ui/lib/ease"
-import { cn } from "@workspace/ui/lib/utils"
-import { m, useReducedMotion } from "motion/react"
+  type ActiveOrganization,
+  OrganizationSwitcher,
+} from "@/features/organizations"
 import type { NavItem } from "./nav-config"
 import { NAV_ITEMS } from "./nav-config"
 
-function Brand() {
-  const { state, isMobile } = useSidebar()
-  const reduce = useReducedMotion() ?? false
-  const collapsed = state === "collapsed" && !isMobile
-
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          render={<Link aria-label="Fenr home" to="/" />}
-          size="lg"
-          tooltip="Fenr"
-        >
-          <div className="relative z-10 flex size-10 shrink-0 items-center justify-center">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-xs">
-              <HugeiconsIcon icon={RocketIcon} size={18} />
-            </div>
-          </div>
-          <m.span
-            initial={false}
-            animate={{
-              opacity: collapsed ? 0 : 1,
-              x: collapsed ? -8 : 0,
-            }}
-            transition={
-              reduce
-                ? REDUCED_TRANSITION
-                : collapsed
-                  ? LABEL_EXIT_TRANSITION
-                  : LABEL_ENTER_TRANSITION
-            }
-            aria-hidden={collapsed}
-            className={cn(
-              "relative z-10 min-w-0 flex-1 overflow-hidden whitespace-nowrap font-semibold text-lg leading-none pl-2.5",
-              collapsed && "pointer-events-none",
-            )}
-          >
-            Fenr
-          </m.span>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  )
-}
-
 function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
   const { disabled, icon, title, to } = item
-  const { state, isMobile } = useSidebar()
-  const reduce = useReducedMotion() ?? false
-  const collapsed = state === "collapsed" && !isMobile
 
   const content = (
     <>
       <div className="relative z-10 flex size-10 shrink-0 items-center justify-center">
         <HugeiconsIcon icon={icon} size={18} />
       </div>
-      <m.span
-        initial={false}
-        animate={{
-          opacity: collapsed ? 0 : 1,
-          x: collapsed ? -8 : 0,
-        }}
-        transition={
-          reduce
-            ? REDUCED_TRANSITION
-            : collapsed
-              ? LABEL_EXIT_TRANSITION
-              : LABEL_ENTER_TRANSITION
-        }
-        aria-hidden={collapsed}
-        className={cn(
-          "relative z-10 min-w-0 flex-1 overflow-hidden whitespace-nowrap pl-2 text-sm font-medium",
-          collapsed && "pointer-events-none",
-        )}
-      >
+      <SidebarCollapsibleLabel className="relative z-10 grow pl-2 text-sm font-medium">
         {title}
-      </m.span>
+      </SidebarCollapsibleLabel>
     </>
   )
 
@@ -152,13 +82,20 @@ export function useActiveNavId(): string | null {
 
 export type AppSidebarProps = React.ComponentProps<typeof Sidebar>
 
-export function AppSidebar(props: AppSidebarProps) {
+export interface AppSidebarOwnProps {
+  activeOrganization?: ActiveOrganization | null
+}
+
+export function AppSidebar({
+  activeOrganization,
+  ...props
+}: AppSidebarProps & AppSidebarOwnProps) {
   const activeId = useActiveNavId()
 
   return (
     <Sidebar collapsible="icon" variant="floating" {...props}>
       <SidebarHeader>
-        <Brand />
+        <OrganizationSwitcher activeOrganization={activeOrganization} />
       </SidebarHeader>
       {/* Nav list can overflow → ScrollArea per styling convention. */}
       <ScrollArea className="flex-1">

@@ -42,6 +42,14 @@ export function organizationListQueryOptions() {
 }
 
 /**
+ * One row of the workspace picker. Derived from the server function so the
+ * switcher can never drift from what the list query actually resolves to.
+ */
+export type OrganizationListItem = Awaited<
+  ReturnType<typeof listOrganizationsFn>
+>[number]
+
+/**
  * Query options for fetching the current active organization.
  */
 export function activeOrganizationQueryOptions() {

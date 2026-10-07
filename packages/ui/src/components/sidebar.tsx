@@ -17,6 +17,8 @@ import {
 import {
   EASE_DRAWER,
   EASE_OUT,
+  LABEL_ENTER_TRANSITION,
+  LABEL_EXIT_TRANSITION,
   REDUCED_TRANSITION,
   SIDEBAR_MORPH_TRANSITION,
   SPRING_LAYOUT,
@@ -25,6 +27,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   AnimatePresence,
   type HTMLMotionProps,
+  m,
   motion,
   useReducedMotion,
   type Variants,
@@ -1136,6 +1139,52 @@ export const SidebarMenuSubItem = React.forwardRef<
     />
   )
 })
+
+/**
+ * Sidebar text that slides out of view when the rail collapses to icons.
+ *
+ * Every collapsible sidebar row needs the same fade-and-slide, so it lives
+ * here instead of being re-declared per consumer. `aria-hidden` keeps the
+ * invisible label out of the accessibility tree while the icon rail is
+ * showing, and `pointer-events-none` stops it swallowing clicks on the row
+ * behind it.
+ *
+ * Deliberately does not set `flex-1`: rows that want the label to take the
+ * slack pass `grow`, and trailing affordances pass `shrink-0`. Baking either
+ * in here makes the two collide on `flex-shrink`.
+ */
+export function SidebarCollapsibleLabel({
+  className,
+  children,
+  ...props
+}: HTMLMotionProps<"span">) {
+  const { state, isMobile } = useSidebar()
+  const reduce = useReducedMotion() ?? false
+  const collapsed = state === "collapsed" && !isMobile
+
+  return (
+    <m.span
+      initial={false}
+      animate={{ opacity: collapsed ? 0 : 1, x: collapsed ? -8 : 0 }}
+      transition={
+        reduce
+          ? REDUCED_TRANSITION
+          : collapsed
+            ? LABEL_EXIT_TRANSITION
+            : LABEL_ENTER_TRANSITION
+      }
+      aria-hidden={collapsed}
+      className={cn(
+        "min-w-0 overflow-hidden whitespace-nowrap",
+        collapsed && "pointer-events-none",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </m.span>
+  )
+}
 
 export const SidebarMenuSubButton = React.forwardRef<
   HTMLAnchorElement,

@@ -6,15 +6,25 @@ export interface OrganizationAvatarProps {
   slug?: string | null
   logo?: string | null
   size?: "xs" | "sm" | "md" | "lg" | "xl"
+  /** `circle` is the workspace-picker look; the default keeps the softer squircle. */
+  shape?: "rounded" | "circle"
   className?: string
 }
 
 const sizeClasses = {
-  xs: "size-6 text-xs rounded-md",
-  sm: "size-8 text-sm rounded-md",
-  md: "size-10 text-base rounded-lg",
-  lg: "size-12 text-lg rounded-lg",
-  xl: "size-16 text-xl rounded-xl",
+  xs: "size-6 text-xs",
+  sm: "size-8 text-sm",
+  md: "size-10 text-base",
+  lg: "size-12 text-lg",
+  xl: "size-16 text-xl",
+} as const
+
+const roundedShapeClasses = {
+  xs: "rounded-md",
+  sm: "rounded-md",
+  md: "rounded-lg",
+  lg: "rounded-lg",
+  xl: "rounded-xl",
 } as const
 
 export function OrganizationAvatar({
@@ -22,6 +32,7 @@ export function OrganizationAvatar({
   slug,
   logo,
   size = "md",
+  shape = "rounded",
   className,
 }: OrganizationAvatarProps) {
   const [failedLogo, setFailedLogo] = React.useState<string | null>(null)
@@ -40,6 +51,7 @@ export function OrganizationAvatar({
         "relative flex shrink-0 items-center justify-center font-semibold select-none overflow-hidden",
         "bg-primary/10 text-primary border border-border/50",
         sizeClasses[size],
+        shape === "circle" ? "rounded-full" : roundedShapeClasses[size],
         className,
       )}
     >
