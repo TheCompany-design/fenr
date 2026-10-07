@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useAtom } from "jotai"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useState } from "react"
 import { toast } from "sonner"
 import { moduleLogger } from "@/lib/logger"
 import { parseAgentStreamEvent } from "@/lib/schemas/agent-stream"
@@ -124,18 +124,33 @@ export function streamErrorTitle(code: string): string {
   }
 }
 
+/**
+ * The one stream this tab is running, and the cache key it writes into.
+ *
+ * Module scope on purpose. There is only ever one active stream, and the
+ * connection outlives the component that started it: navigating from a
+ * streaming chat remounts `ChatContainer`, so a controller held in that
+ * component's `useRef` goes with it. Any later `stop()` — from the new chat's
+ * own composer, which renders as active because the streaming flag is a global
+ * atom — then found nothing to abort and silently did nothing, leaving an
+ * orphaned fetch writing to the cache with no way left to cancel it.
+ *
+ * Same reason the stream flags are global atoms: the run belongs to the tab,
+ * not to whichever component happens to be mounted.
+ */
+let activeAbortController: AbortController | null = null
+let activeMessagesKey: readonly string[] = chatKeys.messages(null)
+
 export function useAgentStream(): UseAgentStreamReturn {
   const [isStreaming, setIsStreaming] = useAtom(isStreamingAtom)
   const [lastRequestId, setLastRequestId] = useAtom(lastRequestIdAtom)
   const [turn, setTurn] = useState<ActiveTurnProjection>(initialTurnProjection)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const activeKeyRef = useRef<readonly string[]>(chatKeys.messages(null))
   const queryClient = useQueryClient()
 
   const stop = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-      abortControllerRef.current = null
+    if (activeAbortController) {
+      activeAbortController.abort()
+      activeAbortController = null
       setIsStreaming(false)
       setTurn((previous) => ({
         ...previous,
@@ -148,12 +163,10 @@ export function useAgentStream(): UseAgentStreamReturn {
         streamingToolArguments: "",
       }))
 
-      queryClient.setQueryData<ChatMessage[]>(
-        activeKeyRef.current,
-        (old = []) =>
-          chatMessagesReducer(old, {
-            type: "stream_stopped",
-          }),
+      queryClient.setQueryData<ChatMessage[]>(activeMessagesKey, (old = []) =>
+        chatMessagesReducer(old, {
+          type: "stream_stopped",
+        }),
       )
     }
   }, [setIsStreaming, queryClient])
@@ -173,14 +186,14 @@ export function useAgentStream(): UseAgentStreamReturn {
       }
 
       const abortController = new AbortController()
-      abortControllerRef.current = abortController
+      activeAbortController = abortController
       setIsStreaming(true)
       // A new turn starts from nothing: carrying the previous turn's text or
       // approval item across would attribute them to this one.
       setTurn(initialTurnProjection)
 
       let currentKey: readonly string[] = chatKeys.messages(threadId)
-      activeKeyRef.current = currentKey
+      activeMessagesKey = currentKey
 
       // Optimistically append user message and in-flight streaming placeholder
       const userMessage: ChatMessage = {
@@ -296,7 +309,7 @@ export function useAgentStream(): UseAgentStreamReturn {
                     const draftData =
                       queryClient.getQueryData<ChatMessage[]>(currentKey) ?? []
                     currentKey = chatKeys.messages(serverThreadId)
-                    activeKeyRef.current = currentKey
+                    activeMessagesKey = currentKey
                     queryClient.setQueryData(currentKey, draftData)
                     queryClient.removeQueries({
                       queryKey: chatKeys.messages(null),
@@ -388,9 +401,12 @@ export function useAgentStream(): UseAgentStreamReturn {
           }),
         )
       } finally {
-        setIsStreaming(false)
-        if (abortControllerRef.current === abortController) {
-          abortControllerRef.current = null
+        // Both of these belong to *this* run only. A send started while this one
+        // was in flight owns the flag now, and un-flagging it here would leave
+        // its composer showing Send while the stream is still streaming.
+        if (activeAbortController === abortController) {
+          activeAbortController = null
+          setIsStreaming(false)
         }
       }
     },

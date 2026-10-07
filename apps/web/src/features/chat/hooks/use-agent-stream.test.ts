@@ -79,6 +79,64 @@ describe("useAgentStream Hook", () => {
     return result
   }
 
+  it("lets a chat that did not start the stream stop it anyway", async () => {
+    // Navigating away mid-stream remounts the chat, but the run belongs to the
+    // tab: the streaming flag is a global atom, so the new chat renders as
+    // active and offers a Stop button. With the connection held on the unmounted
+    // component, that button used to abort nothing at all and the fetch ran on
+    // with no way left to cancel it.
+    let streamController: ReadableStreamDefaultController | null = null
+    let abortSignal: AbortSignal | null = null
+    globalThis.fetch = mock(async (_url, init) => {
+      abortSignal = (init as RequestInit).signal as AbortSignal
+      const stream = new ReadableStream({
+        start(controller) {
+          streamController = controller
+          controller.enqueue(
+            new TextEncoder().encode(
+              'data: {"type":"turn_started","data":{"thread_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c3e1","turn_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"}}\n\n',
+            ),
+          )
+        },
+      })
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const first = renderStreamHook()
+    await act(async () => {
+      void first.current.send("Compare mint chip")
+    })
+    expect(first.current.isStreaming).toBe(true)
+
+    // The chat that started the stream goes away mid-turn.
+    act(() => {
+      root?.unmount()
+    })
+    root = createRoot(container as HTMLDivElement)
+
+    // A different chat mounts and sees the stream still running.
+    const second = renderStreamHook()
+    expect(second.current.isStreaming).toBe(true)
+
+    act(() => {
+      second.current.stop()
+    })
+
+    // The connection the *previous* chat opened is now aborted: that is the
+    // whole point — one run, one place to cancel it from.
+    expect(streamController).not.toBeNull()
+    // Cast: the assignment happens inside the fetch mock, which control-flow
+    // analysis cannot see, so the binding still narrows to its initializer.
+    expect((abortSignal as AbortSignal | null)?.aborted).toBe(true)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(second.current.isStreaming).toBe(false)
+  })
+
   it("initializes with isStreaming=false", () => {
     const hook = renderStreamHook()
     expect(hook.current).toBeDefined()
