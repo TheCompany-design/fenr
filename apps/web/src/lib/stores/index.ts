@@ -8,4 +8,5 @@
 export * from "./chat.store"
 export * from "./confirm.store"
 export * from "./demo.store"
+export * from "./header-portal.store"
 export * from "./theme.store"

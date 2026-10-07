@@ -584,7 +584,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       )
     })
 
-    it("renders header, message feed, and composer inside query provider", () => {
+    it("renders message feed and composer inside query provider, with no header of its own", () => {
       act(() => {
         root?.render(
           createElement(
@@ -595,8 +595,13 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      expect(container?.textContent).toContain("Nabu Agent Chat")
-      expect(container?.textContent).toContain("Online")
+      // The screen's title and status moved to the app shell's header, which
+      // this suite does not mount — nothing of the old header may remain, and
+      // the conversation must still render (see chat-header-title.test.tsx for
+      // the portal side of this).
+      expect(container?.textContent).not.toContain("Nabu Agent Chat")
+      expect(container?.textContent).not.toContain("Clear conversation")
+      expect(container?.querySelector("header")).toBeNull()
       expect(container?.querySelector("textarea")).toBeDefined()
     })
 
@@ -641,26 +646,13 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         submitBtn?.click()
       })
 
-      // Composer should now have bottom-0 and translate-y-0
+      expect(container?.textContent).toContain("What is my ledger balance?")
+
+      // The composer stays docked: the conversation has started, and nothing
+      // about losing the header can send it back to its opening position.
       expect(composerLayer?.className).toContain("bottom-0")
       expect(composerLayer?.className).toContain("translate-y-0")
       expect(heroGreeting?.className).toContain("opacity-0")
-      expect(container?.textContent).toContain("What is my ledger balance?")
-
-      // Clear conversation button should now be available
-      const clearBtn = Array.from(
-        container?.querySelectorAll("button") ?? [],
-      ).find((b) => b.textContent?.includes("Clear conversation"))
-      expect(clearBtn).toBeDefined()
-
-      await act(async () => {
-        clearBtn?.click()
-      })
-
-      // Should reset back to centered state
-      expect(composerLayer?.className).toContain("bottom-1/2")
-      expect(composerLayer?.className).toContain("translate-y-1/2")
-      expect(heroGreeting?.className).toContain("opacity-100")
     })
   })
 })

@@ -34,7 +34,6 @@ export interface UseAgentStreamReturn {
     options?: SendOptions,
   ) => Promise<void>
   readonly stop: () => void
-  readonly reset: () => void
   readonly isStreaming: boolean
 }
 
@@ -170,11 +169,6 @@ export function useAgentStream(): UseAgentStreamReturn {
       )
     }
   }, [setIsStreaming, queryClient])
-
-  const reset = useCallback(() => {
-    stop()
-    setLastRequestId(null)
-  }, [stop, setLastRequestId])
 
   const send = useCallback(
     async (prompt: string, threadId?: string | null, options?: SendOptions) => {
@@ -418,7 +412,6 @@ export function useAgentStream(): UseAgentStreamReturn {
     turn,
     send,
     stop,
-    reset,
     isStreaming,
   }
 }
