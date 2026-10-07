@@ -113,6 +113,12 @@ export function streamErrorTitle(code: string): string {
       return "This workspace has no model provider"
     case "tenant_provider_endpoint_blocked":
       return "The model endpoint is unreachable from the runtime"
+    case "model_provider_auth_rejected":
+      return "The provider rejected its API key"
+    case "model_provider_not_found":
+      return "The provider could not find that endpoint or model"
+    case "model_provider_overloaded":
+      return "The model provider is temporarily overloaded"
     default:
       return "Agent error"
   }

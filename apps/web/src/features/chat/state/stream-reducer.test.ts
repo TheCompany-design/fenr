@@ -461,6 +461,38 @@ describe("naming a turn that could not run", () => {
     )
   })
 
+  it("tells the user when the provider rejected their API key", () => {
+    expect(streamErrorTitle("model_provider_auth_rejected")).toBe(
+      "The provider rejected its API key",
+    )
+    expect(
+      describeStreamError(
+        "the provider rejected its API key; check the key in provider settings",
+        "model_provider_auth_rejected",
+        "req-1",
+      ),
+    ).toContain("check the key in provider settings")
+  })
+
+  it("points to the endpoint or model when the provider returns 404", () => {
+    expect(streamErrorTitle("model_provider_not_found")).toBe(
+      "The provider could not find that endpoint or model",
+    )
+  })
+
+  it("identifies a temporary provider overload and suggests retrying", () => {
+    expect(streamErrorTitle("model_provider_overloaded")).toBe(
+      "The model provider is temporarily overloaded",
+    )
+    expect(
+      describeStreamError(
+        "the model provider is temporarily overloaded; try again shortly",
+        "model_provider_overloaded",
+        "req-1",
+      ),
+    ).toContain("try again shortly")
+  })
+
   it("keeps the generic title for everything it does not recognise", () => {
     // Including a code it has never heard of, which is what makes the mapping
     // forward-compatible: an older client talking to a newer runtime still says
