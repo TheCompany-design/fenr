@@ -34,6 +34,8 @@ function setNativeValue(el: HTMLElement, val: string) {
     tracker.setValue("__prev_diff_value__")
   }
   set?.call(el, val)
+  // happy-dom's own Event constructor: the bare global is the host's, and this
+  // DOM refuses to dispatch one — which silently skipped the typing entirely.
   el.dispatchEvent(new window.Event("input", { bubbles: true }))
   el.dispatchEvent(new window.Event("change", { bubbles: true }))
 }
@@ -326,8 +328,12 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      const pill = container?.querySelectorAll("button")[0]
-      expect(pill?.textContent).toBe("Check inventory")
+      // Selected by name, not by position: the row moved below the input, so
+      // the first button in the composer is now the send control.
+      const pill = Array.from(container?.querySelectorAll("button") ?? []).find(
+        (button) => button.textContent === "Check inventory",
+      )
+      expect(pill).toBeDefined()
 
       act(() => {
         pill?.click()
@@ -529,12 +535,11 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   })
 
   describe("ChatContainer", () => {
-    it("lays the provider banner out in the composer, never over it", () => {
-      // A regression test for a bug that made the chat unusable: the banner was
-      // an absolutely positioned strip at `bottom-[4.75rem] z-20` with pointer
-      // events on, which lands inside the composer's own height — so it swallowed
-      // every click and keystroke aimed at the textarea, and nobody could send a
-      // message at all.
+    it("keeps the composer the only full-width layer over the conversation", () => {
+      // A regression guard for a bug that made the chat unusable: a strip laid
+      // at `bottom-[4.75rem] z-20` with pointer events on lands inside the
+      // composer's own height — so it swallowed every click and keystroke aimed
+      // at the textarea, and nobody could send a message at all.
       //
       // Asserted structurally rather than visually, because the failure is a
       // layering mistake and a screenshot would not have shown which of two
@@ -552,15 +557,10 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       const composer = container?.querySelector(
         '[data-slot="composer-container"]',
       )
-      const banner = container?.querySelector('[data-slot="provider-banner"]')
       const textarea = container?.querySelector("textarea")
 
       expect(composer).not.toBeNull()
-      expect(banner).not.toBeNull()
       expect(textarea).not.toBeNull()
-
-      // In the composer's own column, so it is laid out rather than overlaid.
-      expect(composer?.contains(banner as Node)).toBe(true)
 
       // The real assertion: the composer is the only full-width absolutely
       // positioned layer in the conversation area. A second one is what steals
@@ -605,6 +605,72 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(container?.querySelector("textarea")).toBeDefined()
     })
 
+    it("opens on a greeting and a question, with no icon above the input", () => {
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      const hero = container?.querySelector('[data-slot="hero-greeting"]')
+      expect(hero?.textContent).toContain("Hi, I’m Nabu")
+      expect(hero?.textContent).toContain("What are we working on today?")
+
+      // The greeting is two lines of type, nothing else: a decorative mark above
+      // the composer reads as an affordance and is not one.
+      expect(hero?.querySelector("svg")).toBeNull()
+      expect(hero?.querySelector("[data-slot]")).toBeNull()
+    })
+
+    it("keeps the suggestion prompts inside the composer panel, below the input", () => {
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      const panel = container?.querySelector('[data-slot="composer-panel"]')
+      const input = panel?.querySelector('[data-slot="composer-input"]')
+      const suggestions = panel?.querySelector(
+        '[data-slot="composer-suggestions"]',
+      )
+
+      expect(panel).not.toBeNull()
+      expect(suggestions).not.toBeNull()
+      // Supplementary rows live in the composer's own column, never positioned
+      // over the input: a row laid on top takes the input down with it.
+      expect(input?.contains(suggestions as Node)).toBe(false)
+      const order = Array.from(panel?.children ?? [])
+      expect(order.indexOf(suggestions as Element)).toBeGreaterThan(
+        order.indexOf(input as Element),
+      )
+    })
+
+    it("sends with a circular action in the input's corner", () => {
+      act(() => {
+        root?.render(
+          createElement(
+            QueryClientProvider,
+            { client: queryClient },
+            createElement(ChatContainer, {}),
+          ),
+        )
+      })
+
+      const send = container?.querySelector('button[aria-label="Send message"]')
+      expect(send?.className).toContain("rounded-full")
+      // Disabled on an empty prompt: the button is a target, not a decoration.
+      expect(send?.hasAttribute("disabled")).toBe(true)
+    })
+
     it("starts with composer centered and transitions to bottom when message is sent", async () => {
       act(() => {
         root?.render(
@@ -627,7 +693,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       )
       expect(heroGreeting?.className).toContain("opacity-100")
       expect(heroGreeting?.textContent).toContain(
-        "How can Nabu assist you today?",
+        "What are we working on today?",
       )
 
       const textarea = container?.querySelector(
@@ -653,6 +719,11 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(composerLayer?.className).toContain("bottom-0")
       expect(composerLayer?.className).toContain("translate-y-0")
       expect(heroGreeting?.className).toContain("opacity-0")
+      // The prompts were a way in; once the conversation exists they are only
+      // noise sitting under a live transcript.
+      expect(
+        container?.querySelector('[data-slot="composer-suggestions"]'),
+      ).toBeNull()
     })
   })
 })

@@ -59,7 +59,7 @@ export function AppShell({
              * shell controls, opt back in. No bottom border — the canvas below
              * runs on uninterrupted.
              */}
-            <header className="pointer-events-none relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md">
+            <header className="pointer-events-none relative z-30 flex h-14 shrink-0 items-center gap-2 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md">
               <SidebarTrigger
                 aria-label="Toggle navigation"
                 className="pointer-events-auto size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"

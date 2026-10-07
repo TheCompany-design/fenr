@@ -1,10 +1,7 @@
-import { AiChat02Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef } from "react"
 import { HeaderPortal } from "@/components/shell/header-portal"
-import { ProviderBanner } from "@/features/nabu/components/provider-notice"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
 import { ApprovalPrompt } from "./approval-prompt"
@@ -14,13 +11,6 @@ import { ChatMessages } from "./chat-messages"
 
 export interface ChatContainerProps {
   readonly threadId?: string
-  /**
-   * Whether the viewer may change the workspace's model provider.
-   *
-   * Passed in rather than read here: the chat feature does not own membership, and
-   * the route that renders it already has the answer.
-   */
-  readonly canAdministerProvider?: boolean
   readonly onNavigate?: (opts: {
     to: string
     params?: Record<string, string>
@@ -37,11 +27,7 @@ export interface ChatContainerProps {
  * the chat contributes its title to it through the header portal. What is left
  * here is the conversation itself.
  */
-export function ChatContainer({
-  threadId,
-  canAdministerProvider = false,
-  onNavigate,
-}: ChatContainerProps) {
+export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
   const { send, stop, isStreaming, turn } = useAgentStream()
 
@@ -157,35 +143,19 @@ export function ChatContainer({
               className={`flex flex-col items-center text-center transition-all duration-500 ease-out ${
                 hasStarted
                   ? "pointer-events-none mb-0 max-h-0 -translate-y-4 scale-95 opacity-0 overflow-hidden"
-                  : "mb-6 max-h-96 translate-y-0 scale-100 opacity-100"
+                  : "mb-4 max-h-96 translate-y-0 scale-100 opacity-100"
               }`}
             >
-              <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground shadow-xs">
-                <HugeiconsIcon icon={AiChat02Icon} size={24} />
-              </div>
-              <h2 className="mt-4 text-base font-semibold tracking-tight text-foreground sm:text-lg">
-                How can Nabu assist you today?
+              {/*
+               * A greeting line and a question, nothing else. No logo, no badge,
+               * no paragraph explaining the product: the composer beneath it
+               * already shows what this screen is for, and a card of icons above
+               * a prompt box is decoration pretending to be an affordance.
+               */}
+              <p className="text-sm text-muted-foreground">Hi, I’m Nabu 👋</p>
+              <h2 className="mt-2 text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+                What are we working on today?
               </h2>
-              <p className="mt-1.5 max-w-md text-xs leading-relaxed text-muted-foreground">
-                Ask questions about financial reconciliations, ledger balance
-                calculations, or trigger autonomous workflows with real-time
-                streaming.
-              </p>
-            </div>
-
-            {/*
-             * In the composer's own column, above the input — never an absolutely
-             * positioned strip laid over it.
-             *
-             * That was the bug: the banner sat at `bottom-[4.75rem] z-20` with
-             * pointer events on, which is *inside* the composer's own height, so
-             * it swallowed every click and keystroke aimed at the textarea. A
-             * supplementary status line must never be able to take the composer
-             * down with it, and the only reliable way to guarantee that is for it
-             * not to be positioned over the thing it decorates.
-             */}
-            <div className="w-full" data-slot="provider-banner">
-              <ProviderBanner canAdminister={canAdministerProvider} />
             </div>
 
             {/* Message Composer */}
@@ -194,6 +164,7 @@ export function ChatContainer({
                 onSend={handleSend}
                 onStop={stop}
                 isStreaming={isStreaming}
+                showSuggestions={!hasStarted}
               />
             </div>
           </div>

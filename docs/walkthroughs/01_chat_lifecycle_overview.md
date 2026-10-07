@@ -179,9 +179,9 @@ The client parses incoming SSE frames tagged `event: agent_event`. Payloads are 
 
 | Layer | Responsibility | State Model | Lifecycle / Failure Behavior |
 | :--- | :--- | :--- | :--- |
-| **`ChatContainer`** | UI layout, URL-driven routing, auto-scroll coordination. | TanStack Router params (`threadId`) + Query Cache | Sourced from URL; clears back to centered `/chat` on "Clear conversation". |
+| **`ChatContainer`** | UI layout, URL-driven routing, auto-scroll coordination, header portal contribution. | TanStack Router params (`threadId`) + Query Cache | Sourced from URL. A thread-less chat is a clean chat: it drops any draft left by a failed turn on mount, so returning to `/chat` starts over. |
 | **`ChatComposer`** | Input validation, keyboard capture, declarative sizing. | TanStack Form + CSS `field-sizing-content` | Zero useState/useEffect; declarative CSS height expansion. |
-| **`useAgentStream`** | Transport lifecycle, SSE line buffering, Zod parsing. | React Hook + Jotai atoms (`activeTurnProjectionAtom`) | Manages `AbortController`; cleans up listeners on abort/cancel. |
+| **`useAgentStream`** | Transport lifecycle, SSE line buffering, Zod parsing. | React Hook + Jotai atoms (`activeTurnProjectionAtom`) | Holds the one active `AbortController` at module scope, so `stop()` still works after the chat that started the stream has unmounted. |
 | **`streamReducer`** | Pure event accumulation without tearing. | Pure Function | Deterministic projection; 100% testable in unit tests. |
 | **TanStack Query** | Durable conversation history persistence & cache. | TanStack Query Cache (`['chat', 'thread', threadId, 'messages']`) | Optimistic updates on user send; auto-invalidated on turn completion. |
 | **BFF Proxy Route** | Session auth, tenant validation, outbound JWT minting, SSE proxy. | Stateless TanStack Start Route | Emits wide log events via Pino; handles upstream 502/504 errors gracefully. |
