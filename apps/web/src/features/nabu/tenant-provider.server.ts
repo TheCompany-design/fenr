@@ -2,7 +2,7 @@
  * Nabu HTTP calls for a workspace's own model provider.
  *
  * SERVER-ONLY. Thin over `executeRequest`: the interesting decisions — which
- * process dials the tenant's endpoint, and who may change it — are made in the
+ * process dials the vendor's endpoint, and who may change it — are made in the
  * runtime, not here.
  *
  * The one thing this module does that the other Nabu adapters do not is resolve
@@ -39,7 +39,7 @@ export interface TenantProviderRequestOptions extends ExecuteRequestOptions {
 }
 
 /**
- * Reads the workspace's model endpoint, model, and credential fingerprint.
+ * Reads the workspace's provider, model, and credential fingerprint.
  *
  * Never returns a key — the runtime's response shape has no field for one, and
  * the Zod schema here would reject it if it grew one.
@@ -62,7 +62,7 @@ export async function putTenantProvider(
   input: PutTenantProviderInput,
   options: TenantProviderRequestOptions,
 ): Promise<TenantProvider> {
-  // Narrow and credential-free on purpose. The endpoint and model are what an
+  // Narrow and credential-free on purpose. The provider and model are what an
   // operator needs to see in a log to explain a failure; the key is never in this
   // object, and the fingerprint does not exist yet.
   const { api_key: _key, ...visible } = input
@@ -115,10 +115,10 @@ export async function deleteTenantProvider(
 }
 
 /**
- * Asks the runtime to call the workspace's endpoint with its stored credential.
+ * Asks the runtime to call the workspace's provider with its stored credential.
  *
- * `ok: false` means the endpoint answered and refused. An unreachable or
- * blocked endpoint arrives as an error status instead, so a caller that only
+ * `ok: false` means the provider answered and refused. An unreachable or
+ * blocked provider arrives as an error status instead, so a caller that only
  * reads `ok` cannot mistake "your key is wrong" for "we could not try".
  */
 export async function verifyTenantProvider(
@@ -153,7 +153,7 @@ export function isPermissionDenied(error: unknown): boolean {
  *
  * `422` covers two cases the runtime answers differently in prose but the same
  * way on the wire, and a form should treat them the same: nothing is configured
- * yet, or the endpoint resolves somewhere the runtime will not dial. Both mean
+ * yet, or the provider cannot be reached from the runtime. Both mean
  * "this field needs changing", and both are distinct from a provider that
  * answered and refused its key, which comes back as `ok: false` instead.
  *

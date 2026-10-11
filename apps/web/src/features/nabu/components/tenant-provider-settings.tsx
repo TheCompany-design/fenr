@@ -1,5 +1,6 @@
 /**
- * The workspace's own model provider: endpoint, model, and credential.
+ * The workspace's own model provider: which vendor, which model, and which
+ * credential.
  *
  * The one screen in the product that stores a secret on the tenant's behalf, so
  * two rules run through every line of it:
@@ -8,11 +9,13 @@
  *   back. What renders in its place is the fingerprint — enough to confirm
  *   "the key ending a1b2c3 is the one you pasted", which is the only way to
  *   verify a save without displaying the key.
- * - **The runtime decides, this screen reports.** Whether the endpoint is
- *   reachable, whether the key is accepted, whether the address is one the
- *   runtime will dial — all of that is answered by the process that actually
- *   holds the credential and the egress guard. This component never guesses and
- *   never explains a refusal the runtime did not word.
+ * - **The runtime decides, this screen reports.** Whether the vendor is one the
+ *   runtime speaks, whether the model id is one that vendor can be asked for,
+ *   whether the key is accepted — all of that is answered by the process that
+ *   actually holds the credential. This component never guesses and never
+ *   explains a refusal the runtime did not word. There is no endpoint field any
+ *   more: each vendor's address is the runtime's own constant, so the picker
+ *   below is the whole of what a workspace chooses.
  */
 
 import {
@@ -54,17 +57,13 @@ import {
 /**
  * What the form validates before anything is sent.
  *
- * Deliberately permissive about the endpoint's *shape* and strict about its
- * emptiness. The runtime owns the rules that matter — scheme, host, credentials
- * in the URL — and duplicating them here would be a second implementation that
- * disagrees with the first on some provider's oddity.
+ * Deliberately permissive about the model id's *shape* and strict about
+ * emptiness. The runtime owns the rules that matter — which vendor a model id
+ * belongs to, whether a key can work — and duplicating them here would be a
+ * second implementation that disagrees with the first on some vendor's oddity.
  */
 const providerFormSchema = z.object({
-  baseUrl: z
-    .string()
-    .trim()
-    .min(1, "An endpoint is required")
-    .max(2048, "That endpoint is implausibly long"),
+  provider: z.string().min(1, "Choose a provider"),
   model: z
     .string()
     .trim()
@@ -76,6 +75,20 @@ const providerFormSchema = z.object({
     .min(1, "An API key is required")
     .max(4096, "That key is implausibly long"),
 })
+
+/**
+ * The vendors a workspace can choose between.
+ *
+ * The menu, not the law: the runtime owns the closed set and answers an
+ * unknown name with a `400` naming it. Rendering the four by name is how a
+ * workspace picks one without ever seeing an address.
+ */
+const PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI", hint: "gpt-4o-mini" },
+  { value: "openrouter", label: "OpenRouter", hint: "vendor/model" },
+  { value: "anthropic", label: "Anthropic", hint: "claude-sonnet-4-5" },
+  { value: "google", label: "Google Gemini", hint: "gemini-2.5-flash" },
+]
 
 export interface TenantProviderSettingsProps {
   /** Whether the viewer may change any of this. */
@@ -185,7 +198,7 @@ function ProviderForm({
     // save refetches, and re-seeding on that empties the fields at the exact
     // moment somebody is reading whether it worked.
     defaultValues: {
-      baseUrl: provider.base_url,
+      provider: provider.provider,
       model: provider.model,
       // Never pre-filled from the stored value: there is none. The field stays
       // empty and the placeholder tells the reader a key *is* stored.
@@ -198,7 +211,7 @@ function ProviderForm({
     onSubmit: async ({ value }) => {
       await save.mutateAsync({
         data: {
-          base_url: value.baseUrl.trim(),
+          provider: value.provider,
           model: value.model.trim(),
           api_key: value.apiKey.trim(),
         },
@@ -218,7 +231,7 @@ function ProviderForm({
 
     try {
       await remove.mutateAsync()
-      form.reset({ baseUrl: "", model: "", apiKey: "" })
+      form.reset({ provider: "", model: "", apiKey: "" })
     } catch {
       // `remove`'s own `onError` has already told the user. Swallowing here keeps
       // a rejected confirm-dialog path from producing a second, identical toast.
@@ -228,12 +241,12 @@ function ProviderForm({
   const handleVerify = async () => {
     const verified = await verifyTenantProviderFn()
     if (verified.ok) {
-      toast.success("Endpoint reachable", {
+      toast.success("The provider accepted the key", {
         description: verified.message,
       })
       return
     }
-    toast.warning("The endpoint refused the key", {
+    toast.warning("The provider refused the key", {
       description: verified.message,
     })
   }
@@ -260,8 +273,8 @@ function ProviderForm({
               Model provider
             </CardTitle>
             <CardDescription>
-              The OpenAI-compatible endpoint this workspace's turns run on, and
-              the credential it authenticates with. Each workspace pays its own
+              The vendor this workspace's turns run on, the model they ask for,
+              and the credential that pays for them. Each workspace pays its own
               provider bill.
             </CardDescription>
           </CardHeader>
@@ -281,33 +294,48 @@ function ProviderForm({
               </div>
             )}
 
-            <form.Field name="baseUrl">
+            <form.Field name="provider">
               {(field) => (
-                <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+                <fieldset
+                  className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10"
+                  aria-invalid={
+                    field.state.meta.isTouched &&
+                    field.state.meta.errors.length > 0
+                  }
+                >
                   <div>
-                    <Label htmlFor="provider-base-url">Endpoint</Label>
+                    <legend className="text-sm leading-none font-medium">
+                      Provider
+                    </legend>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      Any OpenAI-compatible base URL. A bare host or a{" "}
-                      <code className="font-mono">/v1</code> base both work; a
-                      pasted{" "}
-                      <code className="font-mono">/chat/completions</code> is
-                      trimmed for you.
+                      The vendor these turns run on. The runtime owns each
+                      vendor's address — there is no URL to paste.
                     </p>
                   </div>
-                  <Input
-                    id="provider-base-url"
-                    type="url"
-                    placeholder="https://api.openai.com/v1"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) => field.handleChange(event.target.value)}
-                    disabled={readOnly || save.isPending}
-                    aria-invalid={
-                      field.state.meta.isTouched &&
-                      field.state.meta.errors.length > 0
-                    }
-                  />
-                </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {PROVIDER_OPTIONS.map((option) => (
+                      <label
+                        key={option.value}
+                        className="flex cursor-pointer flex-col gap-0.5 rounded-lg border border-input bg-transparent px-3 py-2 text-sm transition-colors select-none hover:bg-accent/50 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 has-[:checked]:border-ring has-[:checked]:bg-accent aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+                      >
+                        <input
+                          type="radio"
+                          name="provider"
+                          value={option.value}
+                          checked={field.state.value === option.value}
+                          onBlur={field.handleBlur}
+                          onChange={() => field.handleChange(option.value)}
+                          disabled={readOnly || save.isPending}
+                          className="sr-only"
+                        />
+                        <span className="font-medium">{option.label}</span>
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {option.hint}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               )}
             </form.Field>
 
@@ -317,9 +345,12 @@ function ProviderForm({
                   <div>
                     <Label htmlFor="provider-model">Model</Label>
                     <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                      The identifier your provider knows it by. Gateways use
-                      names like <code className="font-mono">vendor/model</code>
-                      .
+                      The identifier the chosen provider knows it by —{" "}
+                      <code className="font-mono">gpt-4o-mini</code> for OpenAI,{" "}
+                      <code className="font-mono">claude-sonnet-4-5</code> for
+                      Anthropic, a{" "}
+                      <code className="font-mono">vendor/model</code> pair on
+                      OpenRouter.
                     </p>
                   </div>
                   <Input

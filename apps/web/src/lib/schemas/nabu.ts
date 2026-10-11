@@ -115,8 +115,14 @@ export type TurnItemsResponse = z.infer<typeof turnItemsResponseSchema>
 export const tenantProviderSchema = z.object({
   /** Whether a provider has been configured at all. */
   configured: z.boolean(),
-  /** The endpoint as the workspace configured it. */
-  base_url: z.string(),
+  /**
+   * Which vendor this workspace dials, or empty when nothing is configured.
+   *
+   * A string rather than the picker's enum on purpose: a runtime that learns a
+   * fifth vendor before this screen does must still render, naming the vendor
+   * it knows and this build does not.
+   */
+  provider: z.string(),
   /** The model identifier as the workspace configured it. */
   model: z.string(),
   /**
@@ -151,7 +157,8 @@ const trimmed = (max: number, message: string) =>
   z.string().trim().min(1, message).max(max)
 
 export const putTenantProviderInputSchema = z.object({
-  base_url: trimmed(2048, "An endpoint is required"),
+  /** Which vendor to dial. The runtime refuses one it cannot speak, by name. */
+  provider: trimmed(64, "Choose a provider"),
   model: trimmed(256, "A model id is required"),
   api_key: trimmed(4096, "An API key is required"),
   max_output_tokens: z.number().int().positive().nullable().optional(),
@@ -162,12 +169,12 @@ export type PutTenantProviderInput = z.input<
 >
 
 /**
- * The result of testing a workspace's endpoint.
+ * The result of testing a workspace's provider.
  *
  * `POST /api/v1/provider/verify`
  *
- * `ok: false` means the endpoint *answered* and refused — a wrong key is a
- * result, not a malfunction. An endpoint that could not be reached comes back as
+ * `ok: false` means the provider *answered* and refused — a wrong key is a
+ * result, not a malfunction. A provider that could not be reached comes back as
  * an error status instead, so the two are never confused by a client that only
  * checks `ok`.
  */

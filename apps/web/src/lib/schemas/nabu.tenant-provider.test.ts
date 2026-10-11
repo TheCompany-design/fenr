@@ -30,7 +30,7 @@ import {
 describe("the tenant provider read shape", () => {
   const configured = {
     configured: true,
-    base_url: "https://api.openai.com/v1",
+    provider: "openai",
     model: "gpt-4o-mini",
     fingerprint: "a1b2c3",
     max_output_tokens: null,
@@ -46,7 +46,7 @@ describe("the tenant provider read shape", () => {
   it("accepts an unconfigured workspace as a state rather than an absence", () => {
     const empty = tenantProviderSchema.parse({
       configured: false,
-      base_url: "",
+      provider: "",
       model: "",
       fingerprint: "",
       max_output_tokens: null,
@@ -57,7 +57,7 @@ describe("the tenant provider read shape", () => {
     expect(empty.configured).toBe(false)
     // A screen that renders "configured: false" is honest; one that receives
     // null and has to guess is not.
-    expect(empty.base_url).toBe("")
+    expect(empty.provider).toBe("")
   })
 
   it("cannot represent a credential at all", () => {
@@ -87,18 +87,18 @@ describe("the tenant provider read shape", () => {
 })
 
 describe("the provider write shape", () => {
-  it("requires an endpoint, a model, and a key", () => {
+  it("requires a provider, a model, and a key", () => {
     expect(
       putTenantProviderInputSchema.safeParse({
-        base_url: "https://api.openai.com/v1",
+        provider: "openai",
         model: "gpt-4o-mini",
         api_key: "sk-live-abc123",
       }).success,
     ).toBe(true)
 
-    for (const missing of ["base_url", "model", "api_key"]) {
+    for (const missing of ["provider", "model", "api_key"]) {
       const input: Record<string, unknown> = {
-        base_url: "https://api.openai.com/v1",
+        provider: "openai",
         model: "gpt-4o-mini",
         api_key: "sk-live-abc123",
       }
@@ -113,9 +113,23 @@ describe("the provider write shape", () => {
     for (const blank of ["", "   ", "\t\n"]) {
       expect(
         putTenantProviderInputSchema.safeParse({
-          base_url: "https://api.openai.com/v1",
+          provider: "openai",
           model: "gpt-4o-mini",
           api_key: blank,
+        }).success,
+      ).toBe(false)
+    }
+  })
+
+  it("refuses a blank provider rather than saving one nobody chose", () => {
+    // The closed picker makes this unreachable through the form; the schema is
+    // the second half of the same guarantee, for a caller that is not the form.
+    for (const blank of ["", "   "]) {
+      expect(
+        putTenantProviderInputSchema.safeParse({
+          provider: blank,
+          model: "m",
+          api_key: "sk-test",
         }).success,
       ).toBe(false)
     }
@@ -124,7 +138,7 @@ describe("the provider write shape", () => {
   it("accepts absent overrides and rejects a non-positive ceiling", () => {
     expect(
       putTenantProviderInputSchema.safeParse({
-        base_url: "https://api.openai.com/v1",
+        provider: "openai",
         model: "m",
         api_key: "sk-test",
       }).success,
@@ -132,7 +146,7 @@ describe("the provider write shape", () => {
 
     expect(
       putTenantProviderInputSchema.safeParse({
-        base_url: "https://api.openai.com/v1",
+        provider: "openai",
         model: "m",
         api_key: "sk-test",
         max_output_tokens: 0,
@@ -146,11 +160,11 @@ describe("the verification result", () => {
     const refused = verifyTenantProviderResponseSchema.parse({
       ok: false,
       message:
-        "the endpoint answered, but did not accept the stored credential",
+        "the provider answered, but did not accept the stored credential",
     })
     expect(refused.ok).toBe(false)
     // The distinction is load-bearing: a wrong key is a result, and reporting it
-    // as a malfunction would tell a user their endpoint is down.
+    // as a malfunction would tell a user their provider is down.
     expect(refused.message).toContain("did not accept")
   })
 })
@@ -166,12 +180,12 @@ describe("classifying a runtime refusal", () => {
   })
 
   it("recognises a configuration refusal, whatever the prose was", () => {
-    // Both "nothing is configured yet" and "that endpoint is not reachable from
+    // Both "nothing is configured yet" and "that provider cannot be reached from
     // the runtime" arrive as 422, and a form treats them the same way: the
-    // endpoint field needs changing.
+    // configuration needs changing.
     for (const message of [
       "this workspace has no model provider configured yet",
-      "this endpoint cannot be reached from the runtime",
+      "the provider cannot be reached from the runtime",
     ]) {
       expect(
         isConfigurationRefused(

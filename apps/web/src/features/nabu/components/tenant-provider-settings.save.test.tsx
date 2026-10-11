@@ -39,7 +39,7 @@ const calls: {
  */
 let stored: TenantProvider = {
   configured: false,
-  base_url: "",
+  provider: "",
   model: "",
   fingerprint: "",
   max_output_tokens: null,
@@ -58,7 +58,7 @@ mock.module("../tenant-provider.functions", () => ({
     stored = {
       ...stored,
       configured: true,
-      base_url: String(data.base_url),
+      provider: String(data.provider),
       model: String(data.model),
       fingerprint: "a1b2c3",
       updated_at: new Date().toISOString(),
@@ -67,7 +67,7 @@ mock.module("../tenant-provider.functions", () => ({
   },
   deleteTenantProviderFn: async () => {
     calls.remove += 1
-    stored = { ...stored, configured: false, base_url: "", model: "" }
+    stored = { ...stored, configured: false, provider: "", model: "" }
   },
   verifyTenantProviderFn: async () => {
     calls.verify += 1
@@ -150,6 +150,24 @@ function type(fieldId: string, value: string) {
   })
 }
 
+/**
+ * Picks a vendor the way a person does: a click on the option's radio.
+ *
+ * The picker is four radios rather than a text field, so "typing a provider"
+ * is not a thing; React wires radio `onChange` to the click event, which is
+ * what a click dispatches.
+ */
+function choose(value: string) {
+  const input = container.querySelector<HTMLInputElement>(
+    `input[name="provider"][value="${value}"]`,
+  )
+  if (!input) throw new Error(`no provider option ${value}`)
+
+  act(() => {
+    input.click()
+  })
+}
+
 function field(fieldId: string): HTMLInputElement {
   const input = container.querySelector<HTMLInputElement>(`#${fieldId}`)
   if (!input) throw new Error(`no field ${fieldId}`)
@@ -211,7 +229,7 @@ async function submit(button: HTMLElement) {
 
 const BLANK: TenantProvider = {
   configured: false,
-  base_url: "",
+  provider: "",
   model: "",
   fingerprint: "",
   max_output_tokens: null,
@@ -229,10 +247,10 @@ describe("saving a provider from an unconfigured workspace", () => {
     container?.remove()
   })
 
-  it("sends what the person typed", async () => {
+  it("sends what the person chose and typed", async () => {
     await mount({ ...BLANK })
 
-    type("provider-base-url", "https://api.example.com/v1")
+    choose("openai")
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
@@ -241,27 +259,44 @@ describe("saving a provider from an unconfigured workspace", () => {
     expect(calls.put.length).toBe(1)
     expect(calls.put[0]).toEqual({
       data: {
-        base_url: "https://api.example.com/v1",
+        provider: "openai",
         model: "gpt-4o-mini",
         api_key: "sk-live-abc123",
       },
     })
   })
 
-  it("keeps what the person typed after a successful save", async () => {
+  it("sends nothing while no provider is chosen", async () => {
+    // The endpoint field used to be the one a blank form failed on; the picker
+    // is now, and a blank picker is a refusal rather than a PUT.
+    await mount({ ...BLANK })
+
+    type("provider-model", "gpt-4o-mini")
+    type("provider-api-key", "sk-live-abc123")
+
+    await submit(buttonLabelled("Save provider"))
+
+    expect(calls.put.length).toBe(0)
+  })
+
+  it("keeps what the person chose and typed after a successful save", async () => {
     // The symptom being chased. The form's defaults come from the query, so a
     // save that leaves the query reading "not configured" re-seeds the fields to
     // empty — which looks exactly like the save being thrown away.
     await mount({ ...BLANK })
 
-    type("provider-base-url", "https://api.example.com/v1")
+    choose("openai")
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
 
     expect(calls.put.length).toBe(1)
-    expect(field("provider-base-url").value).toBe("https://api.example.com/v1")
+    const chosen = container.querySelector<HTMLInputElement>(
+      'input[name="provider"][value="openai"]',
+    )
+    if (!chosen) throw new Error("the provider options vanished")
+    expect(chosen.checked).toBe(true)
     expect(field("provider-model").value).toBe("gpt-4o-mini")
   })
 
@@ -278,7 +313,7 @@ describe("saving a provider from an unconfigured workspace", () => {
   it("refuses a blank key rather than sending one", async () => {
     await mount({ ...BLANK })
 
-    type("provider-base-url", "https://api.example.com/v1")
+    choose("openai")
     type("provider-model", "gpt-4o-mini")
     // Key left empty.
 
@@ -307,7 +342,7 @@ describe("what a background refetch does to what the person typed", () => {
     // current behaviour rather than on an assumption.
     const { queryClient } = await mount({ ...BLANK })
 
-    type("provider-base-url", "https://api.example.com/v1")
+    choose("openai")
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
@@ -319,7 +354,11 @@ describe("what a background refetch does to what the person typed", () => {
       await Promise.resolve()
     })
 
-    expect(field("provider-base-url").value).toBe("https://api.example.com/v1")
+    const chosen = container.querySelector<HTMLInputElement>(
+      'input[name="provider"][value="openai"]',
+    )
+    if (!chosen) throw new Error("the provider options vanished")
+    expect(chosen.checked).toBe(true)
     expect(field("provider-model").value).toBe("gpt-4o-mini")
     expect(field("provider-api-key").value).toBe("sk-live-abc123")
   })

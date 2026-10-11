@@ -30,7 +30,7 @@ import { TenantProviderSettings } from "./tenant-provider-settings"
 
 const UNCONFIGURED: TenantProvider = {
   configured: false,
-  base_url: "",
+  provider: "",
   model: "",
   fingerprint: "",
   max_output_tokens: null,
@@ -41,7 +41,7 @@ const UNCONFIGURED: TenantProvider = {
 
 const CONFIGURED: TenantProvider = {
   configured: true,
-  base_url: "https://api.openai.com/v1",
+  provider: "openai",
   model: "gpt-4o-mini",
   fingerprint: "a1b2c3",
   max_output_tokens: null,
@@ -103,10 +103,27 @@ describe("a workspace with no provider configured", () => {
   })
 
   it("offers no verification, because there is nothing to verify", () => {
-    // Testing an endpoint that does not exist yet would report a failure that
+    // Testing a provider that is not configured yet would report a failure that
     // reads like a broken key rather than a missing one.
     expect(html).not.toContain("Test connection")
     expect(html).not.toContain("Remove")
+  })
+
+  it("offers every vendor as a choice, and preselects none", () => {
+    // The picker is the whole of what a workspace chooses about its provider —
+    // there is no URL field to get wrong — so all four have to be visible
+    // rather than hidden behind a dropdown.
+    for (const label of [
+      "OpenAI",
+      "OpenRouter",
+      "Anthropic",
+      "Google Gemini",
+    ]) {
+      expect(html).toContain(label)
+    }
+    // The rendered attribute, not the bare word — the class list legitimately
+    // contains a `has-[:checked]` variant.
+    expect(html).not.toContain('checked=""')
   })
 })
 
@@ -116,8 +133,13 @@ describe("a workspace with a provider configured", () => {
     html = await render(CONFIGURED)
   })
 
-  it("pre-fills the endpoint and model the tenant typed", () => {
-    expect(html).toContain("https://api.openai.com/v1")
+  it("pre-fills the provider and model the tenant chose", () => {
+    // The chosen vendor renders as the checked radio; there is no endpoint to
+    // pre-fill, because the address belongs to the runtime. The attribute is
+    // asserted separately from the value so the test does not depend on React's
+    // attribute ordering.
+    expect(html).toContain('value="openai"')
+    expect(html).toContain('checked=""')
     expect(html).toContain("gpt-4o-mini")
   })
 
@@ -148,9 +170,9 @@ describe("a member who cannot change any of this", () => {
   })
 
   it("cannot edit any field", () => {
-    // Three disabled inputs: endpoint, model, key.
+    // Six disabled controls: four provider radios, the model, the key.
     const disabled = html.match(/disabled/g) ?? []
-    expect(disabled.length).toBeGreaterThanOrEqual(3)
+    expect(disabled.length).toBeGreaterThanOrEqual(6)
   })
 
   it("is offered no way to change it, and told who to ask", () => {
