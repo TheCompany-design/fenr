@@ -170,6 +170,12 @@ function reduceAgentEvent(
       })
     }
 
+    case "model_call_recorded": {
+      // One provider call's own facts, not a message. The transcript is
+      // unchanged; the meter reads the turn aggregate elsewhere.
+      return [...messages]
+    }
+
     case "turn_suspended": {
       // The turn is parked on a decision. Settle the bubble so the timeline
       // stops presenting it as live, and leave the wording to the approval

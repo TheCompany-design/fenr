@@ -209,6 +209,35 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     /**
+     * One model call finished, with what it cost as the provider reported
+     * it. The runtime emits one per call; the turn aggregate on
+     * `turn_completed` is unchanged. Nothing here drives state yet — the
+     * event is modelled so a known frame is not logged as unknown — and a
+     * future read of this event is exactly where per-call latency or cache
+     * data would land.
+     */
+    type: z.literal("model_call_recorded"),
+    data: z.object({
+      saved_config_id: z.string().uuid().nullable(),
+      provider: z.string(),
+      model: z.string(),
+      step: z.number().int().positive(),
+      usage: z.object({
+        input_tokens: z.number().int().nonnegative(),
+        output_tokens: z.number().int().nonnegative(),
+        cached_input_tokens: z.number().int().nonnegative(),
+        cache_creation_input_tokens: z.number().int().nonnegative(),
+        tool_use_input_tokens: z.number().int().nonnegative(),
+        reasoning_tokens: z.number().int().nonnegative(),
+      }),
+      duration_ms: z.number().nonnegative(),
+      ttft_ms: z.number().nonnegative().nullable(),
+      finish_reason: z.string().nullable(),
+      error_code: z.string().nullable(),
+    }),
+  }),
+  z.object({
+    /**
      * The turn stopped because it needs a human decision. Not terminal: the
      * turn resumes when the decision is recorded.
      */
@@ -277,6 +306,7 @@ export type AgentStreamEvent = z.infer<typeof agentStreamEventSchema>
 /** Event names the current server emits, for logging and diagnostics. */
 export const AGENT_STREAM_EVENT_TYPES = [
   "turn_started",
+  "model_call_recorded",
   "turn_suspended",
   "turn_resumed",
   "item_started",

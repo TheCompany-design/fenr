@@ -181,6 +181,33 @@ export const TURN_COMPLETED_CANCELLED_FIXTURE = {
   },
 }
 
+/**
+ * Captured from the runtime's own serialization test
+ * (`test_model_call_recorded_serialization`), the same way the other frames
+ * were: the JSON the Rust side pins is the JSON asserted here.
+ */
+export const MODEL_CALL_RECORDED_FIXTURE = {
+  type: "model_call_recorded",
+  data: {
+    saved_config_id: null,
+    provider: "scripted",
+    model: "scripted-model",
+    step: 1,
+    usage: {
+      input_tokens: 1000,
+      output_tokens: 50,
+      cached_input_tokens: 300,
+      cache_creation_input_tokens: 40,
+      tool_use_input_tokens: 0,
+      reasoning_tokens: 18,
+    },
+    duration_ms: 1250,
+    ttft_ms: 180,
+    finish_reason: "stop",
+    error_code: null,
+  },
+}
+
 export const STREAM_ERROR_FIXTURE = {
   type: "stream_error",
   data: { code: "INTERNAL_ERROR", message: "boom" },
@@ -189,6 +216,7 @@ export const STREAM_ERROR_FIXTURE = {
 /** Every fixture, for exhaustive round-trip coverage. */
 export const ALL_AGENT_STREAM_FIXTURES = [
   TURN_STARTED_FIXTURE,
+  MODEL_CALL_RECORDED_FIXTURE,
   TURN_SUSPENDED_FIXTURE,
   TURN_RESUMED_FIXTURE,
   ITEM_STARTED_TOOL_CALL_FIXTURE,

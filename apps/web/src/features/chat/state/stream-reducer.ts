@@ -185,6 +185,13 @@ export function streamReducer(
         activeItemId: null,
       }
 
+    case "model_call_recorded": {
+      // One provider call's own facts. The turn aggregate on `turn_completed`
+      // is what the meter seeds from; this event changes no state — it is
+      // modelled so the stream does not report a known frame as unknown.
+      return state
+    }
+
     case "turn_resumed":
       return {
         ...state,
