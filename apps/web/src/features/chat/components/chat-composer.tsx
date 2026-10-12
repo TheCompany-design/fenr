@@ -98,7 +98,7 @@ export function ChatComposer({
                 }}
                 placeholder={placeholder}
                 rows={1}
-                className="max-h-[200px] min-h-[44px] w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden"
+                className="max-h-50 min-h-11 w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden"
               />
             )}
           </form.Field>

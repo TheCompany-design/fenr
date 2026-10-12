@@ -153,7 +153,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
           data-slot="composer-container"
           className={`pointer-events-none absolute inset-x-0 z-10 flex flex-col transition-all duration-500 ease-out ${
             hasStarted
-              ? "bottom-0 translate-y-0 justify-end bg-gradient-to-t from-background via-background/80 to-transparent pb-4 pt-10 sm:pb-6"
+              ? "bottom-0 translate-y-0 justify-end bg-linear-to-t from-background via-background/80 to-transparent pb-4 pt-10 sm:pb-6"
               : "bottom-1/2 translate-y-1/2 justify-center pb-0 pt-0"
           }`}
         >
