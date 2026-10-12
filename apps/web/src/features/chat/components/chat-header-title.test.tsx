@@ -13,25 +13,7 @@ const { useHeaderPortalStore } = await import(
 const { chatKeys } = await import("../queries/chat-queries")
 const { ChatContainer } = await import("./chat-container")
 const { ChatHeaderTitle } = await import("./chat-header-title")
-
-function setNativeValue(el: HTMLElement, val: string) {
-  const isTextArea = el instanceof HTMLTextAreaElement
-  const proto = isTextArea
-    ? HTMLTextAreaElement.prototype
-    : HTMLInputElement.prototype
-  const set = Object.getOwnPropertyDescriptor(proto, "value")?.set
-  const tracker = (
-    el as unknown as { _valueTracker?: { setValue: (v: string) => void } }
-  )._valueTracker
-  if (tracker) {
-    tracker.setValue("__prev_diff_value__")
-  }
-  set?.call(el, val)
-  // happy-dom's own Event: the bare global is the host's, which this DOM
-  // refuses in dispatchEvent.
-  el.dispatchEvent(new window.Event("input", { bubbles: true }))
-  el.dispatchEvent(new window.Event("change", { bubbles: true }))
-}
+const { usePromptStore } = await import("@/components/composer")
 
 const THREAD_ID = "0f5c2f9e-4b6d-4c2e-9a1f-2b7d6e5c4a31"
 
@@ -77,6 +59,25 @@ describe("chat header title", () => {
 
   beforeEach(() => {
     useHeaderPortalStore.getState().retractAll()
+    // The composer is module state that outlives any mount — one composer per
+    // tab is the design — so a suite that renders ChatContainer must start it
+    // from a clean slate or the previous test's draft text leaks into the DOM.
+    usePromptStore.setState({
+      text: "",
+      mentions: [],
+      attachments: [],
+      selection: null,
+      effort: null,
+      toolIds: [],
+      search: false,
+      blockers: [{ kind: "no-model" }],
+      notices: [],
+      usage: null,
+      hydrated: false,
+      status: "ready",
+      transport: null,
+      runtimeTools: [],
+    })
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -144,38 +145,34 @@ describe("chat header title", () => {
     expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
-  it("fills the header in as soon as the first prompt is sent", async () => {
+  it("fills the header in as soon as the first prompt is sent", () => {
     render(createElement(ChatContainer, {}))
     expect(headerText()).not.toContain("New conversation")
 
-    const textarea = container?.querySelector("textarea") as HTMLTextAreaElement
+    // The transport's first act on send is to land the optimistic user
+    // message in the draft cache. The title must fill in at that moment —
+    // before the stream answers — which is exactly what writing the draft
+    // does here.
     act(() => {
-      setNativeValue(textarea, "Reconcile the Q3 ledger")
-    })
-    await act(async () => {
-      ;(
-        container?.querySelector('button[type="submit"]') as HTMLButtonElement
-      )?.click()
+      queryClient.setQueryData(chatKeys.messages(null), [
+        userMessage("Reconcile the Q3 ledger"),
+      ])
     })
 
     expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
-  it("survives the hop from a draft chat to its persisted thread", async () => {
+  it("survives the hop from a draft chat to its persisted thread", () => {
     render(createElement(ChatContainer, {}))
-    const textarea = container?.querySelector("textarea") as HTMLTextAreaElement
-    act(() => {
-      setNativeValue(textarea, "Reconcile the Q3 ledger")
-    })
-    await act(async () => {
-      ;(
-        container?.querySelector('button[type="submit"]') as HTMLButtonElement
-      )?.click()
-    })
 
     // What the stream does when the runtime mints the thread id: move the
     // optimistic messages onto the thread's key, then navigate. The title must
     // read the same before and after, or it blinks on every first prompt.
+    act(() => {
+      queryClient.setQueryData(chatKeys.messages(null), [
+        userMessage("Reconcile the Q3 ledger"),
+      ])
+    })
     const draft = queryClient.getQueryData(chatKeys.messages(null))
     queryClient.setQueryData(chatKeys.messages(THREAD_ID), draft)
     render(createElement(ChatContainer, { threadId: THREAD_ID }))
@@ -211,10 +208,6 @@ describe("chat header title", () => {
 
   it("keeps a failed conversation readable instead of wiping it as it fails", () => {
     render(createElement(ChatContainer, {}))
-    const textarea = container?.querySelector("textarea") as HTMLTextAreaElement
-    act(() => {
-      setNativeValue(textarea, "Reconcile the Q3 ledger")
-    })
 
     // The optimistic messages land, then the streaming flag drops back when the
     // request fails. Nothing may clear the conversation in that gap: this is the

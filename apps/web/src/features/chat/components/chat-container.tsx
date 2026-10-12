@@ -1,14 +1,15 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
+import { ComposerMount, useComposerEvent } from "@/components/composer"
 import { HeaderPortal } from "@/components/shell/header-portal"
+import { getThreadProviderFn } from "../chat.functions"
+import { useComposerBridge, useComposerHostData } from "../composer-host"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
 import { ApprovalPrompt } from "./approval-prompt"
-import { ChatComposer } from "./chat-composer"
 import { ChatHeaderTitle } from "./chat-header-title"
 import { ChatMessages } from "./chat-messages"
-import { ProviderPicker } from "./provider-picker"
 
 export interface ChatContainerProps {
   readonly threadId?: string
@@ -27,10 +28,16 @@ export interface ChatContainerProps {
  * The screen has no header of its own: the app shell's top bar owns that, and
  * the chat contributes its title to it through the header portal. What is left
  * here is the conversation itself.
+ *
+ * The composer is the conversation's only model control. Its picker writes the
+ * choice that rides with the next message — there is no separate header
+ * dropdown to keep in step, because two controls for one fact is how they
+ * start disagreeing.
  */
 export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
   const { send, stop, isStreaming, turn } = useAgentStream()
+  const { savedProviders } = useComposerHostData()
 
   /*
    * A chat with no thread is a clean chat.
@@ -80,35 +87,46 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const { data: messages } = useQuery(threadMessagesQueryOptions(threadId))
   const safeMessages = messages ?? []
 
-  const handleSend = async (prompt: string) => {
-    await send(prompt, threadId, {
-      providerConfigId,
-      onTurnStarted: async (serverThreadId) => {
-        // Seamlessly transition URL from /chat to /chat/<server-thread-id>
-        await safeNavigate({
-          to: "/chat/$threadId",
-          params: { threadId: serverThreadId },
-          replace: true,
-        })
-      },
-    })
-  }
+  // The conversation's persisted provider choice, so the composer opens on
+  // what this thread actually runs on — read from the record, not local state.
+  const { data: threadProviderId } = useQuery({
+    queryKey: ["chat", "thread-provider", threadId],
+    queryFn: () =>
+      getThreadProviderFn({ data: { threadId: threadId as string } }),
+    enabled: Boolean(threadId),
+    staleTime: 1000 * 30,
+    retry: 1,
+  })
+
+  const bridge = useComposerBridge({
+    threadId,
+    messages: safeMessages,
+    threadProviderId: threadProviderId ?? null,
+    savedProviders,
+    turnUsage: turn.usage,
+    turnStatus: turn.status,
+    isStreaming,
+    send,
+    stop,
+    onTurnStarted: (serverThreadId) =>
+      safeNavigate({
+        to: "/chat/$threadId",
+        params: { threadId: serverThreadId },
+        replace: true,
+      }),
+  })
+
+  // `/provider` hands off to settings: keys are workspace state, and a picker
+  // that grew add-forms would be a settings page wearing a dropdown.
+  useComposerEvent("composer:open-provider-picker", () => {
+    void safeNavigate({ to: "/settings/provider" })
+  })
 
   const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
 
   // A suspended turn is waiting on a decision, not on the model. Offering the
   // composer here would let a new turn start while this one is parked, and the
   // approval request would then belong to a conversation nobody is looking at.
-  /*
-   * The conversation's provider choice.
-   *
-   * Held here rather than in the picker because the composer's send needs it:
-   * the choice rides with the next message and the runtime stores it on the
-   * thread, so after the turn starts the record is the truth again. `null`
-   * until the person picks — which means "the workspace default", exactly what
-   * the runtime resolves an absent choice to.
-   */
-  const [providerConfigId, setProviderConfigId] = useState<string | null>(null)
 
   const awaitingApproval =
     turn.status === "suspended" &&
@@ -122,14 +140,6 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
       {/* This screen's contribution to the app shell's header. */}
       <HeaderPortal region="start" className="min-w-0 flex-1">
         <ChatHeaderTitle threadId={threadId} />
-      </HeaderPortal>
-      <HeaderPortal region="end">
-        <ProviderPicker
-          threadId={threadId}
-          value={providerConfigId}
-          onChange={setProviderConfigId}
-          disabled={isStreaming}
-        />
       </HeaderPortal>
 
       {/* Conversational Canvas Area */}
@@ -181,12 +191,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
 
             {/* Message Composer */}
             <div className="w-full">
-              <ChatComposer
-                onSend={handleSend}
-                onStop={stop}
-                isStreaming={isStreaming}
-                showSuggestions={!hasStarted}
-              />
+              <ComposerMount bridge={bridge} />
             </div>
           </div>
         </div>

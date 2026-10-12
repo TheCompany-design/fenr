@@ -31,6 +31,7 @@ function projection(
     approvalAttempt: null,
     error: null,
     errorCode: null,
+    usage: null,
     ...overrides,
   }
 }

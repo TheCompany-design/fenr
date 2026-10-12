@@ -3,6 +3,7 @@ import {
   type ItemDeltaPayload,
   parseAgentStreamEvent,
   type TurnStatus,
+  type UsageReport,
 } from "@/lib/schemas/agent-stream"
 
 export interface ActiveTurnProjection {
@@ -45,6 +46,17 @@ export interface ActiveTurnProjection {
    * gateway and a rejected request looked identical in the UI.
    */
   readonly errorCode: string | null
+  /**
+   * What the turn's model calls actually cost, as the runtime reported it —
+   * prompt, completion, and total tokens for the whole turn.
+   *
+   * Parsed since the frame existed and dropped until now: the context meter
+   * seeds from the prompt figure (the last request's real size) instead of
+   * estimating a transcript the provider already counted. Null until a turn
+   * completes in this tab; usage is not persisted server-side yet, so a
+   * reloaded conversation has nothing to seed from and estimates carry it.
+   */
+  readonly usage: UsageReport | null
 }
 
 export const initialTurnProjection: ActiveTurnProjection = {
@@ -60,6 +72,7 @@ export const initialTurnProjection: ActiveTurnProjection = {
   approvalAttempt: null,
   error: null,
   errorCode: null,
+  usage: null,
 }
 
 /** Whether the turn has settled, one way or another. */
@@ -158,6 +171,7 @@ export function streamReducer(
         approvalAttempt: null,
         error: null,
         errorCode: null,
+        usage: null,
       }
 
     case "turn_suspended":
@@ -202,6 +216,7 @@ export function streamReducer(
         awaitingApprovalItemId: null,
         approvalAttempt: null,
         activeItemId: null,
+        usage: event.data.usage,
       }
 
     case "stream_error":

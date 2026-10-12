@@ -5,6 +5,7 @@ import {
   QueryClientProvider,
 } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { chatKeys } from "../queries/chat-queries"
 import type { ChatMessage } from "../types"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -17,28 +18,9 @@ notifyManager.setScheduler((cb) => act(cb))
 const { ThinkingTrace } = await import("./thinking-trace")
 const { ChatTurnBlock } = await import("./chat-turn-block")
 const { groupIntoTurns } = await import("../state/chat-turns")
-const { ChatComposer } = await import("./chat-composer")
 const { ChatMessages } = await import("./chat-messages")
 const { ChatContainer } = await import("./chat-container")
-
-function setNativeValue(el: HTMLElement, val: string) {
-  const isTextArea = el instanceof HTMLTextAreaElement
-  const proto = isTextArea
-    ? HTMLTextAreaElement.prototype
-    : HTMLInputElement.prototype
-  const set = Object.getOwnPropertyDescriptor(proto, "value")?.set
-  const tracker = (
-    el as unknown as { _valueTracker?: { setValue: (v: string) => void } }
-  )._valueTracker
-  if (tracker) {
-    tracker.setValue("__prev_diff_value__")
-  }
-  set?.call(el, val)
-  // happy-dom's own Event constructor: the bare global is the host's, and this
-  // DOM refuses to dispatch one — which silently skipped the typing entirely.
-  el.dispatchEvent(new window.Event("input", { bubbles: true }))
-  el.dispatchEvent(new window.Event("change", { bubbles: true }))
-}
+const { usePromptStore } = await import("@/components/composer")
 
 describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   let container: HTMLDivElement | null = null
@@ -46,6 +28,25 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
+    // The composer is module state that outlives any mount — one composer per
+    // tab is the design — so a suite that renders ChatContainer must start it
+    // from a clean slate or the previous test's draft text leaks into the DOM.
+    usePromptStore.setState({
+      text: "",
+      mentions: [],
+      attachments: [],
+      selection: null,
+      effort: null,
+      toolIds: [],
+      search: false,
+      blockers: [{ kind: "no-model" }],
+      notices: [],
+      usage: null,
+      hydrated: false,
+      status: "ready",
+      transport: null,
+      runtimeTools: [],
+    })
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     })
@@ -252,97 +253,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       expect(copiedText).toBe("Copy this text")
       expect(toastSuccessSpy).toHaveBeenCalled()
-    })
-  })
-
-  describe("ChatComposer", () => {
-    it("submits message on form submission and clears input", async () => {
-      const sendSpy = mock(() => {})
-      const stopSpy = mock(() => {})
-
-      act(() => {
-        root?.render(
-          createElement(ChatComposer, {
-            onSend: sendSpy,
-            onStop: stopSpy,
-            isStreaming: false,
-          }),
-        )
-      })
-
-      const textarea = container?.querySelector(
-        "textarea",
-      ) as HTMLTextAreaElement
-      expect(textarea).toBeDefined()
-
-      act(() => {
-        setNativeValue(textarea, "New calculation")
-      })
-
-      const submitBtn = container?.querySelector(
-        'button[type="submit"]',
-      ) as HTMLButtonElement
-      expect(submitBtn).toBeDefined()
-
-      await act(async () => {
-        submitBtn?.click()
-      })
-
-      expect(sendSpy).toHaveBeenCalledWith("New calculation")
-    })
-
-    it("renders stop button and triggers onStop when streaming", () => {
-      const sendSpy = mock(() => {})
-      const stopSpy = mock(() => {})
-
-      act(() => {
-        root?.render(
-          createElement(ChatComposer, {
-            onSend: sendSpy,
-            onStop: stopSpy,
-            isStreaming: true,
-          }),
-        )
-      })
-
-      const stopBtn = container?.querySelector(
-        'button[aria-label="Stop generating"]',
-      ) as HTMLButtonElement
-      expect(stopBtn).toBeDefined()
-
-      act(() => {
-        stopBtn?.click()
-      })
-
-      expect(stopSpy).toHaveBeenCalled()
-    })
-
-    it("populates textarea when a suggestion pill is clicked", () => {
-      act(() => {
-        root?.render(
-          createElement(ChatComposer, {
-            onSend: () => {},
-            onStop: () => {},
-            suggestions: ["Check inventory"],
-          }),
-        )
-      })
-
-      // Selected by name, not by position: the row moved below the input, so
-      // the first button in the composer is now the send control.
-      const pill = Array.from(container?.querySelectorAll("button") ?? []).find(
-        (button) => button.textContent === "Check inventory",
-      )
-      expect(pill).toBeDefined()
-
-      act(() => {
-        pill?.click()
-      })
-
-      const textarea = container?.querySelector(
-        "textarea",
-      ) as HTMLTextAreaElement
-      expect(textarea.value).toBe("Check inventory")
     })
   })
 
@@ -626,7 +536,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(hero?.querySelector("[data-slot]")).toBeNull()
     })
 
-    it("keeps the suggestion prompts inside the composer panel, below the input", () => {
+    it("names the send control for what it does", () => {
       act(() => {
         root?.render(
           createElement(
@@ -637,21 +547,15 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      const panel = container?.querySelector('[data-slot="composer-panel"]')
-      const input = panel?.querySelector('[data-slot="composer-input"]')
-      const suggestions = panel?.querySelector(
-        '[data-slot="composer-suggestions"]',
-      )
-
-      expect(panel).not.toBeNull()
-      expect(suggestions).not.toBeNull()
-      // Supplementary rows live in the composer's own column, never positioned
-      // over the input: a row laid on top takes the input down with it.
-      expect(input?.contains(suggestions as Node)).toBe(false)
-      const order = Array.from(panel?.children ?? [])
-      expect(order.indexOf(suggestions as Element)).toBeGreaterThan(
-        order.indexOf(input as Element),
-      )
+      // The composer's affordances are labelled, not positioned: assertions
+      // against slot names broke every time the layout moved, and a control
+      // that cannot be named cannot be operated by a screen reader either.
+      expect(
+        container?.querySelector('button[aria-label="Send message"]'),
+      ).not.toBeNull()
+      expect(
+        container?.querySelector('button[aria-label="Attach files"]'),
+      ).not.toBeNull()
     })
 
     it("sends with a circular action in the input's corner", () => {
@@ -671,7 +575,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(send?.hasAttribute("disabled")).toBe(true)
     })
 
-    it("starts with composer centered and transitions to bottom when message is sent", async () => {
+    it("docks the composer once the conversation has started", () => {
       act(() => {
         root?.render(
           createElement(
@@ -682,48 +586,37 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
+      // The transition is a function of what exists, not of a send having
+      // happened this session. The transport's first act on send is landing
+      // the optimistic message in the draft cache; writing it here is that
+      // moment exactly (the draft is seeded after mount, because a clean chat
+      // deliberately clears any draft it finds on entry).
+      act(() => {
+        queryClient.setQueryData(chatKeys.messages(null), [
+          {
+            id: "seed-1",
+            role: "user",
+            content: "What is my ledger balance?",
+            status: "completed",
+            createdAt: new Date().toISOString(),
+          },
+        ] satisfies ChatMessage[])
+      })
+
       const composerLayer = container?.querySelector(
         '[data-slot="composer-container"]',
       )
-      expect(composerLayer?.className).toContain("bottom-1/2")
-      expect(composerLayer?.className).toContain("translate-y-1/2")
+      expect(composerLayer?.className).toContain("bottom-0")
+      expect(composerLayer?.className).toContain("translate-y-0")
 
+      // The prompts were a way in; once the conversation exists they are only
+      // noise sitting under a live transcript. The composer has no suggestion
+      // row at all — its `/` commands fill that role inside the editor.
       const heroGreeting = container?.querySelector(
         '[data-slot="hero-greeting"]',
       )
-      expect(heroGreeting?.className).toContain("opacity-100")
-      expect(heroGreeting?.textContent).toContain(
-        "What are we working on today?",
-      )
-
-      const textarea = container?.querySelector(
-        "textarea",
-      ) as HTMLTextAreaElement
-      expect(textarea).toBeDefined()
-
-      act(() => {
-        setNativeValue(textarea, "What is my ledger balance?")
-      })
-
-      const submitBtn = container?.querySelector(
-        'button[type="submit"]',
-      ) as HTMLButtonElement
-      await act(async () => {
-        submitBtn?.click()
-      })
-
-      expect(container?.textContent).toContain("What is my ledger balance?")
-
-      // The composer stays docked: the conversation has started, and nothing
-      // about losing the header can send it back to its opening position.
-      expect(composerLayer?.className).toContain("bottom-0")
-      expect(composerLayer?.className).toContain("translate-y-0")
       expect(heroGreeting?.className).toContain("opacity-0")
-      // The prompts were a way in; once the conversation exists they are only
-      // noise sitting under a live transcript.
-      expect(
-        container?.querySelector('[data-slot="composer-suggestions"]'),
-      ).toBeNull()
+      expect(container?.textContent).toContain("What is my ledger balance?")
     })
   })
 })
