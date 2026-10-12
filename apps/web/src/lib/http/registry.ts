@@ -10,6 +10,7 @@ import {
   type DashboardPost,
   dashboardPostsSchema,
 } from "@/lib/schemas/dashboard"
+import type { ProviderModelsResponse } from "@/lib/schemas/nabu"
 import {
   approvalDecisionInputSchema,
   createTenantProviderInputSchema,
@@ -17,6 +18,7 @@ import {
   type NabuSystemStatus,
   nabuCapabilitiesSchema,
   nabuSystemStatusSchema,
+  providerModelsResponseSchema,
   type TenantProviderList,
   type TenantProviderSummary,
   type TurnItemsResponse,
@@ -223,6 +225,55 @@ export const nabuEndpoints = {
     timeoutMs: 20_000,
     description:
       "Call one saved provider with its stored credential and report whether it answered.",
+  }),
+
+  /**
+   * A vendor's model catalogue, read with a credential that is not saved yet.
+   *
+   * `POST /api/v1/providers/models`
+   *
+   * The create form dials this so the model is picked from a list rather than
+   * typed from memory. The key rides the request body once and is never
+   * stored by this call; the runtime dials with it through its egress guard.
+   */
+  listProviderModels: defineAuthenticatedEndpoint<
+    { readonly provider: string; readonly api_key: string },
+    ProviderModelsResponse
+  >({
+    id: "nabu.list-provider-models",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: () => "/api/v1/providers/models",
+    body: (input) => input,
+    responseSchema: providerModelsResponseSchema,
+    timeoutMs: 20_000,
+    description:
+      "Read a vendor's model catalogue with a not-yet-saved credential, so the model is a choice rather than a guess.",
+  }),
+
+  /**
+   * A saved configuration's model catalogue.
+   *
+   * `GET /api/v1/providers/{id}/models`
+   *
+   * Same dial, same guard, with the stored credential the runtime holds — the
+   * edit path of the same picker.
+   */
+  savedProviderModels: defineAuthenticatedEndpoint<
+    { readonly id: string },
+    ProviderModelsResponse
+  >({
+    id: "nabu.saved-provider-models",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: (input) => `/api/v1/providers/${input.id}/models`,
+    body: () => undefined,
+    responseSchema: providerModelsResponseSchema,
+    timeoutMs: 20_000,
+    description:
+      "Read one saved configuration's model catalogue, dialled with its stored credential.",
   }),
 
   /**

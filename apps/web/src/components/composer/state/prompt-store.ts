@@ -63,6 +63,14 @@ export type PromptStore = ComposerState & {
   notices: Notice[]
   usage: ContextUsage | null
   hydrated: boolean
+  /**
+   * Why the provider list could not be read, when it could not. Distinguishing
+   * "this workspace has none" from "we could not ask" is the difference
+   * between pointing at settings and pointing at a retry: a silent empty list
+   * hides the failure and, with it, the context meter and every control that
+   * needs a model.
+   */
+  providersError: string | null
   transport: ComposerTransport | null
   /**
    * Starred models, keyed `"providerId/modelId"`. This is a durable
@@ -250,6 +258,7 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
     notices: [],
     usage: null,
     hydrated: false,
+    providersError: null,
     status: "ready",
     transport: null,
     starredModels: [],
@@ -457,14 +466,20 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
       // The provider list itself may be fetched (saved workspace
       // configurations). A failed fetch degrades to an empty catalog with
       // hydration still completing — an unreachable server must not hang the
-      // composer in "loading providers" forever.
+      // composer in "loading providers" forever — but it is *recorded*, so the
+      // interface can say "we could not ask" instead of "you have none".
       let providers: ProviderSpec[] = []
+      let providersError: string | null = null
       try {
         providers = [...(await loadProviders())]
-      } catch {
+      } catch (error) {
         providers = []
+        providersError =
+          error instanceof Error
+            ? error.message
+            : "the provider list could not be read"
       }
-      set({ providers })
+      set({ providers, providersError })
 
       await Promise.all(
         providers.map(async (provider) => {

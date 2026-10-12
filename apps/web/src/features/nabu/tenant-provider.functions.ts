@@ -8,7 +8,7 @@
  */
 
 import { createServerFn } from "@tanstack/react-start"
-
+import { z } from "zod"
 // A `.server.ts` module, imported by path rather than through the feature
 // barrel. The resolver reads membership, the membership module pulls in the
 // database driver, and that driver runs `Buffer.allocUnsafe` at import time —
@@ -25,6 +25,8 @@ import {
   createTenantProvider,
   deleteTenantProvider,
   getTenantProviders,
+  listProviderModels,
+  savedProviderModels,
   setDefaultTenantProvider,
   verifyTenantProvider,
 } from "./tenant-provider.server"
@@ -157,6 +159,63 @@ export const setDefaultTenantProviderFn = createServerFn({ method: "POST" })
           tenantRole,
         })
         return setDefaultTenantProvider(data, { requestId, tenantRole })
+      },
+    )
+  })
+
+/**
+ * Reads a vendor's model catalogue with a credential that is not saved yet —
+ * the create form's pick list.
+ *
+ * Owner/admin only, like every endpoint that dials with a credential: the
+ * runtime opens the socket through its egress guard, and this function only
+ * carries the session's authority out to it.
+ */
+export const listProviderModelsFn = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        provider: z.string().trim().min(1),
+        api_key: z.string().trim().min(1).max(4096),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "listProviderModels",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const tenantRole = await activeRole()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+          tenantRole,
+        })
+        return listProviderModels(data, { requestId, tenantRole })
+      },
+    )
+  })
+
+/**
+ * Reads one saved configuration's model catalogue — the edit path of the same
+ * pick list, dialled with the stored credential.
+ */
+export const savedProviderModelsFn = createServerFn({ method: "POST" })
+  .validator(providerIdInputSchema)
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "savedProviderModels",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const tenantRole = await activeRole()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+          tenantRole,
+        })
+        return savedProviderModels(data, { requestId, tenantRole })
       },
     )
   })

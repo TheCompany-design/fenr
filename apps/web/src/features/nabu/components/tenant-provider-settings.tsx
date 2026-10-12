@@ -22,6 +22,7 @@
 
 import {
   Add01Icon,
+  Alert02Icon,
   CheckmarkCircle01Icon,
   CloudServerIcon,
   Delete02Icon,
@@ -44,16 +45,27 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
-import type { TenantProviderSummary } from "@/lib/schemas/nabu"
+import { ProviderLogo } from "@/components/providers/provider-logo"
+import type {
+  ProviderModelsResponse,
+  TenantProviderSummary,
+} from "@/lib/schemas/nabu"
 import { useConfirmStore } from "@/lib/stores/confirm.store"
-
 import { tenantProviderKeys, tenantProvidersQueryOptions } from "../queries"
 import {
   createTenantProviderFn,
   deleteTenantProviderFn,
+  listProviderModelsFn,
   setDefaultTenantProviderFn,
   verifyTenantProviderFn,
 } from "../tenant-provider.functions"
@@ -246,6 +258,10 @@ function ProviderRow({
     <li className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          {/* The vendor's mark carries the identity; the tooltip names it on a
+              delayed hover. The entry's own name and the model stay spelled
+              out — they are the workspace's words, not the vendor's. */}
+          <ProviderLogo provider={provider.provider} size={16} />
           <span>{provider.label ?? `${provider.model}`}</span>
           <span className="text-xs font-normal text-muted-foreground">
             {provider.model}
@@ -428,6 +444,23 @@ function ProviderList({
   )
 }
 
+/** Where the model pick list stands. */
+type ModelsState = {
+  status: "idle" | "loading" | "ready" | "refused" | "error"
+  models: string[]
+  /** What went wrong, in the runtime's own words. */
+  message: string | null
+  /** The provider+key pair the list was loaded with, so a change invalidates it. */
+  loadedFor: string | null
+}
+
+const IDLE_MODELS: ModelsState = {
+  status: "idle",
+  models: [],
+  message: null,
+  loadedFor: null,
+}
+
 /** The form that adds one configuration. */
 function AddProviderForm({
   onDone,
@@ -479,6 +512,52 @@ function AddProviderForm({
     },
   })
 
+  // The vendor's own catalogue. Loaded explicitly — one dial per deliberate
+  // press, not per keystroke — because the key travels with the request and a
+  // list that silently reloaded while someone typed would be dialing with a
+  // half-pasted credential.
+  const [models, setModels] = useState<ModelsState>(IDLE_MODELS)
+  const [manualEntry, setManualEntry] = useState(false)
+
+  const loadModels = async (provider: string, apiKey: string) => {
+    if (!provider || !apiKey.trim()) return
+    setModels({
+      status: "loading",
+      models: [],
+      message: null,
+      loadedFor: `${provider}:${apiKey}`,
+    })
+    try {
+      const result: ProviderModelsResponse = await listProviderModelsFn({
+        data: { provider, api_key: apiKey.trim() },
+      })
+      if (result.ok && result.models) {
+        setModels({
+          status: "ready",
+          models: result.models,
+          message: null,
+          loadedFor: `${provider}:${apiKey}`,
+        })
+        setManualEntry(false)
+      } else {
+        setModels({
+          status: "refused",
+          models: [],
+          message:
+            result.message ?? "The provider did not accept that credential.",
+          loadedFor: `${provider}:${apiKey}`,
+        })
+      }
+    } catch (error) {
+      setModels({
+        status: "error",
+        models: [],
+        message: describe(error),
+        loadedFor: `${provider}:${apiKey}`,
+      })
+    }
+  }
+
   return (
     <form
       className="flex flex-col gap-6 rounded-lg border border-border bg-muted/30 p-4"
@@ -518,7 +597,10 @@ function AddProviderForm({
                     disabled={save.isPending}
                     className="sr-only"
                   />
-                  <span className="font-medium">{option.label}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <ProviderLogo provider={option.value} size={16} />
+                    {option.label}
+                  </span>
                   <span className="font-mono text-xs text-muted-foreground">
                     {option.hint}
                   </span>
@@ -554,33 +636,154 @@ function AddProviderForm({
         )}
       </form.Field>
 
-      <form.Field name="model">
-        {(field) => (
-          <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
-            <div>
-              <Label htmlFor="provider-model">Model</Label>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                The identifier the chosen provider knows it by —{" "}
-                <code className="font-mono">gpt-4o-mini</code> for OpenAI,{" "}
-                <code className="font-mono">claude-sonnet-4-5</code> for
-                Anthropic, a <code className="font-mono">vendor/model</code>{" "}
-                pair on OpenRouter.
-              </p>
+      {/*
+        The model is picked from the vendor's own catalogue, not typed from
+        memory — a hand-spelled id was one typo away from a saved configuration
+        no turn could use. The list is loaded with the credential already in
+        the form; a vendor that refuses it, or cannot be reached, leaves the
+        field in a stated state with a retry, and the manual entry stays as the
+        escape hatch for a catalogue this flow could not read.
+      */}
+      <form.Subscribe
+        selector={(state) => [
+          state.values.provider,
+          state.values.apiKey,
+          state.values.model,
+        ]}
+      >
+        {([provider, apiKey, model]) => {
+          const pair = `${provider}:${apiKey}`
+          const stale = models.loadedFor !== pair && models.status !== "idle"
+          const current = stale ? IDLE_MODELS : models
+          const canLoad = Boolean(provider) && Boolean(apiKey.trim())
+
+          return (
+            <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+              <div>
+                <Label htmlFor="provider-model">Model</Label>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {current.status === "ready" && !manualEntry
+                    ? "From the vendor's own list. Pick one."
+                    : "Load the vendor's list, or enter the id it knows."}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {current.status === "ready" && !manualEntry ? (
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={model}
+                      onValueChange={(next) => {
+                        if (next === null) return
+                        if (next === "__manual__") {
+                          setManualEntry(true)
+                          form.setFieldValue("model", "")
+                          return
+                        }
+                        form.setFieldValue("model", next)
+                      }}
+                    >
+                      <SelectTrigger id="provider-model" className="w-full">
+                        <SelectValue placeholder="Pick a model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {models.models.map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {model}
+                          </SelectItem>
+                        ))}
+                        <div
+                          className="bg-border my-1 h-px"
+                          role="presentation"
+                        />
+                        <SelectItem value="__manual__">
+                          Enter a model id manually…
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={save.isPending}
+                      onClick={() => void loadModels(provider, apiKey)}
+                    >
+                      <HugeiconsIcon icon={RefreshIcon} size={14} />
+                      Refresh
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <form.Field name="model">
+                      {(field) => (
+                        <Input
+                          id="provider-model"
+                          placeholder="gpt-4o-mini"
+                          value={field.state.value}
+                          onBlur={field.handleBlur}
+                          onChange={(event) =>
+                            field.handleChange(event.target.value)
+                          }
+                          disabled={save.isPending}
+                          aria-invalid={
+                            field.state.meta.isTouched &&
+                            field.state.meta.errors.length > 0
+                          }
+                        />
+                      )}
+                    </form.Field>
+                    {current.status === "loading" ? (
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={13}
+                          className="animate-spin"
+                        />
+                        Loading the vendor's models…
+                      </p>
+                    ) : null}
+                    {current.status === "refused" ||
+                    current.status === "error" ? (
+                      <p className="flex items-center gap-1.5 text-xs text-amber-600">
+                        <HugeiconsIcon
+                          icon={Alert02Icon}
+                          size={13}
+                          className="shrink-0"
+                        />
+                        {current.message}
+                      </p>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="self-start"
+                      disabled={
+                        !canLoad ||
+                        current.status === "loading" ||
+                        save.isPending
+                      }
+                      onClick={() => {
+                        setManualEntry(false)
+                        void loadModels(provider, apiKey)
+                      }}
+                    >
+                      {current.status === "loading" ? (
+                        <HugeiconsIcon
+                          icon={Loading03Icon}
+                          size={14}
+                          className="animate-spin"
+                        />
+                      ) : null}
+                      Load models
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
-            <Input
-              id="provider-model"
-              placeholder="gpt-4o-mini"
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.value)}
-              disabled={save.isPending}
-              aria-invalid={
-                field.state.meta.isTouched && field.state.meta.errors.length > 0
-              }
-            />
-          </div>
-        )}
-      </form.Field>
+          )
+        }}
+      </form.Subscribe>
 
       <form.Field name="apiKey">
         {(field) => (

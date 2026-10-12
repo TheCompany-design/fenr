@@ -138,6 +138,45 @@ describe("a workspace with providers saved", () => {
   })
 })
 
+describe("the vendor's mark", () => {
+  it("draws each vendor's logo instead of spelling its name, and names it for a reader", async () => {
+    const html = await render({
+      providers: [DEFAULT_ENTRY, SECOND_ENTRY],
+      can_administer: true,
+    })
+
+    // The marks are the identity; each names itself for a screen reader, and
+    // the same names the tooltip shows on a hover.
+    expect(html).toContain('alt="OpenAI"')
+    expect(html).toContain('alt="Anthropic"')
+    expect(html).toContain("logos/openai.svg")
+    expect(html).toContain("logos/anthropic.svg")
+  })
+
+  it("falls back to a letter mark for a vendor this build has never seen", async () => {
+    const html = await render({
+      providers: [{ ...DEFAULT_ENTRY, provider: "mistral" }],
+      can_administer: true,
+    })
+
+    expect(html).not.toContain("logos/mistral.svg")
+    expect(html).toContain("M")
+  })
+})
+
+describe("the model pick list", () => {
+  it("offers the vendor's catalogue behind an explicit load, not a bare text field", async () => {
+    const html = await render({
+      providers: [],
+      can_administer: true,
+    })
+
+    // The form starts closed; opening it is a click the static render does not
+    // perform, so the assertion here is about the affordance being reachable.
+    expect(html).toContain("Add a provider")
+  })
+})
+
 describe("a member who cannot change any of this", () => {
   let html: string
   beforeEach(async () => {

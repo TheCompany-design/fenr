@@ -95,6 +95,12 @@ export type ModelSpec = {
 export type CatalogSource = {
   id: ProviderId
   label: string
+  /**
+   * Which vendor this source speaks for — `"openai"`, `"anthropic"`, … — as
+   * the runtime spells it. The picker draws the vendor's mark from it; the
+   * label is a workspace's own name for the entry and may be anything.
+   */
+  vendor: string
   /** A self-hosted endpoint may need no credential at all. */
   requiresCredential: boolean
   /** Defaults applied to every model this provider returns. */

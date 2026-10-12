@@ -25,6 +25,7 @@ const log = moduleLogger("nabu-provider")
 
 import type {
   CreateTenantProviderInput,
+  ProviderModelsResponse,
   TenantProviderList,
   TenantProviderSummary,
   VerifyTenantProviderResponse,
@@ -145,6 +146,44 @@ export async function setDefaultTenantProvider(
  * arrives as an error status instead, so a caller that only reads `ok` cannot
  * mistake "your key is wrong" for "we could not try".
  */
+/**
+ * Reads a vendor's model catalogue with a credential that is not saved yet.
+ *
+ * The key travels once, in the request body, and is never stored by this call:
+ * it exists so the create form's model field can be a list. `ok: false` means
+ * the vendor declined the credential; an unreachable vendor throws, the same
+ * split `verify` established.
+ */
+export async function listProviderModels(
+  input: { readonly provider: string; readonly api_key: string },
+  options: TenantProviderRequestOptions,
+): Promise<ProviderModelsResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.listProviderModels, {
+      ...options,
+      input,
+      timeoutMs: options.timeoutMs ?? 20_000,
+    }),
+  )
+}
+
+/**
+ * Reads one saved configuration's model catalogue, dialled with its stored
+ * credential. The edit path of the same pick list.
+ */
+export async function savedProviderModels(
+  input: { readonly id: string },
+  options: TenantProviderRequestOptions,
+): Promise<ProviderModelsResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.savedProviderModels, {
+      ...options,
+      input,
+      timeoutMs: options.timeoutMs ?? 20_000,
+    }),
+  )
+}
+
 export async function verifyTenantProvider(
   input: { readonly id: string },
   options: TenantProviderRequestOptions,

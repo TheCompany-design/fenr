@@ -198,3 +198,24 @@ export const verifyTenantProviderResponseSchema = z.object({
 export type VerifyTenantProviderResponse = z.infer<
   typeof verifyTenantProviderResponseSchema
 >
+
+/**
+ * A vendor's model catalogue, as the two listing endpoints answer it.
+ *
+ * `POST /api/v1/providers/models` (a vendor name and the key about to be
+ * saved) and `GET /api/v1/providers/{id}/models` (a saved configuration)
+ * share the shape, and the same honesty `verify` established: `ok: false`
+ * means the vendor answered and declined the credential — a result, not a
+ * malfunction. An unreachable vendor is an error status, so the caller's
+ * catch path never has to distinguish the two.
+ */
+export const providerModelsResponseSchema = z.object({
+  ok: z.boolean(),
+  /** A sentence naming the outcome when the catalogue was not read. */
+  message: z.string().optional(),
+  /** The model ids the vendor offers, sorted. Present only with `ok: true`. */
+  models: z.array(z.string().min(1)).optional(),
+})
+export type ProviderModelsResponse = z.infer<
+  typeof providerModelsResponseSchema
+>

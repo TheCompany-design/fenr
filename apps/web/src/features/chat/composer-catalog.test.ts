@@ -4,13 +4,13 @@ import type { Attachment } from "@/components/composer/catalog/attachments"
 import type { ModelSpec } from "@/components/composer/catalog/capabilities"
 import { reconcile } from "@/components/composer/catalog/reconcile"
 import { measureContext } from "@/components/composer/catalog/usage"
+import { providerDisplayName } from "@/components/providers/provider-identity"
 import type { TenantProviderList } from "@/lib/schemas/nabu"
 import {
   flattenPrompt,
   isTextLike,
   MAX_PROMPT_BYTES,
   orderProviders,
-  providerDisplayName,
   toComposerProvider,
   toRuntimeTools,
 } from "./composer-catalog"

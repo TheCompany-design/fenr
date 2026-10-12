@@ -16,6 +16,7 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { useMemo, useState } from "react"
+import { ProviderLogo } from "@/components/providers/provider-logo"
 import type { Catalog, Connection, ProviderSpec } from "../catalog/capabilities"
 import { resolveCapabilities } from "../catalog/resolve"
 import {
@@ -29,7 +30,12 @@ import { useComposerEvent } from "../hooks/use-composer-event"
 import { usePromptStore } from "../state/prompt-store"
 import { EffortControl } from "./effort-control"
 
-type Tab = { id: string; label: string; kind: "starred" | "provider" }
+type Tab = {
+  id: string
+  label: string
+  vendor: string | null
+  kind: "starred" | "provider"
+}
 
 /**
  * Provider and model are one surface, not two controls.
@@ -49,6 +55,9 @@ export function ModelPicker() {
   const runtime = usePromptStore((s) => s.runtime)
   const selection = usePromptStore((s) => s.selection)
   const starred = usePromptStore((s) => s.starredModels)
+  const hydrated = usePromptStore((s) => s.hydrated)
+  const providersError = usePromptStore((s) => s.providersError)
+  const hasNoProviders = hydrated && !providersError && providers.length === 0
 
   // The `/model` and `/effort` commands and the ⌘⇧P shortcut open this picker
   // by event rather than by import, so the command table can stay free of
@@ -119,10 +128,11 @@ export function ModelPicker() {
   const selectedProvider = providers.find((p) => p.id === selection?.providerId)
 
   const tabs: Tab[] = [
-    { id: "starred", label: "Starred", kind: "starred" },
+    { id: "starred", label: "Starred", vendor: null, kind: "starred" },
     ...providers.map((p) => ({
       id: p.id,
       label: p.label,
+      vendor: p.source.vendor,
       kind: "provider" as const,
     })),
   ]
@@ -160,6 +170,16 @@ export function ModelPicker() {
         {selectedView ? (
           <>
             <span className="max-w-32 truncate">{selectedView.model.name}</span>
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              className="size-3.5 shrink-0 opacity-60"
+            />
+          </>
+        ) : hasNoProviders ? (
+          <>
+            <span className="text-muted-foreground">
+              No provider configured
+            </span>
             <HugeiconsIcon
               icon={ArrowDown01Icon}
               className="size-3.5 shrink-0 opacity-60"
@@ -212,7 +232,13 @@ export function ModelPicker() {
                 {entry.kind === "starred" ? (
                   <HugeiconsIcon icon={StarIcon} className="size-3.5" />
                 ) : null}
-                {entry.label}
+                {/* The mark stands in for the name; the tooltip names it on a
+                    delayed hover, so scanning a row of them stays quiet. */}
+                <ProviderLogo
+                  provider={entry.vendor ?? entry.label}
+                  label={entry.label}
+                  size={16}
+                />
                 {needsKey ? (
                   <HugeiconsIcon
                     icon={Key01Icon}
@@ -224,65 +250,89 @@ export function ModelPicker() {
           })}
         </div>
 
-        <div className="border-b border-border p-2">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search models…"
-            className="h-8 border-none bg-transparent shadow-none focus-visible:ring-0"
-            autoFocus
+        {hasNoProviders ? (
+          <EmptyState
+            title="No model provider configured"
+            body="Turns cannot run until the workspace saves one. Add it in settings."
+            action={
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setOpen(false)
+                  window.dispatchEvent(
+                    new CustomEvent("composer:open-provider-picker"),
+                  )
+                }}
+              >
+                Manage saved providers…
+              </Button>
+            }
           />
-        </div>
+        ) : (
+          <>
+            <div className="border-b border-border p-2">
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search models…"
+                className="h-8 border-none bg-transparent shadow-none focus-visible:ring-0"
+                autoFocus
+              />
+            </div>
 
-        <ScrollArea className="max-h-72">
-          {tab === "starred" && starred.length === 0 ? (
-            <EmptyState
-              title="No starred models"
-              body="Pick a provider tab and star a model to pin it here."
-            />
-          ) : visible.length === 0 ? (
-            <EmptyState
-              title="No matches"
-              body={`Nothing matches “${query}”.`}
-            />
-          ) : (
-            <ul className="flex flex-col p-1">
-              {visible.map((view, index) => (
-                <ModelRow
-                  key={modelKey(view)}
-                  view={view}
-                  // ⌘1–⌘9 jump straight to a model without reaching for the
-                  // mouse, which is how the list is actually used once someone
-                  // knows their way around it.
-                  shortcut={index < 9 ? index + 1 : null}
-                  starred={starred.includes(modelKey(view))}
-                  onSelect={() => select(view)}
-                  onToggleStar={() =>
-                    usePromptStore.getState().toggleStar(modelKey(view))
-                  }
+            <ScrollArea className="max-h-72">
+              {tab === "starred" && starred.length === 0 ? (
+                <EmptyState
+                  title="No starred models"
+                  body="Pick a provider tab and star a model to pin it here."
                 />
-              ))}
-            </ul>
-          )}
-        </ScrollArea>
+              ) : visible.length === 0 ? (
+                <EmptyState
+                  title="No matches"
+                  body={`Nothing matches “${query}”.`}
+                />
+              ) : (
+                <ul className="flex flex-col p-1">
+                  {visible.map((view, index) => (
+                    <ModelRow
+                      key={modelKey(view)}
+                      view={view}
+                      // ⌘1–⌘9 jump straight to a model without reaching for the
+                      // mouse, which is how the list is actually used once someone
+                      // knows their way around it.
+                      shortcut={index < 9 ? index + 1 : null}
+                      starred={starred.includes(modelKey(view))}
+                      onSelect={() => select(view)}
+                      onToggleStar={() =>
+                        usePromptStore.getState().toggleStar(modelKey(view))
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
+            </ScrollArea>
 
-        {/* Effort lives in this popover's footer because it is meaningless
+            {/* Effort lives in this popover's footer because it is meaningless
             without a model: its levels are a property of the model above. */}
-        {selectedView ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border p-2">
-            <EffortControl />
-            <span className="text-muted-foreground text-xs tabular-nums">
-              {formatContextWindow(selectedView.model.limits.contextWindow)} ctx
-            </span>
-          </div>
-        ) : selectedProvider ? (
-          <div className="border-t border-border p-2">
-            <EmptyState
-              title="No model selected"
-              body="Pick a model to configure effort."
-            />
-          </div>
-        ) : null}
+            {selectedView ? (
+              <div className="flex items-center justify-between gap-3 border-t border-border p-2">
+                <EffortControl />
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {formatContextWindow(selectedView.model.limits.contextWindow)}{" "}
+                  ctx
+                </span>
+              </div>
+            ) : selectedProvider ? (
+              <div className="border-t border-border p-2">
+                <EmptyState
+                  title="No model selected"
+                  body="Pick a model to configure effort."
+                />
+              </div>
+            ) : null}
+          </>
+        )}
       </PopoverContent>
     </Popover>
   )

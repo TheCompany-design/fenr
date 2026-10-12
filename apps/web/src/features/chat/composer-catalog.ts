@@ -11,6 +11,7 @@ import type {
   ModelSpec,
   ProviderSpec,
 } from "@/components/composer"
+import { providerDisplayName } from "@/components/providers/provider-identity"
 import type {
   TenantProviderList,
   TenantProviderSummary,
@@ -22,26 +23,6 @@ import type {
  * the composer's reconcile rules keep ordinary attachments clear of it.
  */
 export const MAX_PROMPT_BYTES = 64 * 1024
-
-/**
- * The vendor's name as a person reads it, for an entry without its own label —
- * tolerant on purpose, so a runtime that learns a fifth vendor before this
- * build does still renders.
- */
-export function providerDisplayName(provider: string): string {
-  switch (provider) {
-    case "openai":
-      return "OpenAI"
-    case "openrouter":
-      return "OpenRouter"
-    case "anthropic":
-      return "Anthropic"
-    case "google":
-      return "Google Gemini"
-    default:
-      return provider
-  }
-}
 
 export function toModelSpec(config: TenantProviderSummary): ModelSpec {
   return {
@@ -96,6 +77,9 @@ export function toComposerProvider(
     source: {
       id: config.id,
       label: config.label ?? providerDisplayName(config.provider),
+      // The vendor the mark is drawn for; the label above is the workspace's
+      // own name for the entry and may be anything.
+      vendor: config.provider,
       // The credential is server-side; there is nothing to validate here.
       requiresCredential: false,
       effortEncoding: { style: "none" },

@@ -1,4 +1,5 @@
 import {
+  Alert02Icon,
   ArrowUp01Icon,
   Attachment01Icon,
   StopIcon,
@@ -264,9 +265,15 @@ function useOpenModelPicker() {
 export function Composer({ className }: { className?: string }) {
   const addAttachments = usePromptStore((s) => s.addAttachments)
   const hydrated = usePromptStore((s) => s.hydrated)
+  const providersError = usePromptStore((s) => s.providersError)
   const text = usePromptStore((s) => s.text)
   const setText = usePromptStore((s) => s.setText)
   const { canSend, busy } = useCanSend()
+
+  const retryProviders = useCallback(() => {
+    usePromptStore.setState({ providersError: null })
+    void usePromptStore.getState().hydrate()
+  }, [])
 
   const handleSend = useCallback(() => {
     if (busy) usePromptStore.getState().stop()
@@ -290,6 +297,33 @@ export function Composer({ className }: { className?: string }) {
   return (
     <div className={cn("relative flex w-full flex-col gap-2", className)}>
       <ComposerFeedback />
+
+      {/* A provider list that could not be read is said out loud, with the
+          retry in reach: a silent empty list would hide the failure — and
+          with it the context meter, the model picker, and every control that
+          needs a model. */}
+      {hydrated && providersError ? (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+          <HugeiconsIcon
+            icon={Alert02Icon}
+            className="size-4 shrink-0 text-amber-500"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium">Couldn't load your providers.</span>{" "}
+            <span className="text-muted-foreground">
+              The model list, effort, and the context meter need one.
+            </span>
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 shrink-0 px-2 text-xs"
+            onClick={retryProviders}
+          >
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       <PromptInput
         value={text}

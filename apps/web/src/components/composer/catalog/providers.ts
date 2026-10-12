@@ -182,6 +182,7 @@ export const LOCAL_MODELS: ModelSpec[] = [
 const OPENAI_SOURCE = {
   id: "openai",
   label: "OpenAI",
+  vendor: "openai",
   requiresCredential: true,
   effortEncoding: { style: "enum", field: "reasoning_effort" },
   load: async () => OPENAI_MODELS,
@@ -190,6 +191,7 @@ const OPENAI_SOURCE = {
 const ANTHROPIC_SOURCE = {
   id: "anthropic",
   label: "Anthropic",
+  vendor: "anthropic",
   requiresCredential: true,
   effortEncoding: {
     style: "budget",
@@ -207,6 +209,7 @@ const ANTHROPIC_SOURCE = {
 const LOCAL_SOURCE = {
   id: "local",
   label: "Ollama (local)",
+  vendor: "local",
   requiresCredential: false,
   effortEncoding: { style: "none" },
   load: async () => LOCAL_MODELS,
