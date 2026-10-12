@@ -4,15 +4,14 @@
  * The interesting failures here are all about *what can travel*, so the tests are
  * about refusals rather than about happy paths:
  *
- * - The read schema has no field that could carry a credential, so a runtime that
+ * - The list schema has no field that could carry a credential, so a runtime that
  *   grew one would fail validation here rather than putting it in a payload the
  *   browser receives.
- * - The role claim is omitted rather than defaulted when the caller does not
- *   supply one, because the runtime reads an absent claim as the least privilege
- *   and a default of "admin" would hand authority to every caller who forgot.
- * - A `422` from the runtime means "change the configuration", not "the request
- *   was malformed", and the two are grouped so a form cannot confuse them with a
- *   provider that answered and refused.
+ * - The create schema is strict about emptiness: a blank key or a blank vendor
+ *   would save "successfully" and then fail every turn.
+ * - A `422` from the runtime means "the provider cannot be reached", not "the
+ *   request was malformed", and the two are grouped so a form cannot confuse
+ *   them with a provider that answered and refused.
  */
 
 import { describe, expect, it } from "bun:test"
@@ -22,42 +21,39 @@ import {
 } from "@/features/nabu/tenant-provider.server"
 import { HttpClientError } from "@/lib/http/errors"
 import {
-  putTenantProviderInputSchema,
-  tenantProviderSchema,
+  createTenantProviderInputSchema,
+  tenantProviderListSchema,
+  tenantProviderSummarySchema,
   verifyTenantProviderResponseSchema,
 } from "./nabu"
 
-describe("the tenant provider read shape", () => {
+describe("the saved provider read shape", () => {
   const configured = {
-    configured: true,
+    id: "018f0000-0000-7000-8000-000000000001",
     provider: "openai",
     model: "gpt-4o-mini",
+    label: "Work key",
+    is_default: true,
     fingerprint: "a1b2c3",
     max_output_tokens: null,
     temperature: null,
-    can_administer: true,
     updated_at: "2026-02-01T10:00:00Z",
   }
 
   it("accepts what the runtime sends", () => {
-    expect(tenantProviderSchema.parse(configured)).toEqual(configured)
+    const list = {
+      providers: [configured],
+      can_administer: true,
+    }
+    expect(tenantProviderListSchema.parse(list)).toEqual(list)
   })
 
-  it("accepts an unconfigured workspace as a state rather than an absence", () => {
-    const empty = tenantProviderSchema.parse({
-      configured: false,
-      provider: "",
-      model: "",
-      fingerprint: "",
-      max_output_tokens: null,
-      temperature: null,
+  it("accepts an empty workspace as a state rather than an absence", () => {
+    const empty = tenantProviderListSchema.parse({
+      providers: [],
       can_administer: false,
-      updated_at: "",
     })
-    expect(empty.configured).toBe(false)
-    // A screen that renders "configured: false" is honest; one that receives
-    // null and has to guess is not.
-    expect(empty.provider).toBe("")
+    expect(empty.providers).toEqual([])
   })
 
   it("cannot represent a credential at all", () => {
@@ -67,7 +63,7 @@ describe("the tenant provider read shape", () => {
       ...configured,
       api_key: "sk-live-abc123",
     }
-    const parsed = tenantProviderSchema.safeParse(withCredential)
+    const parsed = tenantProviderSummarySchema.safeParse(withCredential)
     // Zod strips unknown keys by default rather than rejecting, so what matters is
     // that the stripped field cannot reach the component.
     if (parsed.success) {
@@ -78,7 +74,7 @@ describe("the tenant provider read shape", () => {
   })
 
   it("rejects a fingerprint of an implausible length", () => {
-    const parsed = tenantProviderSchema.safeParse({
+    const parsed = tenantProviderSummarySchema.safeParse({
       ...configured,
       fingerprint: "x".repeat(500),
     })
@@ -86,10 +82,10 @@ describe("the tenant provider read shape", () => {
   })
 })
 
-describe("the provider write shape", () => {
-  it("requires a provider, a model, and a key", () => {
+describe("the provider create shape", () => {
+  it("requires a vendor, a model, and a key", () => {
     expect(
-      putTenantProviderInputSchema.safeParse({
+      createTenantProviderInputSchema.safeParse({
         provider: "openai",
         model: "gpt-4o-mini",
         api_key: "sk-live-abc123",
@@ -103,7 +99,9 @@ describe("the provider write shape", () => {
         api_key: "sk-live-abc123",
       }
       delete input[missing]
-      expect(putTenantProviderInputSchema.safeParse(input).success).toBe(false)
+      expect(createTenantProviderInputSchema.safeParse(input).success).toBe(
+        false,
+      )
     }
   })
 
@@ -112,7 +110,7 @@ describe("the provider write shape", () => {
     // is the worst place to find out.
     for (const blank of ["", "   ", "\t\n"]) {
       expect(
-        putTenantProviderInputSchema.safeParse({
+        createTenantProviderInputSchema.safeParse({
           provider: "openai",
           model: "gpt-4o-mini",
           api_key: blank,
@@ -121,12 +119,12 @@ describe("the provider write shape", () => {
     }
   })
 
-  it("refuses a blank provider rather than saving one nobody chose", () => {
+  it("refuses a blank vendor rather than saving one nobody chose", () => {
     // The closed picker makes this unreachable through the form; the schema is
     // the second half of the same guarantee, for a caller that is not the form.
     for (const blank of ["", "   "]) {
       expect(
-        putTenantProviderInputSchema.safeParse({
+        createTenantProviderInputSchema.safeParse({
           provider: blank,
           model: "m",
           api_key: "sk-test",
@@ -135,9 +133,29 @@ describe("the provider write shape", () => {
     }
   })
 
+  it("carries an optional name and rejects an implausibly long one", () => {
+    expect(
+      createTenantProviderInputSchema.safeParse({
+        provider: "openai",
+        model: "m",
+        api_key: "sk-test",
+        label: "Work key",
+      }).success,
+    ).toBe(true)
+
+    expect(
+      createTenantProviderInputSchema.safeParse({
+        provider: "openai",
+        model: "m",
+        api_key: "sk-test",
+        label: "x".repeat(65),
+      }).success,
+    ).toBe(false)
+  })
+
   it("accepts absent overrides and rejects a non-positive ceiling", () => {
     expect(
-      putTenantProviderInputSchema.safeParse({
+      createTenantProviderInputSchema.safeParse({
         provider: "openai",
         model: "m",
         api_key: "sk-test",
@@ -145,7 +163,7 @@ describe("the provider write shape", () => {
     ).toBe(true)
 
     expect(
-      putTenantProviderInputSchema.safeParse({
+      createTenantProviderInputSchema.safeParse({
         provider: "openai",
         model: "m",
         api_key: "sk-test",
@@ -179,27 +197,22 @@ describe("classifying a runtime refusal", () => {
     expect(isPermissionDenied(forbidden)).toBe(true)
   })
 
-  it("recognises a configuration refusal, whatever the prose was", () => {
-    // Both "nothing is configured yet" and "that provider cannot be reached from
-    // the runtime" arrive as 422, and a form treats them the same way: the
-    // configuration needs changing.
-    for (const message of [
-      "this workspace has no model provider configured yet",
-      "the provider cannot be reached from the runtime",
-    ]) {
-      expect(
-        isConfigurationRefused(
-          new HttpClientError(message, {
-            status: 422,
-            code: "HTTP_ERROR",
-            service: "nabu",
-          }),
-        ),
-      ).toBe(true)
-    }
+  it("recognises a reachability refusal", () => {
+    // `422` means the provider cannot be reached from the runtime — a
+    // deployment-level refusal to dial, distinct from a wrong key, which comes
+    // back as `ok: false`.
+    expect(
+      isConfigurationRefused(
+        new HttpClientError("the provider cannot be reached from the runtime", {
+          status: 422,
+          code: "HTTP_ERROR",
+          service: "nabu",
+        }),
+      ),
+    ).toBe(true)
   })
 
-  it("does not mistake a provider failure for a permission or configuration one", () => {
+  it("does not mistake a provider failure for a permission or reachability one", () => {
     const rejected = new HttpClientError("provider rejected", {
       status: 502,
       code: "HTTP_ERROR",

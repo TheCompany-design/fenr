@@ -17,6 +17,12 @@ import type { ChatMessage } from "../types"
 
 export interface SendOptions {
   readonly onTurnStarted?: (threadId: string) => void | Promise<void>
+  /**
+   * The conversation's provider choice, from the chat header's picker. Absent
+   * means "carry on with whatever this thread runs on" — and for a new thread,
+   * "the workspace's default".
+   */
+  readonly providerConfigId?: string | null
 }
 
 export interface UseAgentStreamReturn {
@@ -228,6 +234,7 @@ export function useAgentStream(): UseAgentStreamReturn {
           body: JSON.stringify({
             prompt: trimmedPrompt,
             thread_id: threadId ?? undefined,
+            provider_config_id: options?.providerConfigId ?? undefined,
           }),
           signal: abortController.signal,
         })

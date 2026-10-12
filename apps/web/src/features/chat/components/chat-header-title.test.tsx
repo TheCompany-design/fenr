@@ -109,8 +109,10 @@ describe("chat header title", () => {
   it("shows no title in the bar on a clean chat, but still names the page", () => {
     render(createElement(ChatContainer, {}))
 
-    // Nothing a person can see in the bar...
-    expect(headerText()).toBe("")
+    // Nothing a person can read as a title in the bar. The bar also carries the
+    // conversation's provider picker now, so the region is not empty — the
+    // title is what must be absent.
+    expect(headerText()).not.toContain("New conversation")
 
     // ...and exactly one heading on the page, so the document outline is not
     // the unnamed empty heading a screen reader has to announce as blank.
@@ -139,12 +141,12 @@ describe("chat header title", () => {
 
     render(createElement(ChatContainer, { threadId: THREAD_ID }))
 
-    expect(headerText()).toBe("Reconcile the Q3 ledger")
+    expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
   it("fills the header in as soon as the first prompt is sent", async () => {
     render(createElement(ChatContainer, {}))
-    expect(headerText()).toBe("")
+    expect(headerText()).not.toContain("New conversation")
 
     const textarea = container?.querySelector("textarea") as HTMLTextAreaElement
     act(() => {
@@ -156,7 +158,7 @@ describe("chat header title", () => {
       )?.click()
     })
 
-    expect(headerText()).toBe("Reconcile the Q3 ledger")
+    expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
   it("survives the hop from a draft chat to its persisted thread", async () => {
@@ -178,7 +180,7 @@ describe("chat header title", () => {
     queryClient.setQueryData(chatKeys.messages(THREAD_ID), draft)
     render(createElement(ChatContainer, { threadId: THREAD_ID }))
 
-    expect(headerText()).toBe("Reconcile the Q3 ledger")
+    expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
   it("clears the header when the page stops contributing to it", () => {
@@ -186,7 +188,7 @@ describe("chat header title", () => {
       userMessage("Reconcile the Q3 ledger"),
     ])
     render(createElement(ChatContainer, { threadId: THREAD_ID }))
-    expect(headerText()).toBe("Reconcile the Q3 ledger")
+    expect(headerText()).toContain("Reconcile the Q3 ledger")
 
     render(createElement(ChatHeaderTitle, {}))
 
@@ -203,7 +205,7 @@ describe("chat header title", () => {
 
     render(createElement(ChatContainer, {}))
 
-    expect(headerText()).toBe("")
+    expect(headerText()).not.toContain("New conversation")
     expect(document.body.textContent).not.toContain("Reconcile the Q3 ledger")
   })
 
@@ -226,7 +228,7 @@ describe("chat header title", () => {
       render(createElement(ChatContainer, {}))
     })
 
-    expect(headerText()).toBe("Reconcile the Q3 ledger")
+    expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
   it("truncates a long title instead of stretching the bar", () => {

@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query"
 
 import { getNabuCapabilitiesFn, getNabuSystemStatusFn } from "./nabu.functions"
-import { getTenantProviderFn } from "./tenant-provider.functions"
+import { getTenantProvidersFn } from "./tenant-provider.functions"
 
 export const nabuKeys = {
   all: ["nabu"] as const,
@@ -18,7 +18,8 @@ export const nabuKeys = {
  */
 export const tenantProviderKeys = {
   all: ["tenant-provider"] as const,
-  detail: () => [...tenantProviderKeys.all, "detail"] as const,
+  /** The saved list: what settings renders and the chat picker offers. */
+  list: () => [...tenantProviderKeys.all, "list"] as const,
 }
 
 /**
@@ -51,16 +52,16 @@ export const nabuCapabilitiesQueryOptions = () =>
   })
 
 /**
- * The workspace's model provider.
+ * The workspace's saved model providers.
  *
  * Cached because the chat header reads it on every conversation view, and it
  * changes only when someone edits settings. A read that is slightly stale for a
  * minute is a better trade than one Nabu call per render.
  */
-export const tenantProviderQueryOptions = () =>
+export const tenantProvidersQueryOptions = () =>
   queryOptions({
-    queryKey: tenantProviderKeys.detail(),
-    queryFn: () => getTenantProviderFn(),
+    queryKey: tenantProviderKeys.list(),
+    queryFn: () => getTenantProvidersFn(),
     staleTime: 1000 * 60 * 2,
     retry: 1,
   })

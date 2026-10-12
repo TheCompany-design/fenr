@@ -12,14 +12,16 @@ import {
 } from "@/lib/schemas/dashboard"
 import {
   approvalDecisionInputSchema,
+  createTenantProviderInputSchema,
   type NabuCapabilities,
   type NabuSystemStatus,
   nabuCapabilitiesSchema,
   nabuSystemStatusSchema,
-  putTenantProviderInputSchema,
-  type TenantProvider,
+  type TenantProviderList,
+  type TenantProviderSummary,
   type TurnItemsResponse,
-  tenantProviderSchema,
+  tenantProviderListSchema,
+  tenantProviderSummarySchema,
   turnItemsResponseSchema,
   type VerifyTenantProviderResponse,
   verifyTenantProviderResponseSchema,
@@ -61,7 +63,9 @@ type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>
  * carries a request shape whose nullable overrides are genuinely optional on the
  * way out but always present on the way in.
  */
-type PutTenantProviderRequest = z.infer<typeof putTenantProviderInputSchema>
+type CreateTenantProviderRequest = z.infer<
+  typeof createTenantProviderInputSchema
+>
 
 export const SERVICES = {
   NABU: "nabu",
@@ -105,95 +109,120 @@ export const nabuEndpoints = {
   }),
 
   /**
-   * The workspace's own model provider.
+   * The workspace's saved model providers.
    *
-   * `GET /api/v1/provider`
+   * `GET /api/v1/providers`
    *
-   * Readable by any member: a chat header needs to be able to say which model is
-   * answering, and hiding that from a member helps nobody. The response carries a
-   * fingerprint, never a key.
+   * Readable by any member: the chat picker needs the list to offer, and
+   * hiding it from a member helps nobody. Every entry carries a fingerprint,
+   * never a key.
    */
-  tenantProvider: defineAuthenticatedEndpoint<void, TenantProvider>({
-    id: "nabu.tenant-provider",
+  tenantProviders: defineAuthenticatedEndpoint<void, TenantProviderList>({
+    id: "nabu.tenant-providers",
     service: SERVICES.NABU,
     audience: "nabu",
     method: "GET",
-    path: "/api/v1/provider",
-    responseSchema: tenantProviderSchema,
+    path: "/api/v1/providers",
+    responseSchema: tenantProviderListSchema,
     timeoutMs: 10_000,
-    description:
-      "Read the workspace's model endpoint, model, and credential fingerprint.",
+    description: "List the workspace's saved model providers.",
   }),
 
   /**
-   * Configure the workspace's own model provider.
+   * Save another model provider for the workspace.
    *
-   * `PUT /api/v1/provider`
+   * `POST /api/v1/providers`
    *
-   * The credential travels in the body and is sealed by the runtime before it is
-   * stored. Nothing echoes it back: the response is the same shape as the read,
-   * so a client cannot accidentally persist the key it just sent.
+   * The credential travels in the body and is sealed by the runtime before it
+   * is stored. Nothing echoes it back: the response is the saved entry's
+   * fingerprint shape, so a client cannot accidentally persist the key it just
+   * sent. The workspace's first entry becomes the default automatically.
    */
-  putTenantProvider: defineAuthenticatedEndpoint<
-    PutTenantProviderRequest,
-    TenantProvider
+  createTenantProvider: defineAuthenticatedEndpoint<
+    CreateTenantProviderRequest,
+    TenantProviderSummary
   >({
-    id: "nabu.put-tenant-provider",
+    id: "nabu.create-tenant-provider",
     service: SERVICES.NABU,
     audience: "nabu",
-    method: "PUT",
-    path: "/api/v1/provider",
-    inputSchema: putTenantProviderInputSchema,
-    responseSchema: tenantProviderSchema,
+    method: "POST",
+    path: "/api/v1/providers",
+    inputSchema: createTenantProviderInputSchema,
+    responseSchema: tenantProviderSummarySchema,
     timeoutMs: 15_000,
-    description:
-      "Set the workspace's model endpoint, model, and sealed credential.",
+    description: "Save another model provider for the workspace.",
   }),
 
   /**
-   * Remove the workspace's model provider.
+   * Remove one saved model provider.
    *
-   * `DELETE /api/v1/provider`
+   * `DELETE /api/v1/providers/{id}`
    *
-   * Answers `204` whether or not there was anything to remove, so a retried save
-   * that races a delete is not reported as a failure.
+   * Answers `204` whether or not there was anything to remove, so a retried
+   * delete that races another is not reported as a failure. Conversations that
+   * referenced it fall back to the workspace's default.
    */
-  deleteTenantProvider: defineAuthenticatedEndpoint<void, unknown>({
+  deleteTenantProvider: defineAuthenticatedEndpoint<
+    { readonly id: string },
+    unknown
+  >({
     id: "nabu.delete-tenant-provider",
     service: SERVICES.NABU,
     audience: "nabu",
     method: "DELETE",
-    path: "/api/v1/provider",
+    path: (input) => `/api/v1/providers/${input.id}`,
     responseSchema: emptyResponseSchema,
     timeoutMs: 15_000,
-    description: "Remove the workspace's model provider configuration.",
+    description: "Remove one of the workspace's saved model providers.",
   }),
 
   /**
-   * Test the workspace's stored provider.
+   * Mark one saved provider as the one new conversations start on.
    *
-   * `POST /api/v1/provider/verify`
+   * `PUT /api/v1/providers/{id}/default`
+   *
+   * One default per workspace is the runtime's guarantee; this is how a
+   * workspace moves it.
+   */
+  setDefaultTenantProvider: defineAuthenticatedEndpoint<
+    { readonly id: string },
+    unknown
+  >({
+    id: "nabu.set-default-tenant-provider",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "PUT",
+    path: (input) => `/api/v1/providers/${input.id}/default`,
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 15_000,
+    description: "Mark one saved provider as the workspace's default.",
+  }),
+
+  /**
+   * Test one of the workspace's saved providers.
+   *
+   * `POST /api/v1/providers/{id}/verify`
    *
    * The runtime dials, not this service. That is the whole reason the endpoint
    * exists on the far side of the boundary: the process that holds the egress
    * guard and the sealing key is the one that should open the socket, so there
-   * is exactly one implementation of "is this endpoint safe to call" rather than
-   * two that can drift.
+   * is exactly one implementation of "is this endpoint safe to call" rather
+   * than two that can drift.
    */
   verifyTenantProvider: defineAuthenticatedEndpoint<
-    void,
+    { readonly id: string },
     VerifyTenantProviderResponse
   >({
     id: "nabu.verify-tenant-provider",
     service: SERVICES.NABU,
     audience: "nabu",
     method: "POST",
-    path: "/api/v1/provider/verify",
+    path: (input) => `/api/v1/providers/${input.id}/verify`,
     body: () => undefined,
     responseSchema: verifyTenantProviderResponseSchema,
     timeoutMs: 20_000,
     description:
-      "Call the workspace's stored model endpoint with its stored credential.",
+      "Call one saved provider with its stored credential and report whether it answered.",
   }),
 
   /**

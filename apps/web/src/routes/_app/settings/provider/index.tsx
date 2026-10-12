@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import {
   TenantProviderSettings,
-  tenantProviderQueryOptions,
+  tenantProvidersQueryOptions,
 } from "@/features/nabu"
 
 export const Route = createFileRoute("/_app/settings/provider/")({
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/_app/settings/provider/")({
     if (activeOrg) {
       // Prefetched so the section paints with what is already stored rather than
       // flashing an empty form before the first read lands.
-      await context.queryClient.ensureQueryData(tenantProviderQueryOptions())
+      await context.queryClient.ensureQueryData(tenantProvidersQueryOptions())
     }
   },
   component: ProviderSettingsRoute,

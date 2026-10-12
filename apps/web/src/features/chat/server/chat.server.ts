@@ -104,3 +104,32 @@ export async function getThreadMessages(
       }
     })
 }
+
+/**
+ * Which saved provider a conversation runs on.
+ *
+ * Read from the thread mirror rather than from the runtime's API, for the same
+ * reason the transcript is: the row is right there, and a second HTTP hop for
+ * four bytes of state is a hop that can fail on its own.
+ *
+ * `null` means "the workspace's default" — a conversation started before the
+ * picker existed, or one whose configuration was deleted. The picker renders
+ * that as the default entry rather than as an empty selection.
+ */
+export async function getThreadProvider(
+  threadId: string,
+  tenantId: string,
+): Promise<string | null> {
+  const [thread] = await db
+    .select({ providerConfigId: schema.agentThreads.providerConfigId })
+    .from(schema.agentThreads)
+    .where(
+      and(
+        eq(schema.agentThreads.id, threadId),
+        eq(schema.agentThreads.tenantId, tenantId),
+      ),
+    )
+    .limit(1)
+
+  return thread?.providerConfigId ?? null
+}

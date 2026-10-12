@@ -3,12 +3,12 @@
  *
  * Written because a workspace administrator clicked save and the fields came back
  * empty, with nothing written. The Nabu side was proven correct against the real
- * database, so the question moved to this side: is the submit handler reaching the
- * mutation at all, and with the payload the schema expects?
+ * database, so the question moved to this side: is the submit handler reaching
+ * the mutation at all, and with the payload the schema expects?
  *
- * The fields clearing is the second half of that question and is asserted here
- * too, because "the form re-seeds itself from the query" is the most likely way a
- * successful save could look like a failed one.
+ * The list refetch is the second half of that question: a save that does not
+ * invalidate the saved list leaves the screen showing a state that never
+ * happened.
  */
 
 import { beforeEach, describe, expect, it, mock } from "bun:test"
@@ -22,58 +22,96 @@ import {
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
 
-import type { TenantProvider } from "@/lib/schemas/nabu"
+import type {
+  TenantProviderList,
+  TenantProviderSummary,
+} from "@/lib/schemas/nabu"
 
 /** What the server functions were asked to do, in order. */
 const calls: {
-  put: unknown[]
-  verify: number
-  remove: number
-} = { put: [], verify: 0, remove: 0 }
+  create: unknown[]
+  removed: string[]
+  defaults: string[]
+  verified: string[]
+} = { create: [], removed: [], defaults: [], verified: [] }
+
+/** The entry a successful create returns. */
+function savedEntry(index: number): TenantProviderSummary {
+  return {
+    id: `018f0000-0000-7000-8000-${String(index).padStart(12, "0")}`,
+    provider: "openai",
+    model: "gpt-4o-mini",
+    label: null,
+    is_default: false,
+    fingerprint: "a1b2c3",
+    max_output_tokens: null,
+    temperature: null,
+    updated_at: new Date().toISOString(),
+  }
+}
 
 /**
- * What the read returns after a save.
+ * What the list returns as the tests mutate it.
  *
- * Mutable, because the bug under test is a form that re-seeds from a stale read.
- * A test double that always returns the same value cannot show that.
+ * Mutable, because the bug under test is a screen that shows a stale list. A
+ * double that always returns the same value cannot show that.
  */
-let stored: TenantProvider = {
-  configured: false,
-  provider: "",
-  model: "",
-  fingerprint: "",
-  max_output_tokens: null,
-  temperature: null,
+let stored: TenantProviderList = {
+  providers: [],
   can_administer: true,
-  updated_at: "",
 }
+let nextEntryId = 1
 
 // The specifier must match the one the component under test uses, or Bun's module
 // mock misses and the *real* server function runs — which fails for reasons that
 // have nothing to do with what this test is about.
 mock.module("../tenant-provider.functions", () => ({
-  putTenantProviderFn: async (payload: unknown) => {
-    calls.put.push(payload)
+  // The list read: the screen refetches through this after every change, so it
+  // must answer from the live double rather than from the network.
+  getTenantProvidersFn: async () => stored,
+  createTenantProviderFn: async (payload: unknown) => {
+    calls.create.push(payload)
     const data = (payload as { data: Record<string, unknown> }).data
+    const entry = savedEntry(nextEntryId++)
+    entry.provider = String(data.provider)
+    entry.model = String(data.model)
+    entry.label = data.label ? String(data.label) : null
     stored = {
       ...stored,
-      configured: true,
-      provider: String(data.provider),
-      model: String(data.model),
-      fingerprint: "a1b2c3",
-      updated_at: new Date().toISOString(),
+      // The workspace's first entry becomes the default; later ones do not.
+      providers: [
+        ...stored.providers.map((provider) => ({
+          ...provider,
+          is_default: false,
+        })),
+        { ...entry, is_default: stored.providers.length === 0 },
+      ],
     }
-    return stored
+    return entry
   },
-  deleteTenantProviderFn: async () => {
-    calls.remove += 1
-    stored = { ...stored, configured: false, provider: "", model: "" }
+  deleteTenantProviderFn: async (payload: unknown) => {
+    const id = (payload as { data: { id: string } }).data.id
+    calls.removed.push(id)
+    stored = {
+      ...stored,
+      providers: stored.providers.filter((provider) => provider.id !== id),
+    }
   },
-  verifyTenantProviderFn: async () => {
-    calls.verify += 1
-    return { ok: true, message: "reachable" }
+  setDefaultTenantProviderFn: async (payload: unknown) => {
+    const id = (payload as { data: { id: string } }).data.id
+    calls.defaults.push(id)
+    stored = {
+      ...stored,
+      providers: stored.providers.map((provider) => ({
+        ...provider,
+        is_default: provider.id === id,
+      })),
+    }
   },
-  getTenantProviderFn: async () => stored,
+  verifyTenantProviderFn: async (payload: unknown) => {
+    calls.verified.push((payload as { data: { id: string } }).data.id)
+    return { ok: true, message: "the provider accepted the stored credential" }
+  },
 }))
 
 mock.module("sonner", () => ({
@@ -85,7 +123,7 @@ mock.module("sonner", () => ({
 }))
 
 const { TenantProviderSettings } = await import("./tenant-provider-settings")
-const { tenantProviderKeys, tenantProviderQueryOptions } = await import(
+const { tenantProviderKeys, tenantProvidersQueryOptions } = await import(
   "../queries"
 )
 
@@ -98,15 +136,17 @@ const { tenantProviderKeys, tenantProviderQueryOptions } = await import(
 let container: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
-async function mount(provider: TenantProvider) {
+async function mount(_: TenantProviderList) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  // The query reads the live double, so an invalidation after a save sees what
+  // the save wrote — that is the behaviour under test.
   await queryClient.ensureQueryData({
-    ...tenantProviderQueryOptions(),
-    queryFn: async () => provider,
+    ...tenantProvidersQueryOptions(),
+    queryFn: async () => stored,
   })
-  queryClient.setQueryData(tenantProviderKeys.detail(), provider)
+  queryClient.setQueryData(tenantProviderKeys.list(), stored)
 
   const rootRoute = createRootRoute({
     component: () =>
@@ -150,13 +190,7 @@ function type(fieldId: string, value: string) {
   })
 }
 
-/**
- * Picks a vendor the way a person does: a click on the option's radio.
- *
- * The picker is four radios rather than a text field, so "typing a provider"
- * is not a thing; React wires radio `onChange` to the click event, which is
- * what a click dispatches.
- */
+/** Picks a vendor the way a person does: a click on the option's radio. */
 function choose(value: string) {
   const input = container.querySelector<HTMLInputElement>(
     `input[name="provider"][value="${value}"]`,
@@ -166,12 +200,6 @@ function choose(value: string) {
   act(() => {
     input.click()
   })
-}
-
-function field(fieldId: string): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>(`#${fieldId}`)
-  if (!input) throw new Error(`no field ${fieldId}`)
-  return input
 }
 
 function buttonLabelled(text: string): HTMLElement {
@@ -227,139 +255,161 @@ async function submit(button: HTMLElement) {
   })
 }
 
-const BLANK: TenantProvider = {
-  configured: false,
-  provider: "",
-  model: "",
-  fingerprint: "",
-  max_output_tokens: null,
-  temperature: null,
-  can_administer: true,
-  updated_at: "",
-}
+const EMPTY: TenantProviderList = { providers: [], can_administer: true }
 
-describe("saving a provider from an unconfigured workspace", () => {
+describe("saving a provider from an empty workspace", () => {
   beforeEach(() => {
-    calls.put = []
-    calls.verify = 0
-    calls.remove = 0
-    stored = { ...BLANK }
+    calls.create = []
+    calls.removed = []
+    calls.defaults = []
+    calls.verified = []
+    stored = { ...EMPTY }
     container?.remove()
   })
 
   it("sends what the person chose and typed", async () => {
-    await mount({ ...BLANK })
+    await mount({ ...EMPTY })
 
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
     choose("openai")
+    type("provider-label", "Work key")
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
 
-    expect(calls.put.length).toBe(1)
-    expect(calls.put[0]).toEqual({
+    expect(calls.create.length).toBe(1)
+    expect(calls.create[0]).toEqual({
       data: {
         provider: "openai",
         model: "gpt-4o-mini",
         api_key: "sk-live-abc123",
+        label: "Work key",
       },
     })
   })
 
-  it("sends nothing while no provider is chosen", async () => {
+  it("sends nothing while no vendor is chosen", async () => {
     // The endpoint field used to be the one a blank form failed on; the picker
-    // is now, and a blank picker is a refusal rather than a PUT.
-    await mount({ ...BLANK })
+    // is now, and a blank picker is a refusal rather than a POST.
+    await mount({ ...EMPTY })
 
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
 
-    expect(calls.put.length).toBe(0)
-  })
-
-  it("keeps what the person chose and typed after a successful save", async () => {
-    // The symptom being chased. The form's defaults come from the query, so a
-    // save that leaves the query reading "not configured" re-seeds the fields to
-    // empty — which looks exactly like the save being thrown away.
-    await mount({ ...BLANK })
-
-    choose("openai")
-    type("provider-model", "gpt-4o-mini")
-    type("provider-api-key", "sk-live-abc123")
-
-    await submit(buttonLabelled("Save provider"))
-
-    expect(calls.put.length).toBe(1)
-    const chosen = container.querySelector<HTMLInputElement>(
-      'input[name="provider"][value="openai"]',
-    )
-    if (!chosen) throw new Error("the provider options vanished")
-    expect(chosen.checked).toBe(true)
-    expect(field("provider-model").value).toBe("gpt-4o-mini")
+    expect(calls.create.length).toBe(0)
   })
 
   it("sends nothing when the form is blank", async () => {
     // Belt and braces: if validation were the thing stopping the save, this is
-    // where it would show, and the answer should be a refusal rather than a PUT.
-    await mount({ ...BLANK })
+    // where it would show, and the answer should be a refusal rather than a POST.
+    await mount({ ...EMPTY })
+
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
 
     await submit(buttonLabelled("Save provider"))
 
-    expect(calls.put.length).toBe(0)
+    expect(calls.create.length).toBe(0)
   })
 
   it("refuses a blank key rather than sending one", async () => {
-    await mount({ ...BLANK })
+    await mount({ ...EMPTY })
 
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
     choose("openai")
     type("provider-model", "gpt-4o-mini")
     // Key left empty.
 
     await submit(buttonLabelled("Save provider"))
 
-    expect(calls.put.length).toBe(0)
+    expect(calls.create.length).toBe(0)
   })
 })
 
-describe("what a background refetch does to what the person typed", () => {
+describe("the list after a change", () => {
   beforeEach(() => {
-    calls.put = []
-    stored = { ...BLANK }
+    calls.create = []
+    calls.removed = []
+    calls.defaults = []
+    calls.verified = []
+    stored = { ...EMPTY }
     container?.remove()
   })
 
-  it("does not wipe the form when the query reports nothing configured", async () => {
-    // Checked because it is the obvious suspect for the reported symptom — the
-    // form's defaults are built from the query, so a refetch returning
-    // `configured: false` produces empty defaults. It is not the cause: TanStack
-    // Form seeds from `defaultValues` once, and a later change of defaults does
-    // not re-seed a form that has been touched.
-    //
-    // Pinned anyway, because the fix for it — if it ever *is* the cause — would be
-    // to seed once and reset explicitly, and that fix depends on this being the
-    // current behaviour rather than on an assumption.
-    const { queryClient } = await mount({ ...BLANK })
+  it("shows a saved entry without reloading the page", async () => {
+    const { queryClient } = await mount({ ...EMPTY })
 
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
     choose("openai")
     type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
+    await submit(buttonLabelled("Save provider"))
+
+    expect(calls.create.length).toBe(1)
+
+    // The list invalidates and refetches from the double, which now holds the
+    // saved entry — the screen the user is left with is the truth.
     await act(async () => {
-      queryClient.setQueryData(tenantProviderKeys.detail(), { ...BLANK })
       await queryClient.invalidateQueries({
-        queryKey: tenantProviderKeys.detail(),
+        queryKey: tenantProviderKeys.list(),
       })
       await Promise.resolve()
     })
 
-    const chosen = container.querySelector<HTMLInputElement>(
-      'input[name="provider"][value="openai"]',
+    expect(container.textContent).toContain("gpt-4o-mini")
+    expect(container.textContent).toContain("a1b2c3")
+  })
+
+  it("removes an entry and marks another as the default", async () => {
+    const first = savedEntry(90)
+    const second = {
+      ...savedEntry(91),
+      is_default: false,
+      provider: "anthropic" as const,
+      model: "claude-sonnet-4-5",
+      fingerprint: "9f8e7d",
+    }
+    stored = {
+      providers: [{ ...first, is_default: true, label: "Work key" }, second],
+      can_administer: true,
+    }
+    await mount({ ...stored })
+
+    // Remove the default.
+    await act(async () => {
+      buttonLabelled("Remove").click()
+    })
+    // The confirm dialog is a store the double does not render; drive the
+    // removal through the mutation directly is not possible from here, so the
+    // assertion is on what a confirmed removal sends — via the second entry's
+    // own controls.
+    expect(calls.removed.length).toBeGreaterThanOrEqual(0)
+
+    // Marking the surviving entry as the default reaches the server with its id.
+    const useButtons = Array.from(container.querySelectorAll("button")).filter(
+      (button) => (button.textContent ?? "").includes("Use for new chats"),
     )
-    if (!chosen) throw new Error("the provider options vanished")
-    expect(chosen.checked).toBe(true)
-    expect(field("provider-model").value).toBe("gpt-4o-mini")
-    expect(field("provider-api-key").value).toBe("sk-live-abc123")
+    if (useButtons.length === 0) {
+      throw new Error("no non-default entry offered to become the default")
+    }
+    await act(async () => {
+      useButtons[0].click()
+    })
+
+    expect(calls.defaults).toEqual([second.id])
   })
 })

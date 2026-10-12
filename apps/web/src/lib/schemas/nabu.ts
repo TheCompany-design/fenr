@@ -103,20 +103,21 @@ export const turnItemsResponseSchema = z.object({
 export type TurnItemsResponse = z.infer<typeof turnItemsResponseSchema>
 
 /**
- * A workspace's own model provider.
+ * One saved model provider in a workspace.
  *
- * `GET /api/v1/provider`
+ * `GET /api/v1/providers`
  *
- * There is deliberately no field here that could carry a credential. The runtime
- * answers with a fingerprint — six hex digits that identify which key is stored
- * without being able to produce it — and this schema has no way to accept a
- * plaintext key, so a mistake upstream cannot smuggle one into the browser.
+ * A workspace may hold several — two OpenAI keys, or one per vendor — and each
+ * conversation picks which one it runs on. There is deliberately no field here
+ * that could carry a credential: the runtime answers with a fingerprint — six
+ * hex digits that identify which key is stored without being able to produce
+ * it — so a mistake upstream cannot smuggle a key into the browser.
  */
-export const tenantProviderSchema = z.object({
-  /** Whether a provider has been configured at all. */
-  configured: z.boolean(),
+export const tenantProviderSummarySchema = z.object({
+  /** Which saved configuration this is — what the chat picker sends back. */
+  id: z.string().uuid(),
   /**
-   * Which vendor this workspace dials, or empty when nothing is configured.
+   * Which vendor this configuration dials.
    *
    * A string rather than the picker's enum on purpose: a runtime that learns a
    * fifth vendor before this screen does must still render, naming the vendor
@@ -125,6 +126,10 @@ export const tenantProviderSchema = z.object({
   provider: z.string(),
   /** The model identifier as the workspace configured it. */
   model: z.string(),
+  /** The name the workspace gave it, so two OpenAI keys can be told apart. */
+  label: z.string().max(64).nullable(),
+  /** Whether new conversations start on this configuration. */
+  is_default: z.boolean(),
   /**
    * A non-reversible marker for the stored credential, e.g. `a1b2c3`.
    *
@@ -134,17 +139,23 @@ export const tenantProviderSchema = z.object({
   fingerprint: z.string().max(64),
   max_output_tokens: z.number().int().positive().nullable(),
   temperature: z.number().nonnegative().nullable(),
-  /** Whether the caller may change any of this. */
-  can_administer: z.boolean(),
-  /** RFC 3339, or empty when nothing is configured. */
+  /** RFC 3339. */
   updated_at: z.string(),
 })
-export type TenantProvider = z.infer<typeof tenantProviderSchema>
+export type TenantProviderSummary = z.infer<typeof tenantProviderSummarySchema>
+
+/** The workspace's saved list, as `GET /api/v1/providers` answers it. */
+export const tenantProviderListSchema = z.object({
+  providers: z.array(tenantProviderSummarySchema),
+  /** Whether the caller may change any of this. */
+  can_administer: z.boolean(),
+})
+export type TenantProviderList = z.infer<typeof tenantProviderListSchema>
 
 /**
- * A request to configure a workspace's model provider.
+ * A request to save one of a workspace's model providers.
  *
- * `PUT /api/v1/provider`
+ * `POST /api/v1/providers`
  *
  * The API key is accepted here and nowhere else in the read path. It is never
  * returned by any endpoint, which is what makes the field safe to send from a
@@ -156,22 +167,24 @@ export type TenantProvider = z.infer<typeof tenantProviderSchema>
 const trimmed = (max: number, message: string) =>
   z.string().trim().min(1, message).max(max)
 
-export const putTenantProviderInputSchema = z.object({
+export const createTenantProviderInputSchema = z.object({
   /** Which vendor to dial. The runtime refuses one it cannot speak, by name. */
   provider: trimmed(64, "Choose a provider"),
   model: trimmed(256, "A model id is required"),
   api_key: trimmed(4096, "An API key is required"),
+  /** An optional name; absent renders as the vendor and model. */
+  label: z.string().trim().max(64, "That name is too long").optional(),
   max_output_tokens: z.number().int().positive().nullable().optional(),
   temperature: z.number().nonnegative().nullable().optional(),
 })
-export type PutTenantProviderInput = z.input<
-  typeof putTenantProviderInputSchema
+export type CreateTenantProviderInput = z.input<
+  typeof createTenantProviderInputSchema
 >
 
 /**
- * The result of testing a workspace's provider.
+ * The result of testing one of a workspace's saved providers.
  *
- * `POST /api/v1/provider/verify`
+ * `POST /api/v1/providers/{id}/verify`
  *
  * `ok: false` means the provider *answered* and refused — a wrong key is a
  * result, not a malfunction. A provider that could not be reached comes back as

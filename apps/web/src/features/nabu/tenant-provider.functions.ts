@@ -1,9 +1,9 @@
 /**
- * Server functions for a workspace's own model provider.
+ * Server functions for a workspace's saved model providers.
  *
  * Each one resolves the caller's authority from the active session and attaches
  * it to the outbound token, because the runtime — not this service — decides who
- * may change a workspace's model credential. The role is read here and nowhere
+ * may change a workspace's model credentials. The role is read here and nowhere
  * else in the write path, so there is one place to audit.
  */
 
@@ -18,13 +18,14 @@ import { createServerFn } from "@tanstack/react-start"
 import { getActiveOrganizationRole } from "@/features/organizations/operations/organization-role.server"
 import { ensureSession } from "@/lib/auth/session"
 import { moduleLogger, withWideEvent } from "@/lib/logger"
-import { putTenantProviderInputSchema } from "@/lib/schemas/nabu"
+import { createTenantProviderInputSchema } from "@/lib/schemas/nabu"
 import type { OrganizationRole } from "@/lib/schemas/organizations"
 
 import {
+  createTenantProvider,
   deleteTenantProvider,
-  getTenantProvider,
-  putTenantProvider,
+  getTenantProviders,
+  setDefaultTenantProvider,
   verifyTenantProvider,
 } from "./tenant-provider.server"
 
@@ -65,11 +66,11 @@ async function activeRole(): Promise<OrganizationRole> {
   return role
 }
 
-export const getTenantProviderFn = createServerFn({ method: "GET" }).handler(
+export const getTenantProvidersFn = createServerFn({ method: "GET" }).handler(
   async () => {
     return withWideEvent(
       "nabu",
-      "getTenantProvider",
+      "getTenantProviders",
       async (setContext, requestId) => {
         const session = await ensureSession()
         const tenantRole = await activeRole()
@@ -78,24 +79,24 @@ export const getTenantProviderFn = createServerFn({ method: "GET" }).handler(
           organizationId: session.session.activeOrganizationId,
           tenantRole,
         })
-        return getTenantProvider({ requestId, tenantRole })
+        return getTenantProviders({ requestId, tenantRole })
       },
     )
   },
 )
 
-export const putTenantProviderFn = createServerFn({ method: "POST" })
+export const createTenantProviderFn = createServerFn({ method: "POST" })
   // Written as a parse function, not as a bare schema, because that is the form
   // every other server function in this app uses. Passing the schema object
   // directly typechecks — `ConstrainValidator` accepts anything with a
   // `~standard` shape, which Zod v4 has — and then behaves differently at
   // runtime, which is the worst combination available: it survives `tsc` and
   // `bun run check` and fails only when somebody presses the button.
-  .validator((input: unknown) => putTenantProviderInputSchema.parse(input))
+  .validator((input: unknown) => createTenantProviderInputSchema.parse(input))
   .handler(async ({ data }) => {
     return withWideEvent(
       "nabu",
-      "putTenantProvider",
+      "createTenantProvider",
       async (setContext, requestId) => {
         const session = await ensureSession()
         const tenantRole = await activeRole()
@@ -106,45 +107,79 @@ export const putTenantProviderFn = createServerFn({ method: "POST" })
         })
         // `data` is never logged: it carries the credential. The wide event
         // records who changed what, not what they changed it to.
-        return putTenantProvider(data, { requestId, tenantRole })
+        return createTenantProvider(data, { requestId, tenantRole })
       },
     )
   })
 
-export const deleteTenantProviderFn = createServerFn({
-  method: "POST",
-}).handler(async () => {
-  return withWideEvent(
-    "nabu",
-    "deleteTenantProvider",
-    async (setContext, requestId) => {
-      const session = await ensureSession()
-      const tenantRole = await activeRole()
-      setContext({
-        userId: session.user.id,
-        organizationId: session.session.activeOrganizationId,
-        tenantRole,
-      })
-      return deleteTenantProvider({ requestId, tenantRole })
-    },
-  )
-})
+const providerIdInputSchema = (input: unknown) => {
+  if (typeof input !== "object" || input === null || !("id" in input)) {
+    throw new Error("a saved provider id is required")
+  }
+  const id = (input as { id: unknown }).id
+  if (typeof id !== "string" || id.length === 0) {
+    throw new Error("a saved provider id is required")
+  }
+  return { id }
+}
 
-export const verifyTenantProviderFn = createServerFn({
-  method: "POST",
-}).handler(async () => {
-  return withWideEvent(
-    "nabu",
-    "verifyTenantProvider",
-    async (setContext, requestId) => {
-      const session = await ensureSession()
-      const tenantRole = await activeRole()
-      setContext({
-        userId: session.user.id,
-        organizationId: session.session.activeOrganizationId,
-        tenantRole,
-      })
-      return verifyTenantProvider({ requestId, tenantRole })
-    },
-  )
-})
+export const deleteTenantProviderFn = createServerFn({ method: "POST" })
+  .validator(providerIdInputSchema)
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "deleteTenantProvider",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const tenantRole = await activeRole()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+          tenantRole,
+        })
+        return deleteTenantProvider(data, { requestId, tenantRole })
+      },
+    )
+  })
+
+export const setDefaultTenantProviderFn = createServerFn({ method: "POST" })
+  .validator(providerIdInputSchema)
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "setDefaultTenantProvider",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const tenantRole = await activeRole()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+          tenantRole,
+        })
+        return setDefaultTenantProvider(data, { requestId, tenantRole })
+      },
+    )
+  })
+
+export const verifyTenantProviderFn = createServerFn({ method: "POST" })
+  .validator(providerIdInputSchema)
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "verifyTenantProvider",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const tenantRole = await activeRole()
+        setContext({
+          userId: session.user.id,
+          organizationId: session.session.activeOrganizationId,
+          tenantRole,
+        })
+        return verifyTenantProvider(data, {
+          requestId,
+          tenantRole,
+          timeoutMs: 20_000,
+        })
+      },
+    )
+  })

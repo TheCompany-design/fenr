@@ -30,6 +30,16 @@ export const agentThreads = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     title: text("title"),
+    /**
+     * Which saved provider configuration this conversation runs on, as the
+     * chat's picker set it. `null` means the workspace's default — the state of
+     * conversations started before the picker existed, and of any conversation
+     * whose configuration was deleted (the runtime's reference is `ON DELETE
+     * SET NULL`, so the fallback is the database's rule).
+     *
+     * Written only by the runtime, through its own API; this mirror reads it.
+     */
+    providerConfigId: uuid("provider_config_id"),
     createdAt: timestamp("created_at", {
       withTimezone: true,
       mode: "date",

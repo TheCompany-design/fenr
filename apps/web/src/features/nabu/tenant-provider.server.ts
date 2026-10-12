@@ -1,9 +1,9 @@
 /**
- * Nabu HTTP calls for a workspace's own model provider.
+ * Nabu HTTP calls for a workspace's saved model providers.
  *
  * SERVER-ONLY. Thin over `executeRequest`: the interesting decisions — which
- * process dials the vendor's endpoint, and who may change it — are made in the
- * runtime, not here.
+ * process dials the vendor's endpoint, and who may change these — are made in
+ * the runtime, not here.
  *
  * The one thing this module does that the other Nabu adapters do not is resolve
  * the caller's authority and pass it along. Authority is a question about
@@ -24,14 +24,15 @@ import { moduleLogger } from "@/lib/logger"
 const log = moduleLogger("nabu-provider")
 
 import type {
-  PutTenantProviderInput,
-  TenantProvider,
+  CreateTenantProviderInput,
+  TenantProviderList,
+  TenantProviderSummary,
   VerifyTenantProviderResponse,
 } from "@/lib/schemas/nabu"
 
 import { NabuClientError, runNabuRequest } from "./nabu.server"
 
-export type { PutTenantProviderInput, TenantProvider }
+export type { CreateTenantProviderInput, TenantProviderSummary }
 
 /** Options every call here accepts, with the caller's workspace role attached. */
 export interface TenantProviderRequestOptions extends ExecuteRequestOptions {
@@ -39,32 +40,34 @@ export interface TenantProviderRequestOptions extends ExecuteRequestOptions {
 }
 
 /**
- * Reads the workspace's provider, model, and credential fingerprint.
+ * Reads the workspace's saved providers — the list the settings screen renders
+ * and the chat picker offers.
  *
  * Never returns a key — the runtime's response shape has no field for one, and
  * the Zod schema here would reject it if it grew one.
  */
-export async function getTenantProvider(
+export async function getTenantProviders(
   options: TenantProviderRequestOptions,
-): Promise<TenantProvider> {
+): Promise<TenantProviderList> {
   return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.tenantProvider, options),
+    executeRequest(nabuEndpoints.tenantProviders, options),
   )
 }
 
 /**
- * Configures the workspace's model provider.
+ * Saves another provider configuration for the workspace.
  *
- * The key is sent and then forgotten: the response is the redacted read shape, so
- * a caller cannot round-trip the credential into a cache or a log.
+ * The key is sent and then forgotten: the response is the saved entry's
+ * fingerprint shape, so a caller cannot round-trip the credential into a cache
+ * or a log.
  */
-export async function putTenantProvider(
-  input: PutTenantProviderInput,
+export async function createTenantProvider(
+  input: CreateTenantProviderInput,
   options: TenantProviderRequestOptions,
-): Promise<TenantProvider> {
+): Promise<TenantProviderSummary> {
   // Narrow and credential-free on purpose. The provider and model are what an
-  // operator needs to see in a log to explain a failure; the key is never in this
-  // object, and the fingerprint does not exist yet.
+  // operator needs to see in a log to explain a failure; the key is never in
+  // this object, and the fingerprint does not exist yet.
   const { api_key: _key, ...visible } = input
   log.info(
     {
@@ -77,10 +80,14 @@ export async function putTenantProvider(
 
   try {
     const saved = await runNabuRequest(() =>
-      executeRequest(nabuEndpoints.putTenantProvider, { ...options, input }),
+      executeRequest(nabuEndpoints.createTenantProvider, { ...options, input }),
     )
     log.info(
-      { configured: saved.configured, model: saved.model },
+      {
+        provider: saved.provider,
+        model: saved.model,
+        is_default: saved.is_default,
+      },
       "the runtime accepted the provider configuration",
     )
     return saved
@@ -98,35 +105,54 @@ export async function putTenantProvider(
 }
 
 /**
- * Removes the workspace's model provider.
+ * Removes one of the workspace's saved providers.
  *
  * Idempotent: the runtime answers `204` whether or not there was anything to
- * remove, so a retried save that races a delete is not reported as a failure.
+ * remove, so a retried delete that races another is not reported as a failure.
+ * Conversations that referenced it fall back to the workspace's default.
  */
 export async function deleteTenantProvider(
+  input: { readonly id: string },
   options: TenantProviderRequestOptions,
 ): Promise<void> {
   // No catch. A `403` is a real answer about authority and has to reach the
   // caller unchanged — swallowing it would let a member's screen claim to have
   // removed a configuration it never touched.
   await runNabuRequest(() =>
-    executeRequest(nabuEndpoints.deleteTenantProvider, options),
+    executeRequest(nabuEndpoints.deleteTenantProvider, { ...options, input }),
   )
 }
 
 /**
- * Asks the runtime to call the workspace's provider with its stored credential.
+ * Marks one saved provider as the one new conversations start on.
+ */
+export async function setDefaultTenantProvider(
+  input: { readonly id: string },
+  options: TenantProviderRequestOptions,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.setDefaultTenantProvider, {
+      ...options,
+      input,
+    }),
+  )
+}
+
+/**
+ * Asks the runtime to call one saved provider with its stored credential.
  *
- * `ok: false` means the provider answered and refused. An unreachable or
- * blocked provider arrives as an error status instead, so a caller that only
- * reads `ok` cannot mistake "your key is wrong" for "we could not try".
+ * `ok: false` means the provider answered and refused. An unreachable provider
+ * arrives as an error status instead, so a caller that only reads `ok` cannot
+ * mistake "your key is wrong" for "we could not try".
  */
 export async function verifyTenantProvider(
+  input: { readonly id: string },
   options: TenantProviderRequestOptions,
 ): Promise<VerifyTenantProviderResponse> {
   return runNabuRequest(() =>
     executeRequest(nabuEndpoints.verifyTenantProvider, {
       ...options,
+      input,
       timeoutMs: options.timeoutMs ?? 20_000,
     }),
   )
@@ -135,9 +161,9 @@ export async function verifyTenantProvider(
 /**
  * Whether an error is the runtime refusing the caller's authority.
  *
- * A helper rather than an inline comparison because "was this a 403" is asked in
- * three places in the settings form and each one should not be re-deriving the
- * answer from the transport's error shape.
+ * A helper rather than an inline comparison because "was this a 403" is asked
+ * in the settings form and each one should not be re-deriving the answer from
+ * the transport's error shape.
  */
 export function isPermissionDenied(error: unknown): boolean {
   return (
@@ -151,14 +177,14 @@ export function isPermissionDenied(error: unknown): boolean {
 /**
  * Whether the runtime refused the *configuration* rather than the request.
  *
- * `422` covers two cases the runtime answers differently in prose but the same
- * way on the wire, and a form should treat them the same: nothing is configured
- * yet, or the provider cannot be reached from the runtime. Both mean
- * "this field needs changing", and both are distinct from a provider that
- * answered and refused its key, which comes back as `ok: false` instead.
+ * `422` means the provider cannot be reached from the runtime — a
+ * deployment-level refusal to dial, not a wrong key. A wrong key comes back as
+ * `ok: false` instead, and a list that is full comes back as a `400` naming
+ * the cap, so the two are never confused by a client that only checks the
+ * status.
  *
- * Named for what it groups rather than for one of the two cases, so that adding
- * a third `422` later does not quietly mislabel itself.
+ * Named for what it groups rather than for one case, so that adding a second
+ * `422` later does not quietly mislabel itself.
  */
 export function isConfigurationRefused(error: unknown): boolean {
   return error instanceof HttpClientError && error.status === 422

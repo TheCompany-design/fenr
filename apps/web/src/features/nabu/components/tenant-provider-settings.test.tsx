@@ -1,11 +1,11 @@
 /**
- * The model-provider settings form, rendered.
+ * The saved-providers settings screen, rendered.
  *
  * The presentational assertions are what a screenshot would show, written down
- * so they are checked on every run instead of once by eye: an unconfigured
- * workspace says so and offers to save; a configured one shows which key is
- * stored and never the key itself; a member sees the values and cannot touch
- * them.
+ * so they are checked on every run instead of once by eye: an empty workspace
+ * says so and offers to add; a workspace with two entries shows which one new
+ * conversations start on, names every stored key by its fingerprint, and never
+ * shows a key; a member sees the list and cannot touch it.
  *
  * Rendered server-side with a seeded query client, because that is the closest
  * thing to "what a browser gets" available without a session — and because the
@@ -23,47 +23,49 @@ import {
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
-import type { TenantProvider } from "@/lib/schemas/nabu"
+import type { TenantProviderSummary } from "@/lib/schemas/nabu"
 
-import { tenantProviderKeys, tenantProviderQueryOptions } from "../queries"
+import { tenantProviderKeys, tenantProvidersQueryOptions } from "../queries"
 import { TenantProviderSettings } from "./tenant-provider-settings"
 
-const UNCONFIGURED: TenantProvider = {
-  configured: false,
-  provider: "",
-  model: "",
-  fingerprint: "",
-  max_output_tokens: null,
-  temperature: null,
-  can_administer: true,
-  updated_at: "",
-}
-
-const CONFIGURED: TenantProvider = {
-  configured: true,
+const DEFAULT_ENTRY: TenantProviderSummary = {
+  id: "018f0000-0000-7000-8000-000000000001",
   provider: "openai",
   model: "gpt-4o-mini",
+  label: "Work key",
+  is_default: true,
   fingerprint: "a1b2c3",
   max_output_tokens: null,
   temperature: null,
-  can_administer: true,
   updated_at: "2026-02-01T10:00:00Z",
 }
 
+const SECOND_ENTRY: TenantProviderSummary = {
+  id: "018f0000-0000-7000-8000-000000000002",
+  provider: "anthropic",
+  model: "claude-sonnet-4-5",
+  label: null,
+  is_default: false,
+  fingerprint: "9f8e7d",
+  max_output_tokens: null,
+  temperature: null,
+  updated_at: "2026-02-02T10:00:00Z",
+}
+
 async function render(
-  provider: TenantProvider,
+  list: { providers: TenantProviderSummary[]; can_administer: boolean },
   canAdminister = true,
 ): Promise<string> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   await queryClient.ensureQueryData({
-    ...tenantProviderQueryOptions(),
-    queryFn: async () => provider,
+    ...tenantProvidersQueryOptions(),
+    queryFn: async () => list,
   })
   // Seeded under the real key, so the component reads exactly what it reads in
   // production rather than a parallel fixture.
-  queryClient.setQueryData(tenantProviderKeys.detail(), provider)
+  queryClient.setQueryData(tenantProviderKeys.list(), list)
 
   const rootRoute = createRootRoute({
     component: () =>
@@ -82,105 +84,78 @@ async function render(
   return renderToStaticMarkup(createElement(RouterProvider, { router }))
 }
 
-describe("a workspace with no provider configured", () => {
+describe("a workspace with no provider saved", () => {
   let html: string
   beforeEach(async () => {
-    html = await render(UNCONFIGURED)
+    html = await render({ providers: [], can_administer: true })
   })
 
-  it("says so, rather than showing a form that quietly does nothing", () => {
+  it("says so, rather than rendering a list that quietly does nothing", () => {
     expect(html).toContain("no model provider")
     expect(html).toContain("turns cannot run")
   })
 
-  it("offers to save rather than to update", () => {
-    expect(html).toContain("Save provider")
+  it("offers to add the first one", () => {
+    expect(html).toContain("Add a provider")
   })
 
-  it("shows an empty key field, because no key is stored", () => {
-    expect(html).toContain('type="password"')
-    expect(html).toContain("sk-…")
-  })
-
-  it("offers no verification, because there is nothing to verify", () => {
-    // Testing a provider that is not configured yet would report a failure that
-    // reads like a broken key rather than a missing one.
-    expect(html).not.toContain("Test connection")
+  it("offers no per-entry actions, because there are no entries", () => {
+    expect(html).not.toContain("Test")
     expect(html).not.toContain("Remove")
-  })
-
-  it("offers every vendor as a choice, and preselects none", () => {
-    // The picker is the whole of what a workspace chooses about its provider —
-    // there is no URL field to get wrong — so all four have to be visible
-    // rather than hidden behind a dropdown.
-    for (const label of [
-      "OpenAI",
-      "OpenRouter",
-      "Anthropic",
-      "Google Gemini",
-    ]) {
-      expect(html).toContain(label)
-    }
-    // The rendered attribute, not the bare word — the class list legitimately
-    // contains a `has-[:checked]` variant.
-    expect(html).not.toContain('checked=""')
   })
 })
 
-describe("a workspace with a provider configured", () => {
+describe("a workspace with providers saved", () => {
   let html: string
   beforeEach(async () => {
-    html = await render(CONFIGURED)
+    html = await render({
+      providers: [DEFAULT_ENTRY, SECOND_ENTRY],
+      can_administer: true,
+    })
   })
 
-  it("pre-fills the provider and model the tenant chose", () => {
-    // The chosen vendor renders as the checked radio; there is no endpoint to
-    // pre-fill, because the address belongs to the runtime. The attribute is
-    // asserted separately from the value so the test does not depend on React's
-    // attribute ordering.
-    expect(html).toContain('value="openai"')
-    expect(html).toContain('checked=""')
+  it("renders every entry, naming the label and the model", () => {
+    expect(html).toContain("Work key")
     expect(html).toContain("gpt-4o-mini")
+    expect(html).toContain("claude-sonnet-4-5")
   })
 
-  it("identifies the stored key without revealing it", () => {
+  it("marks the one new conversations start on", () => {
+    expect(html).toContain("New chats start here")
+    expect(html).toContain("Use for new chats")
+  })
+
+  it("identifies each stored key without revealing it", () => {
     expect(html).toContain("a1b2c3")
-    // The placeholder tells the reader a key exists and how to confirm it, while
-    // the field itself stays empty — there is nothing to pre-fill with.
-    expect(html).toContain("type to replace it")
-    expect(html).not.toContain('value="sk-live')
+    expect(html).toContain("9f8e7d")
+    expect(html).not.toContain("sk-")
   })
 
-  it("offers to update, and to test and remove", () => {
-    expect(html).toContain("Save changes")
-    expect(html).toContain("Test connection")
+  it("offers to test and remove each entry, and to add another", () => {
+    expect(html).toContain("Test")
     expect(html).toContain("Remove")
+    expect(html).toContain("Add a provider")
   })
 })
 
 describe("a member who cannot change any of this", () => {
   let html: string
   beforeEach(async () => {
-    html = await render(CONFIGURED, false)
+    html = await render(
+      { providers: [DEFAULT_ENTRY, SECOND_ENTRY], can_administer: true },
+      false,
+    )
   })
 
-  it("sees what is configured", () => {
-    expect(html).toContain("gpt-4o-mini")
+  it("sees what is saved", () => {
+    expect(html).toContain("Work key")
     expect(html).toContain("a1b2c3")
-  })
-
-  it("cannot edit any field", () => {
-    // Six disabled controls: four provider radios, the model, the key.
-    const disabled = html.match(/disabled/g) ?? []
-    expect(disabled.length).toBeGreaterThanOrEqual(6)
   })
 
   it("is offered no way to change it, and told who to ask", () => {
     expect(html).toContain("only an owner or an admin")
-    expect(html).not.toContain("Test connection")
+    expect(html).not.toContain("Add a provider")
+    expect(html).not.toContain("Test")
     expect(html).not.toContain("Remove")
-    // Save is present but disabled, which is different from absent: the reader
-    // learns that the setting exists and that it is not theirs.
-    expect(html).toContain("Save changes")
   })
 })

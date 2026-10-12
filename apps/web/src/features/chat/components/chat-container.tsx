@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { HeaderPortal } from "@/components/shell/header-portal"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
@@ -8,6 +8,7 @@ import { ApprovalPrompt } from "./approval-prompt"
 import { ChatComposer } from "./chat-composer"
 import { ChatHeaderTitle } from "./chat-header-title"
 import { ChatMessages } from "./chat-messages"
+import { ProviderPicker } from "./provider-picker"
 
 export interface ChatContainerProps {
   readonly threadId?: string
@@ -81,6 +82,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
 
   const handleSend = async (prompt: string) => {
     await send(prompt, threadId, {
+      providerConfigId,
       onTurnStarted: async (serverThreadId) => {
         // Seamlessly transition URL from /chat to /chat/<server-thread-id>
         await safeNavigate({
@@ -97,6 +99,17 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   // A suspended turn is waiting on a decision, not on the model. Offering the
   // composer here would let a new turn start while this one is parked, and the
   // approval request would then belong to a conversation nobody is looking at.
+  /*
+   * The conversation's provider choice.
+   *
+   * Held here rather than in the picker because the composer's send needs it:
+   * the choice rides with the next message and the runtime stores it on the
+   * thread, so after the turn starts the record is the truth again. `null`
+   * until the person picks — which means "the workspace default", exactly what
+   * the runtime resolves an absent choice to.
+   */
+  const [providerConfigId, setProviderConfigId] = useState<string | null>(null)
+
   const awaitingApproval =
     turn.status === "suspended" &&
     turn.turnId !== null &&
@@ -109,6 +122,14 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
       {/* This screen's contribution to the app shell's header. */}
       <HeaderPortal region="start" className="min-w-0 flex-1">
         <ChatHeaderTitle threadId={threadId} />
+      </HeaderPortal>
+      <HeaderPortal region="end">
+        <ProviderPicker
+          threadId={threadId}
+          value={providerConfigId}
+          onChange={setProviderConfigId}
+          disabled={isStreaming}
+        />
       </HeaderPortal>
 
       {/* Conversational Canvas Area */}
