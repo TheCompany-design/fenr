@@ -200,6 +200,39 @@ export type VerifyTenantProviderResponse = z.infer<
 >
 
 /**
+ * One model as a vendor's catalogue describes it.
+ *
+ * Every field past the id is optional, and that is the contract rather than an
+ * accident of the four vendor payloads: a fact the vendor did not publish is
+ * absent here, so a picker can say "unknown" instead of implying a limit nobody
+ * verified. OpenAI publishes no metadata at all, so its entries carry an id and
+ * nothing else — which is exactly why that field is the only required one.
+ */
+export const listedModelSchema = z.object({
+  /** The id a completion request carries, exactly as the save form sends it. */
+  id: z.string().min(1),
+  /** The vendor's own name for the model. */
+  display_name: z.string().min(1).optional(),
+  /** The most input tokens the model will accept. */
+  context_window: z.number().int().positive().optional(),
+  /** The most output tokens the model will return. */
+  max_output_tokens: z.number().int().positive().optional(),
+  /**
+   * Whether the model accepts images as well as text. Absent is different from
+   * `false`: absent means the vendor published no modalities at all.
+   */
+  accepts_images: z.boolean().optional(),
+  /** What the vendor advertises, in US dollars per million tokens. */
+  pricing: z
+    .object({
+      input_usd: z.number().nonnegative(),
+      output_usd: z.number().nonnegative(),
+    })
+    .optional(),
+})
+export type ListedModel = z.infer<typeof listedModelSchema>
+
+/**
  * A vendor's model catalogue, as the two listing endpoints answer it.
  *
  * `POST /api/v1/providers/models` (a vendor name and the key about to be
@@ -213,8 +246,11 @@ export const providerModelsResponseSchema = z.object({
   ok: z.boolean(),
   /** A sentence naming the outcome when the catalogue was not read. */
   message: z.string().optional(),
-  /** The model ids the vendor offers, sorted. Present only with `ok: true`. */
-  models: z.array(z.string().min(1)).optional(),
+  /**
+   * The models the vendor offers, sorted by id, each filtered to the ones a
+   * turn can actually run. Present only with `ok: true`.
+   */
+  models: z.array(listedModelSchema).optional(),
 })
 export type ProviderModelsResponse = z.infer<
   typeof providerModelsResponseSchema

@@ -57,10 +57,12 @@ import { toast } from "sonner"
 import { z } from "zod"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type {
+  ListedModel,
   ProviderModelsResponse,
   TenantProviderSummary,
 } from "@/lib/schemas/nabu"
 import { useConfirmStore } from "@/lib/stores/confirm.store"
+import { modelFacts, modelIdSuffix, modelName } from "../model-catalogue"
 import { tenantProviderKeys, tenantProvidersQueryOptions } from "../queries"
 import {
   createTenantProviderFn,
@@ -447,7 +449,7 @@ function ProviderList({
 /** Where the model pick list stands. */
 type ModelsState = {
   status: "idle" | "loading" | "ready" | "refused" | "error"
-  models: string[]
+  models: ListedModel[]
   /** What went wrong, in the runtime's own words. */
   message: string | null
   /** The provider+key pair the list was loaded with, so a change invalidates it. */
@@ -714,9 +716,32 @@ function AddProviderForm({
                         <SelectValue placeholder="Pick a model" />
                       </SelectTrigger>
                       <SelectContent>
+                        {/* The vendor's name where it published one, with
+                            the id it would actually be requested by beside
+                            it, and whatever else it said — context window,
+                            price, image input — as a muted line. Anything it
+                            did not say is absent rather than shown as a
+                            zero, so a vendor that publishes a name and
+                            nothing else gets no trailing detail at all. */}
                         {models.models.map((model) => (
-                          <SelectItem key={model} value={model}>
-                            {model}
+                          <SelectItem key={model.id} value={model.id}>
+                            <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
+                              <span className="flex min-w-0 items-baseline gap-1.5">
+                                <span className="truncate">
+                                  {modelName(model)}
+                                </span>
+                                {modelIdSuffix(model) ? (
+                                  <span className="truncate font-mono text-xs text-muted-foreground">
+                                    {modelIdSuffix(model)}
+                                  </span>
+                                ) : null}
+                              </span>
+                              {modelFacts(model) ? (
+                                <span className="text-xs text-muted-foreground">
+                                  {modelFacts(model)}
+                                </span>
+                              ) : null}
+                            </span>
                           </SelectItem>
                         ))}
                         <div
