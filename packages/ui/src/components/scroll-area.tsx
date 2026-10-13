@@ -23,7 +23,13 @@ function ScrollArea({
         ref={viewportRef}
         onScroll={onScroll}
         data-slot="scroll-area-viewport"
-        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        /* `max-h-[inherit]` is what makes a root capped only by max-height
+           scroll at all: the viewport's `height: 100%` resolves against the
+           root's *computed* height, which is content-driven when the cap is a
+           max-height — so without inheriting the cap, the viewport grows with
+           its content and `overflow: scroll` never engages. A root sized by
+           flex or a definite height is unaffected; the cap is simply none. */
+        className="size-full max-h-[inherit] rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
