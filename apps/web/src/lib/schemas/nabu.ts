@@ -213,10 +213,17 @@ export const listedModelSchema = z.object({
   id: z.string().min(1),
   /** The vendor's own name for the model. */
   display_name: z.string().min(1).optional(),
-  /** The most input tokens the model will accept. */
-  context_window: z.number().int().positive().optional(),
+  /**
+   * The most input tokens the model will accept.
+   *
+   * `nonnegative`, not `positive`: this schema guards its own output, not the
+   * vendor's claims. A zero here would be one odd model — and rejecting the
+   * whole response over it would leave the caller with an error naming neither
+   * the vendor nor the field, and no catalogue at all.
+   */
+  context_window: z.number().int().nonnegative().optional(),
   /** The most output tokens the model will return. */
-  max_output_tokens: z.number().int().positive().optional(),
+  max_output_tokens: z.number().int().nonnegative().optional(),
   /**
    * Whether the model accepts images as well as text. Absent is different from
    * `false`: absent means the vendor published no modalities at all.

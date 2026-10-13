@@ -57,19 +57,33 @@ export function formatTokenCount(count: number): string {
 
 /**
  * A per-million price, at a precision that does not round a cheap model to zero.
+ *
+ * Bounded above as well as below. The runtime accepts any finite price a vendor
+ * publishes, and `toFixed` switches to exponential notation at `1e21` — so a
+ * vendor answering `"prompt": "1e300"` would otherwise render `$1e+306`, which
+ * reads like a number nobody meant to publish. Past a thousand dollars per
+ * million tokens the figure is a placeholder either way; saying so is honest and
+ * costs the reader nothing.
  */
 export function formatPrice(usd: number): string {
   if (!Number.isFinite(usd) || usd < 0) return ""
+  if (usd >= 1_000) return "$1000+"
   const digits = usd > 0 && usd < 0.01 ? 4 : 2
   return `$${usd.toFixed(digits)}`
 }
 
 /**
- * Everything the vendor published about a model, as one muted line.
+ * What a model row says about itself, as one muted line.
  *
- * Only the facts it actually stated. A vendor that publishes a name and nothing
- * else yields an empty string, and the picker shows the model with no trailing
- * detail rather than with a row of dashes standing in for absent facts.
+ * Deliberately not every field the vendor published: `max_output_tokens` is
+ * carried all the way here and left out of the row. Three numbers on one line
+ * stop being readable, and an output ceiling is a detail someone looks up after
+ * they have already picked, not a differentiator they choose between. It stays
+ * on the type, so anything that does want it can have it.
+ *
+ * Only the facts the vendor stated appear. A vendor that publishes a name and
+ * nothing else yields an empty string, and the picker shows the model with no
+ * trailing detail rather than with a row of dashes standing in for absent facts.
  */
 export function modelFacts(model: ListedModel): string {
   const parts: string[] = []

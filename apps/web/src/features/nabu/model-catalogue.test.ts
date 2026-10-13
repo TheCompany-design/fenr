@@ -98,10 +98,18 @@ describe("formatPrice", () => {
     expect(formatPrice(-1)).toBe("")
     expect(formatPrice(Number.NaN)).toBe("")
   })
+
+  it("does not render a price nobody could have meant in exponential", () => {
+    // The runtime accepts any finite price a vendor publishes, and `toFixed`
+    // switches to exponential at 1e21 — so "1e300" would read `$1e+306`.
+    expect(formatPrice(1e300)).toBe("$1000+")
+    expect(formatPrice(1e21)).toBe("$1000+")
+    expect(formatPrice(999.99)).toBe("$999.99")
+  })
 })
 
 describe("modelFacts", () => {
-  it("states every fact the vendor published, and only those", () => {
+  it("states the facts a row carries, and only those", () => {
     expect(
       modelFacts(
         listed({
@@ -113,6 +121,21 @@ describe("modelFacts", () => {
         }),
       ),
     ).toBe("1M context · $3.00 / $15.00 per M tokens · images")
+  })
+
+  it("leaves the output ceiling off the row on purpose", () => {
+    // It is carried on the type and deliberately not rendered: three numbers on
+    // one line stop being readable. Pinned so the omission stays a decision
+    // rather than drifting into an accident.
+    expect(
+      modelFacts(
+        listed({
+          id: "a",
+          context_window: 200_000,
+          max_output_tokens: 128_000,
+        }),
+      ),
+    ).toBe("200k context")
   })
 
   it("renders a model the vendor described only by name with no detail line", () => {
