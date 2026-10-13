@@ -12,7 +12,10 @@ import type {
   ProviderSpec,
 } from "@/components/composer"
 import { providerDisplayName } from "@/components/providers/provider-identity"
+import { modelFacts, modelName } from "@/features/nabu/model-catalogue"
 import type {
+  ListedModel,
+  ProviderModelsResponse,
   TenantProviderList,
   TenantProviderSummary,
 } from "@/lib/schemas/nabu"
@@ -24,18 +27,29 @@ import type {
  */
 export const MAX_PROMPT_BYTES = 64 * 1024
 
-export function toModelSpec(config: TenantProviderSummary): ModelSpec {
+/**
+ * One catalogue entry, as the picker renders it.
+ *
+ * The vendor's own name where it published one, its facts as a muted line
+ * (context window, price, image input — the same formatters the settings
+ * screen used, so a model reads identically in both places), and capability
+ * claims taken from what the vendor actually said: an image cap only when the
+ * vendor admitted images, and a context window the vendor published rather
+ * than the runtime's fallback.
+ */
+export function toCatalogModel(
+  model: ListedModel,
+  providerId: string,
+): ModelSpec {
   return {
-    id: config.model,
-    providerId: config.id,
-    name: config.model,
-    tagline: config.label ?? providerDisplayName(config.provider),
+    id: model.id,
+    providerId,
+    name: modelName(model),
+    tagline: modelFacts(model) || providerId,
     caps: {
-      // The turn API is text-only today: no image inputs, no PDF parts, and
-      // no reasoning-effort field. Saying so in the capability model is what
-      // keeps the composer's controls honest — effort hides itself, images
-      // block with a reason instead of vanishing at send.
-      vision: { supported: false },
+      vision: model.accepts_images
+        ? { supported: true, maxImages: 8 }
+        : { supported: false },
       files: {
         supported: true,
         kinds: ["text"],
@@ -53,23 +67,45 @@ export function toModelSpec(config: TenantProviderSummary): ModelSpec {
       search: { supported: false },
       cache: { supported: false },
     },
-    // The runtime windows context against a constant 32,000-token budget
-    // (report §8 decision 4: keep it until calibration data says otherwise),
-    // so that is the honest number to meter against.
     limits: {
-      contextWindow: 32_000,
-      maxOutput: config.max_output_tokens ?? 4_096,
+      // The vendor's published window when it stated one; the runtime's
+      // 32,000-token windowing budget otherwise, which is the honest number
+      // to meter against until calibration says otherwise.
+      contextWindow: model.context_window ?? 32_000,
+      maxOutput: model.max_output_tokens ?? 4_096,
     },
-    // Cost is computed at read time from the pricing snapshot on the server;
-    // the picker has no per-token price to show until that surfaces.
-    cost: { inputPerMTok: 0, outputPerMTok: 0 },
+    cost: {
+      inputPerMTok: model.pricing?.input_usd ?? 0,
+      outputPerMTok: model.pricing?.output_usd ?? 0,
+    },
   }
+}
+
+/**
+ * The saved configuration's catalogue, through a refusal that says itself.
+ *
+ * The catalogue fetch and the settings form's key test are the same dial with
+ * the stored credential, so a declined credential is a failed catalogue whose
+ * message is the vendor's own sentence — not a generic error this service
+ * reworded.
+ */
+export async function loadSavedCatalogue(
+  fetchCatalogue: (configId: string) => Promise<ProviderModelsResponse>,
+  configId: string,
+): Promise<readonly ModelSpec[]> {
+  const result = await fetchCatalogue(configId)
+  if (!result.ok) {
+    throw new Error(
+      result.message ?? "The provider did not accept that credential.",
+    )
+  }
+  return (result.models ?? []).map((model) => toCatalogModel(model, configId))
 }
 
 export function toComposerProvider(
   config: TenantProviderSummary,
+  fetchCatalogue: (configId: string) => Promise<ProviderModelsResponse>,
 ): ProviderSpec {
-  const model = toModelSpec(config)
   return {
     id: config.id,
     label: config.label ?? providerDisplayName(config.provider),
@@ -83,7 +119,12 @@ export function toComposerProvider(
       // The credential is server-side; there is nothing to validate here.
       requiresCredential: false,
       effortEncoding: { style: "none" },
-      load: async () => [model],
+      // The vendor's own catalogue, fetched with the stored credential at
+      // hydrate time. A refusal or an unreachable runtime lands the tab in
+      // the catalog's failed state, which names the finding and offers a
+      // retry — a single saved model stood in for this catalogue before,
+      // and that was why the picker showed one model per provider.
+      load: () => loadSavedCatalogue(fetchCatalogue, config.id),
     },
   }
 }
@@ -91,14 +132,21 @@ export function toComposerProvider(
 /**
  * The workspace's saved providers, default first, so the composer's
  * auto-selection lands on the configuration new conversations actually use.
+ *
+ * `fetchCatalogue` is injected rather than imported so this module stays free
+ * of server-function imports, and unit tests can drive the catalogue with
+ * fakes instead of the TanStack runtime.
  */
-export function orderProviders(list: TenantProviderList): ProviderSpec[] {
+export function orderProviders(
+  list: TenantProviderList,
+  fetchCatalogue: (configId: string) => Promise<ProviderModelsResponse>,
+): ProviderSpec[] {
   const providers = [...list.providers]
   providers.sort((a, b) => {
     if (a.is_default !== b.is_default) return a.is_default ? -1 : 1
     return a.updated_at.localeCompare(b.updated_at)
   })
-  return providers.map(toComposerProvider)
+  return providers.map((config) => toComposerProvider(config, fetchCatalogue))
 }
 
 /**

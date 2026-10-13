@@ -170,7 +170,15 @@ const trimmed = (max: number, message: string) =>
 export const createTenantProviderInputSchema = z.object({
   /** Which vendor to dial. The runtime refuses one it cannot speak, by name. */
   provider: trimmed(64, "Choose a provider"),
-  model: trimmed(256, "A model id is required"),
+  /**
+   * The configuration's default model, usually absent.
+   *
+   * The model is the conversation's choice — picked in the chat's model
+   * picker over the configuration's catalogue — so a configuration saved
+   * without one is the normal path. A named one is still bounded, and the
+   * runtime validates whatever is sent.
+   */
+  model: z.string().trim().max(256, "That model id is implausibly long"),
   api_key: trimmed(4096, "An API key is required"),
   /** An optional name; absent renders as the vendor and model. */
   label: z.string().trim().max(64, "That name is too long").optional(),

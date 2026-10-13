@@ -9,10 +9,14 @@
  *   "the key ending a1b2c3 is the one you pasted", which is the only way to
  *   verify a save without displaying the key.
  * - **The runtime decides, this screen reports.** Whether the vendor is one the
- *   runtime speaks, whether the model id is one that vendor can be asked for,
- *   whether the key is accepted — all of that is answered by the process that
- *   actually holds the credential. This component never guesses and never
- *   explains a refusal the runtime did not word.
+ *   runtime speaks and whether the key is accepted are answered by the process
+ *   that actually holds the credential — saving dials the vendor's own model
+ *   listing as the key test, so a refusal here is the vendor's own sentence.
+ *   This component never guesses and never explains a refusal the runtime did
+ *   not word.
+ * - **No model is chosen here.** The model is the conversation's choice,
+ *   picked in the chat's model picker over the saved configuration's whole
+ *   catalogue. What is saved is a credential and a vendor — nothing more.
  *
  * A workspace may hold several configurations — two OpenAI keys, or one per
  * vendor. One is the default: the one a new conversation starts on, and the one
@@ -45,24 +49,15 @@ import {
 } from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@workspace/ui/components/select"
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type {
-  ListedModel,
   ProviderModelsResponse,
   TenantProviderSummary,
 } from "@/lib/schemas/nabu"
 import { useConfirmStore } from "@/lib/stores/confirm.store"
-import { modelFacts, modelIdSuffix, modelName } from "../model-catalogue"
 import { tenantProviderKeys, tenantProvidersQueryOptions } from "../queries"
 import {
   createTenantProviderFn,
@@ -82,11 +77,6 @@ import {
  */
 const createProviderFormSchema = z.object({
   provider: z.string().min(1, "Choose a provider"),
-  model: z
-    .string()
-    .trim()
-    .min(1, "A model id is required")
-    .max(256, "That model id is implausibly long"),
   apiKey: z
     .string()
     .trim()
@@ -261,13 +251,11 @@ function ProviderRow({
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
           {/* The vendor's mark carries the identity; the tooltip names it on a
-              delayed hover. The entry's own name and the model stay spelled
-              out — they are the workspace's words, not the vendor's. */}
+              delayed hover. The entry's own name stays spelled out — it is the
+              workspace's word, not the vendor's. No model is shown: the model
+              is the conversation's choice now, not the configuration's. */}
           <ProviderLogo provider={provider.provider} size={16} />
-          <span>{provider.label ?? `${provider.model}`}</span>
-          <span className="text-xs font-normal text-muted-foreground">
-            {provider.model}
-          </span>
+          <span>{provider.label ?? provider.provider}</span>
           {provider.is_default && (
             <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">
               <HugeiconsIcon icon={CheckmarkCircle01Icon} size={12} />
@@ -447,20 +435,19 @@ function ProviderList({
 }
 
 /** Where the model pick list stands. */
-type ModelsState = {
-  status: "idle" | "loading" | "ready" | "refused" | "error"
-  models: ListedModel[]
-  /** What went wrong, in the runtime's own words. */
+/**
+ * The outcome of the save-time key test.
+ *
+ * The test is the vendor's own model listing: it both proves the credential
+ * and counts what the chat's picker will offer from it. A refusal carries the
+ * vendor's own sentence, because "your key is wrong" is the vendor's finding
+ * to report, not this screen's to reword.
+ */
+type KeyTest = {
+  status: "idle" | "accepted" | "refused" | "error"
+  /** How many models the credential can reach. */
+  models: number
   message: string | null
-  /** The provider+key pair the list was loaded with, so a change invalidates it. */
-  loadedFor: string | null
-}
-
-const IDLE_MODELS: ModelsState = {
-  status: "idle",
-  models: [],
-  message: null,
-  loadedFor: null,
 }
 
 /** The form that adds one configuration. */
@@ -473,7 +460,6 @@ function AddProviderForm({
   const form = useForm({
     defaultValues: {
       provider: "",
-      model: "",
       apiKey: "",
       label: "",
     },
@@ -482,12 +468,36 @@ function AddProviderForm({
       onSubmit: createProviderFormSchema,
     },
     onSubmit: async ({ value }) => {
+      // The key test runs first, and a refusal ends the save: a credential the
+      // vendor already declined must not be stored as a success. The test is
+      // the vendor's own model listing — the same dial the chat's picker uses —
+      // so its answer is the finding, not a proxy for one.
+      setKeyTest({ status: "idle", models: 0, message: null })
+      let catalogue: ProviderModelsResponse
+      try {
+        catalogue = await listProviderModelsFn({
+          data: { provider: value.provider, api_key: value.apiKey.trim() },
+        })
+      } catch (error) {
+        setKeyTest({ status: "error", models: 0, message: describe(error) })
+        return
+      }
+      if (!catalogue.ok) {
+        setKeyTest({
+          status: "refused",
+          models: 0,
+          message:
+            catalogue.message ?? "The provider did not accept that credential.",
+        })
+        return
+      }
+
       // Through the mutation, not around it: the mutation owns the invalidation
       // and the dismissal, and a direct call here would save the entry while
       // the screen went on showing a list without it.
       await save.mutateAsync({
         provider: value.provider,
-        model: value.model.trim(),
+        model: "",
         api_key: value.apiKey.trim(),
         label: value.label.trim() ? value.label.trim() : undefined,
       })
@@ -514,51 +524,15 @@ function AddProviderForm({
     },
   })
 
-  // The vendor's own catalogue. Loaded explicitly — one dial per deliberate
-  // press, not per keystroke — because the key travels with the request and a
-  // list that silently reloaded while someone typed would be dialing with a
-  // half-pasted credential.
-  const [models, setModels] = useState<ModelsState>(IDLE_MODELS)
-  const [manualEntry, setManualEntry] = useState(false)
-
-  const loadModels = async (provider: string, apiKey: string) => {
-    if (!provider || !apiKey.trim()) return
-    setModels({
-      status: "loading",
-      models: [],
-      message: null,
-      loadedFor: `${provider}:${apiKey}`,
-    })
-    try {
-      const result: ProviderModelsResponse = await listProviderModelsFn({
-        data: { provider, api_key: apiKey.trim() },
-      })
-      if (result.ok && result.models) {
-        setModels({
-          status: "ready",
-          models: result.models,
-          message: null,
-          loadedFor: `${provider}:${apiKey}`,
-        })
-        setManualEntry(false)
-      } else {
-        setModels({
-          status: "refused",
-          models: [],
-          message:
-            result.message ?? "The provider did not accept that credential.",
-          loadedFor: `${provider}:${apiKey}`,
-        })
-      }
-    } catch (error) {
-      setModels({
-        status: "error",
-        models: [],
-        message: describe(error),
-        loadedFor: `${provider}:${apiKey}`,
-      })
-    }
-  }
+  // The outcome of the save-time key test, shown under the submit row. A
+  // refusal blocks the save and names the vendor's finding; an acceptance
+  // states what the credential reached, because a number is more legible than
+  // a green tick.
+  const [keyTest, setKeyTest] = useState<KeyTest>({
+    status: "idle",
+    models: 0,
+    message: null,
+  })
 
   return (
     <form
@@ -674,169 +648,38 @@ function AddProviderForm({
         )}
       </form.Field>
 
-      <form.Subscribe
-        selector={(state) => [
-          state.values.provider,
-          state.values.apiKey,
-          state.values.model,
-        ]}
-      >
-        {([provider, apiKey, model]) => {
-          const pair = `${provider}:${apiKey}`
-          const stale = models.loadedFor !== pair && models.status !== "idle"
-          const current = stale ? IDLE_MODELS : models
-          const canLoad = Boolean(provider) && Boolean(apiKey.trim())
-
-          return (
-            <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
-              <div>
-                <Label htmlFor="provider-model">Model</Label>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  {current.status === "ready" && !manualEntry
-                    ? "From the vendor's own catalogue. Pick one."
-                    : "Load the vendor's list with the key above, or enter the id it knows."}
-                </p>
-              </div>
-              <div className="flex flex-col gap-2">
-                {current.status === "ready" && !manualEntry ? (
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={model}
-                      onValueChange={(next) => {
-                        if (next === null) return
-                        if (next === "__manual__") {
-                          setManualEntry(true)
-                          form.setFieldValue("model", "")
-                          return
-                        }
-                        form.setFieldValue("model", next)
-                      }}
-                    >
-                      <SelectTrigger id="provider-model" className="w-full">
-                        <SelectValue placeholder="Pick a model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* The vendor's name where it published one, with
-                            the id it would actually be requested by beside
-                            it, and whatever else it said — context window,
-                            price, image input — as a muted line. Anything it
-                            did not say is absent rather than shown as a
-                            zero, so a vendor that publishes a name and
-                            nothing else gets no trailing detail at all. */}
-                        {models.models.map((model) => (
-                          <SelectItem key={model.id} value={model.id}>
-                            <span className="flex min-w-0 flex-col gap-0.5 py-0.5">
-                              <span className="flex min-w-0 items-baseline gap-1.5">
-                                <span className="truncate">
-                                  {modelName(model)}
-                                </span>
-                                {modelIdSuffix(model) ? (
-                                  <span className="truncate font-mono text-xs text-muted-foreground">
-                                    {modelIdSuffix(model)}
-                                  </span>
-                                ) : null}
-                              </span>
-                              {modelFacts(model) ? (
-                                <span className="text-xs text-muted-foreground">
-                                  {modelFacts(model)}
-                                </span>
-                              ) : null}
-                            </span>
-                          </SelectItem>
-                        ))}
-                        <div
-                          className="bg-border my-1 h-px"
-                          role="presentation"
-                        />
-                        <SelectItem value="__manual__">
-                          Enter a model id manually…
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="shrink-0"
-                      disabled={save.isPending}
-                      onClick={() => void loadModels(provider, apiKey)}
-                    >
-                      <HugeiconsIcon icon={RefreshIcon} size={14} />
-                      Refresh
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <form.Field name="model">
-                      {(field) => (
-                        <Input
-                          id="provider-model"
-                          placeholder="gpt-4o-mini"
-                          value={field.state.value}
-                          onBlur={field.handleBlur}
-                          onChange={(event) =>
-                            field.handleChange(event.target.value)
-                          }
-                          disabled={save.isPending}
-                          aria-invalid={
-                            field.state.meta.isTouched &&
-                            field.state.meta.errors.length > 0
-                          }
-                        />
-                      )}
-                    </form.Field>
-                    {current.status === "loading" ? (
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <HugeiconsIcon
-                          icon={Loading03Icon}
-                          size={13}
-                          className="animate-spin"
-                        />
-                        Loading the vendor's models…
-                      </p>
-                    ) : null}
-                    {current.status === "refused" ||
-                    current.status === "error" ? (
-                      <p className="flex items-center gap-1.5 text-xs text-amber-600">
-                        <HugeiconsIcon
-                          icon={Alert02Icon}
-                          size={13}
-                          className="shrink-0"
-                        />
-                        {current.message}
-                      </p>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="self-start"
-                      disabled={
-                        !canLoad ||
-                        current.status === "loading" ||
-                        save.isPending
-                      }
-                      onClick={() => {
-                        setManualEntry(false)
-                        void loadModels(provider, apiKey)
-                      }}
-                    >
-                      {current.status === "loading" ? (
-                        <HugeiconsIcon
-                          icon={Loading03Icon}
-                          size={14}
-                          className="animate-spin"
-                        />
-                      ) : null}
-                      Load models
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          )
-        }}
-      </form.Subscribe>
+      {/* The key test's verdict, under the fields it is about. A refusal
+          blocks the save, and its sentence is the vendor's own; an acceptance
+          counts what the credential reached, because a number is more legible
+          than a green tick. */}
+      {keyTest.status !== "idle" ? (
+        <p
+          className={
+            keyTest.status === "accepted"
+              ? "flex items-center gap-1.5 text-xs text-muted-foreground"
+              : "flex items-center gap-1.5 text-xs text-amber-600"
+          }
+          role="status"
+        >
+          {keyTest.status === "accepted" ? (
+            <>
+              <HugeiconsIcon icon={CheckmarkCircle01Icon} size={13} />
+              Key accepted — {keyTest.models}{" "}
+              {keyTest.models === 1 ? "model" : "models"} available in the
+              chat's model picker.
+            </>
+          ) : (
+            <>
+              <HugeiconsIcon
+                icon={Alert02Icon}
+                size={13}
+                className="shrink-0"
+              />
+              {keyTest.message}
+            </>
+          )}
+        </p>
+      ) : null}
 
       <CardFooter className="flex-wrap justify-end gap-2 border-t border-border px-0 pt-4 pb-0">
         <Button

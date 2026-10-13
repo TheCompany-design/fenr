@@ -114,10 +114,14 @@ describe("a workspace with providers saved", () => {
     })
   })
 
-  it("renders every entry, naming the label and the model", () => {
+  it("renders every entry, naming the workspace's label or the vendor", () => {
+    // The model is deliberately absent from the row: it is the conversation's
+    // choice now, picked in the chat's model picker, and a configuration's
+    // stored model is only a default most configurations no longer have.
     expect(html).toContain("Work key")
-    expect(html).toContain("gpt-4o-mini")
-    expect(html).toContain("claude-sonnet-4-5")
+    expect(html).toContain("anthropic")
+    expect(html).not.toContain("gpt-4o-mini")
+    expect(html).not.toContain("claude-sonnet-4-5")
   })
 
   it("marks the one new conversations start on", () => {

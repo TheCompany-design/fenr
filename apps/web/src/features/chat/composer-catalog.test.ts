@@ -5,12 +5,14 @@ import type { ModelSpec } from "@/components/composer/catalog/capabilities"
 import { reconcile } from "@/components/composer/catalog/reconcile"
 import { measureContext } from "@/components/composer/catalog/usage"
 import { providerDisplayName } from "@/components/providers/provider-identity"
-import type { TenantProviderList } from "@/lib/schemas/nabu"
+import type { ListedModel, TenantProviderList } from "@/lib/schemas/nabu"
 import {
   flattenPrompt,
   isTextLike,
+  loadSavedCatalogue,
   MAX_PROMPT_BYTES,
   orderProviders,
+  toCatalogModel,
   toComposerProvider,
   toRuntimeTools,
 } from "./composer-catalog"
@@ -28,6 +30,20 @@ function config(overrides: Partial<TenantProviderList["providers"][number]>) {
     updated_at: "2026-01-01T00:00:00Z",
     ...overrides,
   }
+}
+
+/** A catalogue fetch that always answers with this fixture. */
+function catalogueWith(models: ListedModel[]) {
+  return { ok: true as const, models }
+}
+
+const GPT: ListedModel = {
+  id: "gpt-5.2",
+  display_name: "GPT-5.2",
+  context_window: 400_000,
+  max_output_tokens: 128_000,
+  accepts_images: true,
+  pricing: { input_usd: 1.25, output_usd: 10 },
 }
 
 function attachment(overrides: Partial<Attachment> = {}): Attachment {
@@ -62,7 +78,7 @@ describe("saved providers as the composer's catalog", () => {
       ],
       can_administer: true,
     }
-    const ordered = orderProviders(list)
+    const ordered = orderProviders(list, async () => catalogueWith([]))
     expect(ordered.map((provider) => provider.id)).toEqual(["a", "c", "b"])
   })
 
@@ -71,12 +87,47 @@ describe("saved providers as the composer's catalog", () => {
     expect(providerDisplayName("mistral")).toBe("mistral")
   })
 
-  it("exposes exactly one model per saved configuration", async () => {
-    const provider = toComposerProvider(config({ model: "gpt-test" }))
+  it("exposes the vendor's whole catalogue for a saved configuration", async () => {
+    const provider = toComposerProvider(config({}), async () =>
+      catalogueWith([GPT, { id: "gpt-5.2-mini" }]),
+    )
     const models = await provider.source.load(null)
-    expect(models).toHaveLength(1)
-    expect(models[0]?.id).toBe("gpt-test")
-    expect(models[0]?.limits.contextWindow).toBe(32_000)
+    expect(models.map((model) => model.id)).toEqual(["gpt-5.2", "gpt-5.2-mini"])
+    // The vendor's name where it published one, the id where it did not.
+    expect(models[0]?.name).toBe("GPT-5.2")
+    expect(models[1]?.name).toBe("gpt-5.2-mini")
+  })
+
+  it("carries what the vendor said about a model into the picker", () => {
+    const spec = toCatalogModel(GPT, "config-1")
+    expect(spec.limits.contextWindow).toBe(400_000)
+    expect(spec.limits.maxOutput).toBe(128_000)
+    expect(spec.cost).toEqual({ inputPerMTok: 1.25, outputPerMTok: 10 })
+    expect(spec.caps.vision.supported).toBe(true)
+    // What the vendor did not say reads as the runtime's honest fallback, not
+    // as zero and not as an invented window.
+    const sparse = toCatalogModel({ id: "m" }, "config-1")
+    expect(sparse.limits.contextWindow).toBe(32_000)
+    expect(sparse.limits.maxOutput).toBe(4_096)
+    expect(sparse.caps.vision.supported).toBe(false)
+  })
+
+  it("lands a declined credential in the catalog's failed state, in the vendor's words", async () => {
+    const refused = async () => ({
+      ok: false as const,
+      message: "the provider did not accept the stored credential",
+    })
+    await expect(loadSavedCatalogue(refused, "config-1")).rejects.toThrow(
+      /did not accept the stored credential/,
+    )
+  })
+
+  it("keeps a vendor that published no models an empty answer, not a failure", async () => {
+    const models = await loadSavedCatalogue(
+      async () => catalogueWith([]),
+      "config-1",
+    )
+    expect(models).toEqual([])
   })
 })
 
@@ -122,7 +173,9 @@ describe("runtime tools render as managed, not toggled", () => {
 })
 
 describe("the context meter seeds from real usage", () => {
-  const provider = toComposerProvider(config({}))
+  const provider = toComposerProvider(config({}), async () =>
+    catalogueWith([GPT]),
+  )
   const load = provider.source.load
   let model: ModelSpec | null = null
 
@@ -189,7 +242,9 @@ describe("the context meter seeds from real usage", () => {
 
 describe("file rules block content instead of dropping it", () => {
   let model: ModelSpec | null = null
-  const provider = toComposerProvider(config({}))
+  const provider = toComposerProvider(config({}), async () =>
+    catalogueWith([GPT]),
+  )
 
   it("rejects a mime type the model cannot accept, by name", async () => {
     const models = await provider.source.load(null)

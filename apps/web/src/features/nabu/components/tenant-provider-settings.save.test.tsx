@@ -62,6 +62,14 @@ let stored: TenantProviderList = {
 }
 let nextEntryId = 1
 
+/** What the vendor's own listing answers when the form tests the key. */
+let keyTestAnswer:
+  | { ok: true; models: { id: string }[] }
+  | { ok: false; message: string } = {
+  ok: true,
+  models: [{ id: "gpt-4o-mini" }],
+}
+
 // The specifier must match the one the component under test uses, or Bun's module
 // mock misses and the *real* server function runs — which fails for reasons that
 // have nothing to do with what this test is about.
@@ -69,6 +77,9 @@ mock.module("../tenant-provider.functions", () => ({
   // The list read: the screen refetches through this after every change, so it
   // must answer from the live double rather than from the network.
   getTenantProvidersFn: async () => stored,
+  // The save-time key test: the vendor's own listing, dialled with the typed
+  // key before anything is stored. Accepted unless a test replaces this.
+  listProviderModelsFn: async () => keyTestAnswer,
   createTenantProviderFn: async (payload: unknown) => {
     calls.create.push(payload)
     const data = (payload as { data: Record<string, unknown> }).data
@@ -264,6 +275,7 @@ describe("saving a provider from an empty workspace", () => {
     calls.defaults = []
     calls.verified = []
     stored = { ...EMPTY }
+    keyTestAnswer = { ok: true, models: [{ id: "gpt-4o-mini" }] }
     container?.remove()
   })
 
@@ -275,7 +287,6 @@ describe("saving a provider from an empty workspace", () => {
     })
     choose("openai")
     type("provider-label", "Work key")
-    type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
@@ -284,7 +295,7 @@ describe("saving a provider from an empty workspace", () => {
     expect(calls.create[0]).toEqual({
       data: {
         provider: "openai",
-        model: "gpt-4o-mini",
+        model: "",
         api_key: "sk-live-abc123",
         label: "Work key",
       },
@@ -299,7 +310,6 @@ describe("saving a provider from an empty workspace", () => {
     act(() => {
       buttonLabelled("Add a provider").click()
     })
-    type("provider-model", "gpt-4o-mini")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
@@ -328,12 +338,32 @@ describe("saving a provider from an empty workspace", () => {
       buttonLabelled("Add a provider").click()
     })
     choose("openai")
-    type("provider-model", "gpt-4o-mini")
     // Key left empty.
 
     await submit(buttonLabelled("Save provider"))
 
     expect(calls.create.length).toBe(0)
+  })
+
+  it("stores nothing when the vendor declines the key, and says what the vendor said", async () => {
+    // The key test is the vendor's own model listing. A declined credential
+    // must not be stored as a success — the worst place to find out is the
+    // first turn — and the refusal shown is the vendor's sentence, not a
+    // rewording.
+    keyTestAnswer = { ok: false, message: "Incorrect API key provided." }
+
+    await mount({ ...EMPTY })
+
+    act(() => {
+      buttonLabelled("Add a provider").click()
+    })
+    choose("openai")
+    type("provider-api-key", "sk-wrong")
+
+    await submit(buttonLabelled("Save provider"))
+
+    expect(calls.create.length).toBe(0)
+    expect(container.textContent).toContain("Incorrect API key provided.")
   })
 })
 
@@ -344,6 +374,7 @@ describe("the list after a change", () => {
     calls.defaults = []
     calls.verified = []
     stored = { ...EMPTY }
+    keyTestAnswer = { ok: true, models: [{ id: "gpt-4o-mini" }] }
     container?.remove()
   })
 
@@ -354,7 +385,7 @@ describe("the list after a change", () => {
       buttonLabelled("Add a provider").click()
     })
     choose("openai")
-    type("provider-model", "gpt-4o-mini")
+    type("provider-label", "Work key")
     type("provider-api-key", "sk-live-abc123")
 
     await submit(buttonLabelled("Save provider"))
@@ -370,7 +401,7 @@ describe("the list after a change", () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain("gpt-4o-mini")
+    expect(container.textContent).toContain("Work key")
     expect(container.textContent).toContain("a1b2c3")
   })
 

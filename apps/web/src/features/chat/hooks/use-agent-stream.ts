@@ -23,6 +23,12 @@ export interface SendOptions {
    * "the workspace's default".
    */
   readonly providerConfigId?: string | null
+  /**
+   * The conversation's model choice, from the chat's model picker. Absent
+   * means "carry on with what this thread was running, or the saved
+   * configuration's default".
+   */
+  readonly modelId?: string | null
 }
 
 export interface UseAgentStreamReturn {
@@ -235,6 +241,7 @@ export function useAgentStream(): UseAgentStreamReturn {
             prompt: trimmedPrompt,
             thread_id: threadId ?? undefined,
             provider_config_id: options?.providerConfigId ?? undefined,
+            model: options?.modelId ?? undefined,
           }),
           signal: abortController.signal,
         })

@@ -38,7 +38,10 @@ import {
 } from "@/components/composer"
 import { getNabuCapabilitiesFn } from "@/features/nabu/nabu.functions"
 import { tenantProvidersQueryOptions } from "@/features/nabu/queries"
-import { getTenantProvidersFn } from "@/features/nabu/tenant-provider.functions"
+import {
+  getTenantProvidersFn,
+  savedProviderModelsFn,
+} from "@/features/nabu/tenant-provider.functions"
 import { moduleLogger } from "@/lib/logger"
 import type { UsageReport } from "@/lib/schemas/agent-stream"
 import type { TenantProviderSummary } from "@/lib/schemas/nabu"
@@ -66,7 +69,12 @@ setCredentialStore(WORKSPACE_CREDENTIAL_STORE)
 
 setProvidersSource(async () => {
   const list = await getTenantProvidersFn()
-  return orderProviders(list)
+  // The saved configuration's catalogue, fetched with its stored credential —
+  // the same dial the settings form's key test uses, so a declined credential
+  // is the vendor's own sentence in the picker's failed state.
+  return orderProviders(list, (configId) =>
+    savedProviderModelsFn({ data: { id: configId } }),
+  )
 })
 
 /**
@@ -103,6 +111,7 @@ export interface ComposerBridgeOptions {
     threadId?: string | null,
     options?: {
       readonly providerConfigId?: string | null
+      readonly modelId?: string | null
       readonly onTurnStarted?: (threadId: string) => void | Promise<void>
     },
   ) => Promise<void>
@@ -202,6 +211,7 @@ export function useComposerBridge(
           revokeAttachments(payload.attachments)
           await sendTurn(prompt, threadIdRef.current, {
             providerConfigId: payload.providerId,
+            modelId: payload.modelId,
             onTurnStarted,
           })
         } catch (error) {
