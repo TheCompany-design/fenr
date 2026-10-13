@@ -644,6 +644,34 @@ function AddProviderForm({
         field in a stated state with a retry, and the manual entry stays as the
         escape hatch for a catalogue this flow could not read.
       */}
+      <form.Field name="apiKey">
+        {(field) => (
+          <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
+            <div>
+              <Label htmlFor="provider-api-key">API key</Label>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Stored encrypted and never shown again. Each entry holds its own
+                key.
+              </p>
+            </div>
+            <Input
+              id="provider-api-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="sk-…"
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={(event) => field.handleChange(event.target.value)}
+              disabled={save.isPending}
+              aria-invalid={
+                field.state.meta.isTouched && field.state.meta.errors.length > 0
+              }
+            />
+          </div>
+        )}
+      </form.Field>
+
       <form.Subscribe
         selector={(state) => [
           state.values.provider,
@@ -663,8 +691,8 @@ function AddProviderForm({
                 <Label htmlFor="provider-model">Model</Label>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {current.status === "ready" && !manualEntry
-                    ? "From the vendor's own list. Pick one."
-                    : "Load the vendor's list, or enter the id it knows."}
+                    ? "From the vendor's own catalogue. Pick one."
+                    : "Load the vendor's list with the key above, or enter the id it knows."}
                 </p>
               </div>
               <div className="flex flex-col gap-2">
@@ -784,34 +812,6 @@ function AddProviderForm({
           )
         }}
       </form.Subscribe>
-
-      <form.Field name="apiKey">
-        {(field) => (
-          <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
-            <div>
-              <Label htmlFor="provider-api-key">API key</Label>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                Stored encrypted and never shown again. Each entry holds its own
-                key.
-              </p>
-            </div>
-            <Input
-              id="provider-api-key"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="sk-…"
-              value={field.state.value}
-              onBlur={field.handleBlur}
-              onChange={(event) => field.handleChange(event.target.value)}
-              disabled={save.isPending}
-              aria-invalid={
-                field.state.meta.isTouched && field.state.meta.errors.length > 0
-              }
-            />
-          </div>
-        )}
-      </form.Field>
 
       <CardFooter className="flex-wrap justify-end gap-2 border-t border-border px-0 pt-4 pb-0">
         <Button

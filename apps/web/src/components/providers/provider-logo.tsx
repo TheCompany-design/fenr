@@ -45,7 +45,20 @@ export function ProviderLogo({
                 alt={name}
                 width={size}
                 height={size}
-                loading="lazy"
+                // Deliberately eager: a lazy image mounted inside a
+                // freshly-inserted subtree fires its load before layout and
+                // Chromium fails it without a network error — the mark then
+                // reads as permanently broken. These are 16px SVGs beside
+                // interactive controls; lazy buys nothing. The onError retry
+                // is the backstop for any other transient failure.
+                onError={(event) => {
+                  const img = event.currentTarget;
+                  const original = img.src;
+                  img.removeAttribute("src");
+                  window.setTimeout(() => {
+                    img.src = original;
+                  }, 400);
+                }}
                 className={cn("shrink-0", className)}
               />
             ) : (
