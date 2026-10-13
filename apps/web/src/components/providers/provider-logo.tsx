@@ -8,6 +8,10 @@
  *
  * The image carries the name as its `alt`: the accessible name is the
  * vendor's, and the tooltip repeats it for pointing devices on a delay.
+ *
+ * The mark is theme-aware per vendor, not globally: a monochrome mark is
+ * inverted under the dark theme so it stops being the colour of the surface
+ * behind it, and a full-colour brand mark is left as served.
  */
 import {
   Tooltip,
@@ -17,7 +21,11 @@ import {
 } from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { providerDisplayName, providerLogoUrl } from "./provider-identity"
+import {
+  providerDisplayName,
+  providerLogoUrl,
+  providerMarkIsMonochrome,
+} from "./provider-identity"
 
 export function ProviderLogo({
   provider,
@@ -33,6 +41,14 @@ export function ProviderLogo({
 }) {
   const name = label ?? providerDisplayName(provider)
   const url = providerLogoUrl(provider)
+  // An <img>-loaded SVG is its own document: nothing in this page's cascade
+  // reaches into it, so the dark theme cannot recolour it — only a filter can.
+  // A monochrome mark is served near-black, which on a dark surface is the
+  // same colour as the surface behind it; inverting flips its lightness and
+  // brings it back. A full-colour mark is left alone, because inverting a
+  // brand palette to keep it visible would trade legibility for wrongness.
+  const themeFilter =
+    url && providerMarkIsMonochrome(provider) ? "dark:invert" : undefined
 
   return (
     <TooltipProvider delay={400}>
@@ -52,14 +68,14 @@ export function ProviderLogo({
                 // interactive controls; lazy buys nothing. The onError retry
                 // is the backstop for any other transient failure.
                 onError={(event) => {
-                  const img = event.currentTarget;
-                  const original = img.src;
-                  img.removeAttribute("src");
+                  const img = event.currentTarget
+                  const original = img.src
+                  img.removeAttribute("src")
                   window.setTimeout(() => {
-                    img.src = original;
-                  }, 400);
+                    img.src = original
+                  }, 400)
                 }}
-                className={cn("shrink-0", className)}
+                className={cn("shrink-0", themeFilter, className)}
               />
             ) : (
               // A vendor this build has never seen: a letter mark names it
