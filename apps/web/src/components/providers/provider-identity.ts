@@ -54,10 +54,37 @@ const VENDOR_MARKS: Readonly<Record<string, VendorMark>> = {
     logoUrl: "https://logos.lndev.me/logos/openrouter.svg",
     monochrome: true,
   },
+  antigravity: {
+    displayName: "Google Antigravity",
+    // Google's model mark in the chat's picker — the workspace asked for the
+    // Antigravity pinwheel there instead of the corporate "G". Full colour
+    // (one small black accent among eleven coloured paths), so like the "G"
+    // it is correct as served on both surfaces.
+    logoUrl: "https://logos.lndev.me/logos/google-antigravity.svg",
+    monochrome: false,
+  },
 }
 
 function markFor(provider: string): VendorMark | undefined {
   return VENDOR_MARKS[provider]
+}
+
+/**
+ * The mark a *model* carries, which is not always its vendor's.
+ *
+ * Google's chat models are the Gemini family, and the picker draws them with
+ * the Antigravity mark rather than the corporate "G" — the vendor's own
+ * product mark for the models a conversation actually runs. Scoping it here
+ * keeps the settings screen drawing the vendor's own "G" for the credential,
+ * because there the row is about Google the vendor, not a model on it.
+ *
+ * `modelId` absent asks for the mark of a whole catalogue — the picker's
+ * provider tab — which for Google is the Gemini family.
+ */
+export function modelMark(provider: string, modelId?: string): string {
+  if (provider !== "google") return provider
+  if (modelId === undefined) return "antigravity"
+  return /gemini/i.test(modelId) ? "antigravity" : provider
 }
 
 /**

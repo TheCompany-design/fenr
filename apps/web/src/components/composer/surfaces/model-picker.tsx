@@ -16,6 +16,7 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { useMemo, useState } from "react"
+import { modelMark } from "@/components/providers/provider-identity"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type { Catalog, Connection, ProviderSpec } from "../catalog/capabilities"
 import { resolveCapabilities } from "../catalog/resolve"
@@ -162,13 +163,25 @@ export function ModelPicker() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 min-w-0 shrink gap-1.5 rounded-full px-2.5 text-sm font-normal"
+            className="h-8 min-w-0 shrink gap-1.5 rounded-full px-2.5 text-xs font-normal"
             aria-label="Change model"
           />
         }
       >
         {selectedView ? (
           <>
+            {/* The mark stands in for the vendor's name — the model's own
+                name is the text beside it — and the model-scoped mark is
+                why a Gemini model carries the Antigravity pinwheel rather
+                than the corporate "G". */}
+            <ProviderLogo
+              provider={modelMark(
+                selectedProvider?.source.vendor ?? "",
+                selectedView.model.id,
+              )}
+              label={selectedProvider?.label}
+              size={14}
+            />
             <span className="max-w-32 truncate">{selectedView.model.name}</span>
             <HugeiconsIcon
               icon={ArrowDown01Icon}
@@ -233,9 +246,12 @@ export function ModelPicker() {
                   <HugeiconsIcon icon={StarIcon} className="size-3.5" />
                 ) : null}
                 {/* The mark stands in for the name; the tooltip names it on a
-                    delayed hover, so scanning a row of them stays quiet. */}
+                    delayed hover, so scanning a row of them stays quiet. A
+                    Google tab carries the Antigravity mark: the tab stands
+                    for the catalogue the models come from, not the vendor
+                    the credential belongs to. */}
                 <ProviderLogo
-                  provider={entry.vendor ?? entry.label}
+                  provider={modelMark(entry.vendor ?? entry.label)}
                   label={entry.label}
                   size={16}
                 />
