@@ -46,6 +46,8 @@ export function toCatalogModel(
     providerId,
     name: modelName(model),
     tagline: modelFacts(model) || providerId,
+    keyAccessConfirmed:
+      model.access_evidence === "available_for_key" ? true : undefined,
     caps: {
       vision: model.accepts_images
         ? { supported: true, maxImages: 8 }
@@ -109,6 +111,9 @@ export function toComposerProvider(
   return {
     id: config.id,
     label: config.label ?? providerDisplayName(config.provider),
+    // updated_at is a full-resolution configuration revision. The short
+    // display fingerprint is intentionally not used as an identity hash.
+    credentialRevision: config.updated_at,
     plan: "workspace",
     source: {
       id: config.id,

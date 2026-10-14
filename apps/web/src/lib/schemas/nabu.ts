@@ -219,6 +219,8 @@ export type VerifyTenantProviderResponse = z.infer<
 export const listedModelSchema = z.object({
   /** The id a completion request carries, exactly as the save form sends it. */
   id: z.string().min(1),
+  /** Positive-only; absent means the listing made no key-access claim. */
+  access_evidence: z.literal("available_for_key").optional(),
   /** The vendor's own name for the model. */
   display_name: z.string().min(1).optional(),
   /**

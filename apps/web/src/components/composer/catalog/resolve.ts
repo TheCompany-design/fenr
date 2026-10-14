@@ -35,6 +35,28 @@ function gated<T>(capability: T, gate: Gate): Resolved<T> {
   return { access: { kind: "gated", gate }, capability }
 }
 
+/**
+ * An authenticated listing proves access only for the saved credential revision
+ * that produced it. Preserve all other model metadata when that evidence ages
+ * across a key rotation, but downgrade the access claim to unknown. The
+ * provider contract is positive-only: an absent claim does not mean denied.
+ */
+export function scopeModelAccessToCredentialRevision(
+  model: ModelSpec | null,
+  catalogRevision: string | undefined,
+  credentialRevision: string | undefined,
+): ModelSpec | null {
+  if (
+    model?.keyAccessConfirmed !== true ||
+    (catalogRevision !== undefined &&
+      credentialRevision !== undefined &&
+      catalogRevision === credentialRevision)
+  ) {
+    return model
+  }
+  return { ...model, keyAccessConfirmed: undefined }
+}
+
 /** A provider with no working credential gates everything behind `connect`. */
 function connectionGate(
   provider: ProviderSpec,
@@ -72,6 +94,7 @@ export function resolveCapabilities(input: {
     const reason = "No model selected"
     return {
       model: null,
+      modelAccess: { kind: "unknown" },
       vision: unavailable(reason),
       files: unavailable(reason),
       reasoning: unavailable(reason),
@@ -85,6 +108,7 @@ export function resolveCapabilities(input: {
     const reason = "Not available on this key"
     return {
       model,
+      modelAccess: { kind: "denied", reason },
       vision: unavailable(reason),
       files: unavailable(reason),
       reasoning: unavailable(reason),
@@ -97,6 +121,15 @@ export function resolveCapabilities(input: {
   // The credential gate applies to every capability, so it is resolved once
   // and applied below rather than repeated in six branches.
   const pending = connectionGate(provider, connection)
+  // Catalog presence and provider-level key verification do not establish
+  // model access. A model-specific authenticated listing may confirm access;
+  // otherwise only a successful call with this key does.
+  const modelAccess = pending
+    ? { kind: "gated" as const, gate: pending }
+    : model.keyAccessConfirmed ||
+        entitlements.availableModels?.includes(model.id)
+      ? { kind: "available" as const }
+      : { kind: "unknown" as const }
 
   const resolveOne = <P, T>(
     cap: Cap<P>,
@@ -178,6 +211,7 @@ export function resolveCapabilities(input: {
 
   return {
     model,
+    modelAccess,
     vision: resolveOne(caps.vision, (c) => ({ maxImages: c.maxImages })),
     files: resolveOne(caps.files, (c) => ({
       kinds: c.kinds,

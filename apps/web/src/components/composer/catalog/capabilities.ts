@@ -84,6 +84,8 @@ export type ModelSpec = {
   providerId: ProviderId
   name: string
   tagline: string
+  /** Provider listing explicitly confirms this model is usable with this key. */
+  keyAccessConfirmed?: true
   icon?: IconSvgElement
   badges?: readonly string[]
   releasedAt?: string
@@ -113,6 +115,8 @@ export type ProviderSpec = {
   id: ProviderId
   label: string
   icon?: IconSvgElement
+  /** Revision of the saved configuration; changes invalidate key observations. */
+  credentialRevision?: string
   /** Plan the provider itself requires; surfaced by `upgrade` gates. */
   plan: PlanId
   source: CatalogSource
@@ -156,11 +160,20 @@ export type Catalog =
 export type Entitlements = {
   effort?: readonly EffortLevel[]
   deniedModels?: readonly ModelId[]
+  /** Results observed from real calls for this provider key. */
+  availableModels?: readonly ModelId[]
   maxTools?: number
   deniedNativeTools?: readonly NativeToolKind[]
 }
 
 export type Access =
+  | { kind: "available" }
+  | { kind: "gated"; gate: Gate }
+  | { kind: "denied"; reason: string }
+
+/** Model access is observed per key and model; catalog presence is not proof. */
+export type ModelAccess =
+  | { kind: "unknown" }
   | { kind: "available" }
   | { kind: "gated"; gate: Gate }
   | { kind: "denied"; reason: string }
@@ -176,6 +189,8 @@ export type Resolved<T> = {
 
 export type ResolvedCaps = {
   model: ModelSpec | null
+  /** Model selection state is independent from any individual capability. */
+  modelAccess: ModelAccess
   vision: Resolved<{ maxImages: number }>
   files: Resolved<{
     kinds: readonly FileKind[]

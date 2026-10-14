@@ -1,6 +1,10 @@
 import { create } from "zustand"
 import { useShallow } from "zustand/react/shallow"
 import {
+  MODEL_AVAILABILITY_TTL_MS,
+  useModelAvailabilityStore,
+} from "@/lib/stores/model-availability.store"
+import {
   type Attachment,
   createAttachments,
   createEntityId,
@@ -27,7 +31,10 @@ import {
   type Selection,
   toolKindOf,
 } from "../catalog/reconcile"
-import { resolveCapabilities } from "../catalog/resolve"
+import {
+  resolveCapabilities,
+  scopeModelAccessToCredentialRevision,
+} from "../catalog/resolve"
 import type { ContextUsage } from "../catalog/usage"
 
 /** A tool the agent runtime manages itself; shown, not toggled. */
@@ -51,6 +58,12 @@ export type ProviderRuntime = {
   connection: Connection
   catalog: Catalog
   entitlements: Entitlements
+  /** Invalidates observations and in-flight results when the key changes. */
+  availabilityEpoch: number
+  /** Revision of the server-managed configuration used for these observations. */
+  credentialRevision?: string
+  /** Revision whose authenticated catalogue supplied `keyAccessConfirmed`. */
+  catalogCredentialRevision?: string
 }
 
 export type PromptStore = ComposerState & {
@@ -124,6 +137,14 @@ export type PromptStore = ComposerState & {
   hydrate: () => Promise<void>
   /** Host-provided context: the tools the runtime runs on its own. */
   setRuntimeTools: (tools: RuntimeTool[]) => void
+  /** Records a successful call's evidence, scoped to its saved key. Failures
+   * are deliberately not recordable: a generic call error cannot prove a model
+   * is unavailable, so denial evidence never comes from a call result. */
+  recordModelAvailability: (
+    providerId: ProviderId,
+    modelId: string,
+    epoch: number,
+  ) => void
 }
 
 const EMPTY_CAPS: ResolvedCaps = resolveCapabilities({
@@ -137,6 +158,7 @@ const IDLE: ProviderRuntime = {
   connection: { state: "absent" },
   catalog: { state: "idle" },
   entitlements: {},
+  availabilityEpoch: 0,
 }
 
 function runtimeOf(
@@ -172,6 +194,112 @@ function eligibleToolIds(
  * re-render and cannot be swapped per-test without a reset.
  */
 let credentialStore: CredentialStore = new LocalCredentialStore()
+const credentialOperationQueues = new Map<ProviderId, Promise<unknown>>()
+const availabilityExpiryTimers = new Map<
+  string,
+  {
+    providerId: ProviderId
+    modelId: string
+    timer: ReturnType<typeof setTimeout>
+  }
+>()
+
+function clearAvailabilityExpiryTimers(providerId: ProviderId): void {
+  for (const [key, scheduled] of availabilityExpiryTimers) {
+    if (scheduled.providerId !== providerId) continue
+    clearTimeout(scheduled.timer)
+    availabilityExpiryTimers.delete(key)
+  }
+}
+
+function retainAvailabilityExpiryTimers(
+  providerIds: readonly ProviderId[],
+): void {
+  const keep = new Set(providerIds)
+  for (const [key, scheduled] of availabilityExpiryTimers) {
+    if (keep.has(scheduled.providerId)) continue
+    clearTimeout(scheduled.timer)
+    availabilityExpiryTimers.delete(key)
+  }
+}
+
+function retainModelAvailabilityExpiryTimers(
+  providerId: ProviderId,
+  modelIds: readonly string[],
+): void {
+  const keep = new Set(modelIds)
+  for (const [key, scheduled] of availabilityExpiryTimers) {
+    if (scheduled.providerId !== providerId || keep.has(scheduled.modelId)) {
+      continue
+    }
+    clearTimeout(scheduled.timer)
+    availabilityExpiryTimers.delete(key)
+  }
+}
+
+function scheduleAvailabilityExpiry(
+  providerId: ProviderId,
+  modelId: string,
+  revision: string,
+  checkedAt: number,
+): void {
+  const key = JSON.stringify([providerId, modelId])
+  const old = availabilityExpiryTimers.get(key)
+  if (old) clearTimeout(old.timer)
+  const delay = Math.max(0, checkedAt + MODEL_AVAILABILITY_TTL_MS - Date.now())
+  let timer: ReturnType<typeof setTimeout>
+  timer = setTimeout(() => {
+    if (availabilityExpiryTimers.get(key)?.timer !== timer) return
+    availabilityExpiryTimers.delete(key)
+    let expired = false
+    try {
+      expired = useModelAvailabilityStore
+        .getState()
+        .expireAvailable(providerId, revision, modelId, checkedAt)
+    } catch {
+      // The persisted store is best effort; runtime evidence still expires.
+      expired = true
+    }
+    if (!expired) return
+
+    const entry = runtimeOf(usePromptStore.getState().runtime, providerId)
+    if (entry.credentialRevision !== revision) return
+    const availableModels = (entry.entitlements.availableModels ?? []).filter(
+      (availableId) => availableId !== modelId,
+    )
+    if (
+      availableModels.length ===
+      (entry.entitlements.availableModels ?? []).length
+    ) {
+      return
+    }
+    patchRuntime(usePromptStore.setState, providerId, {
+      entitlements: { ...entry.entitlements, availableModels },
+    })
+    const selection = usePromptStore.getState().selection
+    if (selection?.providerId === providerId) {
+      usePromptStore.getState().apply({})
+    }
+  }, delay)
+  availabilityExpiryTimers.set(key, { providerId, modelId, timer })
+}
+
+async function serializeCredentialOperation<T>(
+  providerId: ProviderId,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous =
+    credentialOperationQueues.get(providerId) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(operation)
+  credentialOperationQueues.set(providerId, current)
+  try {
+    return await current
+  } finally {
+    if (credentialOperationQueues.get(providerId) === current) {
+      credentialOperationQueues.delete(providerId)
+    }
+  }
+}
 
 export function setCredentialStore(store: CredentialStore): void {
   credentialStore = store
@@ -189,6 +317,7 @@ export function setCredentialStore(store: CredentialStore): void {
 type ProvidersSource = () => Promise<readonly ProviderSpec[]>
 
 let providersSource: ProvidersSource = () => Promise.resolve(PROVIDERS)
+let providersLoadEpoch = 0
 
 export function setProvidersSource(source: ProvidersSource): void {
   providersSource = source
@@ -222,7 +351,7 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
   function apply(patch: Partial<ComposerState>) {
     set((state) => {
       const next: ComposerState = { ...state, ...patch }
-      const caps = computeCaps(next, state.runtime)
+      const caps = computeCaps(next, state.runtime, state.providers)
       const result = reconcile(
         { ...next, toolIds: eligibleToolIds(caps, next.toolIds) },
         caps,
@@ -400,6 +529,8 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
         text: state.text.trim(),
         providerId: state.selection.providerId,
         modelId: state.selection.modelId,
+        availabilityEpoch: runtimeOf(state.runtime, state.selection.providerId)
+          .availabilityEpoch,
         effort: state.effort,
         toolIds: state.toolIds,
         search: state.search,
@@ -426,6 +557,45 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
 
     setRuntimeTools: (tools) => set({ runtimeTools: tools }),
 
+    recordModelAvailability: (providerId, modelId, epoch) => {
+      const state = get()
+      if (!state.providers.some((provider) => provider.id === providerId))
+        return
+      const entry = runtimeOf(state.runtime, providerId)
+      if (entry.availabilityEpoch !== epoch) return
+      if (!catalogModels(entry.catalog).some((model) => model.id === modelId)) {
+        return
+      }
+
+      const available = new Set(entry.entitlements.availableModels ?? [])
+      available.add(modelId)
+      const denied = new Set(entry.entitlements.deniedModels ?? [])
+      denied.delete(modelId)
+
+      patchRuntime(set, providerId, {
+        entitlements: {
+          ...entry.entitlements,
+          availableModels: [...available],
+          deniedModels: [...denied],
+        },
+      })
+      const revision = entry.credentialRevision
+      if (revision !== undefined) {
+        const checkedAt = Date.now()
+        try {
+          useModelAvailabilityStore
+            .getState()
+            .recordAvailable(providerId, revision, modelId, checkedAt)
+        } catch {
+          // A storage quota or browser policy must not fail an inference stream.
+        }
+        scheduleAvailabilityExpiry(providerId, modelId, revision, checkedAt)
+      }
+      // Re-resolve the selected model immediately so its row and controls
+      // reflect the newly observed result.
+      if (get().selection?.providerId === providerId) apply({})
+    },
+
     /** Called by the transport when a reply lands or fails. */
     settle: (status) => set({ status }),
 
@@ -440,22 +610,87 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
       const provider = getProvider(providerId)
       if (!provider) return
 
-      await credentialStore.set(providerId, credential)
-      patchRuntime(set, providerId, { connection: { state: "validating" } })
+      const epoch = runtimeOf(get().runtime, providerId).availabilityEpoch + 1
+      const current = runtimeOf(get().runtime, providerId)
+      patchRuntime(set, providerId, {
+        availabilityEpoch: epoch,
+        connection: { state: "validating" },
+        catalog: { state: "idle" },
+        entitlements: {
+          ...current.entitlements,
+          availableModels: [],
+          deniedModels: [],
+        },
+      })
+      try {
+        useModelAvailabilityStore.getState().clearProvider(providerId)
+      } catch {
+        // Runtime state is cleared even when browser storage is unavailable.
+      }
+      clearAvailabilityExpiryTimers(providerId)
+      apply({})
+      try {
+        await serializeCredentialOperation(providerId, () =>
+          credentialStore.set(providerId, credential),
+        )
+      } catch (error) {
+        if (runtimeOf(get().runtime, providerId).availabilityEpoch === epoch) {
+          patchRuntime(set, providerId, {
+            connection: { state: "unreachable" },
+            catalog: { state: "idle" },
+          })
+          apply({})
+        }
+        throw error
+      }
+      if (runtimeOf(get().runtime, providerId).availabilityEpoch !== epoch)
+        return
 
       const connection = await validateConnection(provider, credential)
+      if (runtimeOf(get().runtime, providerId).availabilityEpoch !== epoch)
+        return
       patchRuntime(set, providerId, { connection })
+      apply({})
 
       if (connection.state === "invalid") return
-      await loadCatalog(provider, credential, set, get)
+      await loadCatalog(provider, credential, set, get, epoch)
     },
 
     disconnect: async (providerId) => {
-      await credentialStore.clear(providerId)
+      const current = runtimeOf(get().runtime, providerId)
       patchRuntime(set, providerId, {
+        availabilityEpoch: current.availabilityEpoch + 1,
         connection: { state: "absent" },
         catalog: { state: "idle" },
+        entitlements: {
+          ...current.entitlements,
+          availableModels: [],
+          deniedModels: [],
+        },
       })
+      try {
+        useModelAvailabilityStore.getState().clearProvider(providerId)
+      } catch {
+        // Runtime state is cleared even when browser storage is unavailable.
+      }
+      clearAvailabilityExpiryTimers(providerId)
+      apply({})
+      const epoch = current.availabilityEpoch + 1
+      try {
+        await serializeCredentialOperation(providerId, () =>
+          credentialStore.clear(providerId),
+        )
+      } catch (error) {
+        if (runtimeOf(get().runtime, providerId).availabilityEpoch === epoch) {
+          patchRuntime(set, providerId, {
+            connection: { state: "unreachable" },
+          })
+          apply({})
+        }
+        throw error
+      }
+      if (runtimeOf(get().runtime, providerId).availabilityEpoch !== epoch)
+        return
       const selection = get().selection
       if (selection?.providerId === providerId) {
         apply({ selection: null, toolIds: [] })
@@ -463,11 +698,13 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
     },
 
     hydrate: async () => {
+      const hydrateEpoch = ++providersLoadEpoch
       // The provider list itself may be fetched (saved workspace
-      // configurations). A failed fetch degrades to an empty catalog with
-      // hydration still completing — an unreachable server must not hang the
-      // composer in "loading providers" forever — but it is *recorded*, so the
-      // interface can say "we could not ask" instead of "you have none".
+      // configurations). A failed fetch keeps the last known provider list
+      // (empty on first load) and completes hydration, so an unreachable server
+      // cannot hang the composer in "loading providers" forever. The error is
+      // retained so the interface can say "we could not ask" instead of "you
+      // have none".
       let providers: ProviderSpec[] = []
       let providersError: string | null = null
       try {
@@ -479,25 +716,130 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
             ? error.message
             : "the provider list could not be read"
       }
-      set({ providers, providersError })
+      if (hydrateEpoch !== providersLoadEpoch) return
+      const previousProviderIds = new Set(get().providers.map((p) => p.id))
+      // A failed list request is not evidence that saved providers were
+      // deleted. Keep the last known list and its runtime usable until a
+      // successful response can confirm additions or removals.
+      const resolvedProviders =
+        providersError === null ? providers : get().providers
+      set({ providers: resolvedProviders, providersError })
+      const currentProviderIds = new Set(resolvedProviders.map((p) => p.id))
+      if (providersError === null) {
+        for (const providerId of previousProviderIds) {
+          if (currentProviderIds.has(providerId)) continue
+          const removed = runtimeOf(get().runtime, providerId)
+          patchRuntime(set, providerId, {
+            availabilityEpoch: removed.availabilityEpoch + 1,
+            connection: { state: "absent" },
+            catalog: { state: "idle" },
+            catalogCredentialRevision: undefined,
+            entitlements: {},
+          })
+          clearAvailabilityExpiryTimers(providerId)
+        }
+        try {
+          useModelAvailabilityStore
+            .getState()
+            .retainProviders(providers.map((provider) => provider.id))
+        } catch {
+          // Provider hydration remains usable without browser persistence.
+        }
+        retainAvailabilityExpiryTimers(providers.map((provider) => provider.id))
+      }
 
       await Promise.all(
-        providers.map(async (provider) => {
-          const credential = await credentialStore.get(provider.id)
-          const connection = await validateConnection(provider, credential)
-          patchRuntime(set, provider.id, { connection })
-          if (connection.state === "ready") {
-            await loadCatalog(provider, credential, set, get)
-          }
-        }),
+        (providersError === null ? resolvedProviders : []).map(
+          async (provider) => {
+            if (hydrateEpoch !== providersLoadEpoch) return
+            let current = runtimeOf(get().runtime, provider.id)
+            if (
+              provider.credentialRevision !== undefined &&
+              current.credentialRevision !== provider.credentialRevision
+            ) {
+              const epoch = current.availabilityEpoch + 1
+              patchRuntime(set, provider.id, {
+                availabilityEpoch: epoch,
+                credentialRevision: provider.credentialRevision,
+                catalogCredentialRevision: undefined,
+                entitlements: {
+                  ...current.entitlements,
+                  availableModels: [],
+                  deniedModels: [],
+                },
+              })
+              try {
+                useModelAvailabilityStore.getState().clearProvider(provider.id)
+              } catch {
+                // Runtime revision scoping remains authoritative without storage.
+              }
+              clearAvailabilityExpiryTimers(provider.id)
+              current = runtimeOf(get().runtime, provider.id)
+            }
+            if (current.connection.state === "validating") return
+            const epoch = current.availabilityEpoch
+            const credential = await serializeCredentialOperation(
+              provider.id,
+              () => credentialStore.get(provider.id),
+            )
+            if (
+              hydrateEpoch !== providersLoadEpoch ||
+              runtimeOf(get().runtime, provider.id).availabilityEpoch !== epoch
+            ) {
+              return
+            }
+            const connection = await validateConnection(provider, credential)
+            if (
+              hydrateEpoch !== providersLoadEpoch ||
+              runtimeOf(get().runtime, provider.id).availabilityEpoch !== epoch
+            ) {
+              return
+            }
+            patchRuntime(set, provider.id, { connection })
+            if (connection.state === "ready") {
+              await loadCatalog(
+                provider,
+                credential,
+                set,
+                get,
+                epoch,
+                () => hydrateEpoch === providersLoadEpoch,
+              )
+            }
+          },
+        ),
       )
+      if (hydrateEpoch !== providersLoadEpoch) return
 
-      // Selection picks the first provider that actually resolved, in
-      // declared order, rather than whichever finished loading first.
-      const selection = firstAvailableSelection(get())
+      // Preserve the user's provider/model across a remount or catalog
+      // refresh. Only choose the first ready model when there is no current
+      // selection, or when its provider/model was removed or explicitly
+      // denied. Otherwise navigating to the first thread resets the picker.
+      const hydratedState = get()
+      const previousSelection = hydratedState.selection
+      const previousProvider = previousSelection
+        ? hydratedState.providers.find(
+            (provider) => provider.id === previousSelection.providerId,
+          )
+        : undefined
+      const previousRuntime = previousSelection
+        ? runtimeOf(hydratedState.runtime, previousSelection.providerId)
+        : undefined
+      const previousModelStillSelectable = Boolean(
+        previousSelection &&
+          previousProvider &&
+          catalogModels(previousRuntime?.catalog).some(
+            (model) =>
+              model.id === previousSelection.modelId &&
+              !previousRuntime?.entitlements.deniedModels?.includes(model.id),
+          ),
+      )
+      const selection = previousModelStillSelectable
+        ? previousSelection
+        : firstSelectableSelection(hydratedState)
       set({ hydrated: true })
 
-      if (selection) apply({ selection })
+      if (!sameSelection(previousSelection, selection)) apply({ selection })
     },
   }
 })
@@ -525,7 +867,10 @@ async function loadCatalog(
   credential: string | null,
   set: (fn: (state: PromptStore) => Partial<PromptStore>) => void,
   get: () => PromptStore,
+  epoch = runtimeOf(get().runtime, provider.id).availabilityEpoch,
+  isCurrent: () => boolean = () => true,
 ): Promise<void> {
+  if (!isCurrent()) return
   const existing = runtimeOf(get().runtime, provider.id).catalog
   if (catalogModels(existing).length === 0) {
     patchRuntime(set, provider.id, { catalog: { state: "loading" } })
@@ -533,12 +878,63 @@ async function loadCatalog(
 
   try {
     const models = await provider.source.load(credential)
+    if (
+      !isCurrent() ||
+      runtimeOf(get().runtime, provider.id).availabilityEpoch !== epoch
+    )
+      return
+    const validModelIds = new Set(models.map((model) => model.id))
+    retainModelAvailabilityExpiryTimers(
+      provider.id,
+      models.map((model) => model.id),
+    )
+    const persistedAvailable =
+      provider.credentialRevision === undefined
+        ? []
+        : useModelAvailabilityStore
+            .getState()
+            .availableObservations(provider.id, provider.credentialRevision)
+            .filter(([modelId]) => validModelIds.has(modelId))
+    if (provider.credentialRevision !== undefined) {
+      try {
+        useModelAvailabilityStore.getState().retainModels(
+          provider.id,
+          provider.credentialRevision,
+          models.map((m) => m.id),
+        )
+      } catch {
+        // A catalog can still load if local availability cleanup fails.
+      }
+      for (const [modelId, checkedAt] of persistedAvailable) {
+        scheduleAvailabilityExpiry(
+          provider.id,
+          modelId,
+          provider.credentialRevision,
+          checkedAt,
+        )
+      }
+    }
+    const currentEntitlements = runtimeOf(
+      get().runtime,
+      provider.id,
+    ).entitlements
+    const availableModels = new Set([
+      ...(currentEntitlements.availableModels ?? []).filter((modelId) =>
+        validModelIds.has(modelId),
+      ),
+      ...persistedAvailable.map(([modelId]) => modelId),
+    ])
     patchRuntime(set, provider.id, {
       catalog: {
         state: "ready",
         models,
         fetchedAt: Date.now(),
         degraded: false,
+      },
+      catalogCredentialRevision: provider.credentialRevision,
+      entitlements: {
+        ...currentEntitlements,
+        availableModels: [...availableModels],
       },
     })
     // A refresh that changes the catalog can invalidate the current selection
@@ -548,7 +944,13 @@ async function loadCatalog(
       const stillThere = models.some((m) => m.id === selection.modelId)
       if (!stillThere) get().select(provider.id, models[0]?.id ?? "")
     }
+    get().apply({})
   } catch (error) {
+    if (
+      !isCurrent() ||
+      runtimeOf(get().runtime, provider.id).availabilityEpoch !== epoch
+    )
+      return
     const message = error instanceof Error ? error.message : "Unknown error"
     patchRuntime(set, provider.id, {
       catalog: {
@@ -574,6 +976,7 @@ async function loadCatalog(
  */
 let capsMemo: {
   runtime: Record<ProviderId, ProviderRuntime>
+  providers: ProviderSpec[]
   selection: Selection | null
   caps: ResolvedCaps
 } | null = null
@@ -581,35 +984,45 @@ let capsMemo: {
 function computeCaps(
   state: ComposerState,
   runtime: Record<ProviderId, ProviderRuntime>,
+  providers: ProviderSpec[],
 ): ResolvedCaps {
   if (
     capsMemo &&
     capsMemo.runtime === runtime &&
+    capsMemo.providers === providers &&
     capsMemo.selection === state.selection
   ) {
     return capsMemo.caps
   }
 
-  const caps = resolveFor(state.selection, runtime)
-  capsMemo = { runtime, selection: state.selection, caps }
+  const caps = resolveFor(state.selection, runtime, providers)
+  capsMemo = { runtime, providers, selection: state.selection, caps }
   return caps
 }
 
 function resolveFor(
   selection: Selection | null,
   runtime: Record<ProviderId, ProviderRuntime>,
+  providers: ProviderSpec[],
 ): ResolvedCaps {
   if (!selection) return EMPTY_CAPS
-  const provider = getProvider(selection.providerId)
+  const provider =
+    providers.find((candidate) => candidate.id === selection.providerId) ??
+    getProvider(selection.providerId)
   if (!provider) return EMPTY_CAPS
 
   const entry = runtimeOf(runtime, provider.id)
   const model =
     catalogModels(entry.catalog).find((m) => m.id === selection.modelId) ?? null
+  const scopedModel = scopeModelAccessToCredentialRevision(
+    model,
+    entry.catalogCredentialRevision,
+    entry.credentialRevision,
+  )
 
   return resolveCapabilities({
     provider,
-    model,
+    model: scopedModel,
     connection: entry.connection,
     entitlements: entry.entitlements,
   })
@@ -634,7 +1047,7 @@ function sameNotices(a: Notice[], b: Notice[]): boolean {
   return a.every((notice, index) => notice.kind === b[index].kind)
 }
 
-function firstAvailableSelection(state: PromptStore): Selection | null {
+function firstSelectableSelection(state: PromptStore): Selection | null {
   for (const provider of state.providers) {
     const entry = runtimeOf(state.runtime, provider.id)
     if (entry.connection.state !== "ready") continue
@@ -663,6 +1076,7 @@ export type SendPayload = {
   text: string
   providerId: string
   modelId: string
+  availabilityEpoch: number
   effort: EffortLevel | null
   toolIds: string[]
   search: boolean

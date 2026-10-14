@@ -29,6 +29,12 @@ export interface SendOptions {
    * configuration's default".
    */
   readonly modelId?: string | null
+  /** Reports runtime evidence for one saved provider/model call. */
+  readonly onModelCallRecorded?: (call: {
+    savedConfigId: string | null
+    modelId: string
+    errorCode: string | null
+  }) => void
 }
 
 export interface UseAgentStreamReturn {
@@ -309,6 +315,13 @@ export function useAgentStream(): UseAgentStreamReturn {
                 }
 
                 const event = validation.event
+                if (event.type === "model_call_recorded") {
+                  options?.onModelCallRecorded?.({
+                    savedConfigId: event.data.saved_config_id,
+                    modelId: event.data.model,
+                    errorCode: event.data.error_code,
+                  })
+                }
                 setTurn((previous) => streamReducer(previous, event))
                 if (event.type === "turn_started") {
                   const serverThreadId = event.data.thread_id

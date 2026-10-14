@@ -211,10 +211,9 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
     /**
      * One model call finished, with what it cost as the provider reported
      * it. The runtime emits one per call; the turn aggregate on
-     * `turn_completed` is unchanged. Nothing here drives state yet — the
-     * event is modelled so a known frame is not logged as unknown — and a
-     * future read of this event is exactly where per-call latency or cache
-     * data would land.
+     * `turn_completed` is unchanged. The composer uses the saved configuration,
+     * model id, and error code as key-scoped availability evidence. Other
+     * analytics can build on this event without adding a second report path.
      */
     type: z.literal("model_call_recorded"),
     data: z.object({

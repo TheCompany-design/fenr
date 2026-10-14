@@ -10,6 +10,7 @@ import {
 
 export type CapabilityStatus =
   | "available"
+  | "unverified"
   | "gated-connect"
   | "gated-upgrade"
   | "gated-region"
@@ -20,7 +21,7 @@ export type CapabilityStatus =
 export type ModelView = {
   model: ModelSpec
   providerId: ProviderId
-  /** What this model offers *on this key, right now*. */
+  /** Whether the model itself is selectable; unrelated to its capabilities. */
   status: CapabilityStatus
   /** Present even when gated, so a locked row can show what it would grant. */
   effortLevels: readonly string[]
@@ -37,9 +38,10 @@ const EFFORT_RANK = ["none", "low", "medium", "high", "max"] as const
 
 function statusFor(caps: ResolvedCaps): CapabilityStatus {
   if (!caps.model) return "no-model"
-  const access = caps.reasoning.access
+  const access = caps.modelAccess
   if (access.kind === "available") return "available"
   if (access.kind === "denied") return "unsupported"
+  if (access.kind === "unknown") return "unverified"
   switch (access.gate.kind) {
     case "connect":
       return "gated-connect"
@@ -113,12 +115,13 @@ export function buildModelViews(input: {
 export function rankModels(views: readonly ModelView[]): ModelView[] {
   const statusRank: Record<CapabilityStatus, number> = {
     available: 0,
-    "gated-connect": 1,
-    "gated-upgrade": 2,
-    "gated-region": 2,
-    "gated-capacity": 3,
-    unsupported: 4,
-    "no-model": 4,
+    unverified: 1,
+    "gated-connect": 2,
+    "gated-upgrade": 3,
+    "gated-region": 3,
+    "gated-capacity": 4,
+    unsupported: 5,
+    "no-model": 5,
   }
   return [...views].sort((a, b) => {
     const byStatus = statusRank[a.status] - statusRank[b.status]

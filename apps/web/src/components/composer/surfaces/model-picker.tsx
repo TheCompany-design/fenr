@@ -18,7 +18,10 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useMemo, useState } from "react"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type { Catalog, Connection, ProviderSpec } from "../catalog/capabilities"
-import { resolveCapabilities } from "../catalog/resolve"
+import {
+  resolveCapabilities,
+  scopeModelAccessToCredentialRevision,
+} from "../catalog/resolve"
 import {
   buildModelViews,
   type CapabilityStatus,
@@ -94,7 +97,11 @@ export function ModelPicker() {
         }
         return resolveCapabilities({
           provider,
-          model,
+          model: scopeModelAccessToCredentialRevision(
+            model,
+            entry?.catalogCredentialRevision,
+            entry?.credentialRevision,
+          ),
           connection: entry?.connection ?? { state: "absent" },
           entitlements: entry?.entitlements ?? {},
         })
@@ -362,6 +369,7 @@ const SKELETON_ROWS = ["row-1", "row-2", "row-3", "row-4"]
 
 const STATUS_LABEL: Record<CapabilityStatus, string> = {
   available: "",
+  unverified: "Not used with this key yet",
   "gated-connect": "Connect key",
   "gated-upgrade": "Upgrade required",
   "gated-region": "Unavailable in region",

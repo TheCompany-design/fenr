@@ -113,6 +113,11 @@ export interface ComposerBridgeOptions {
       readonly providerConfigId?: string | null
       readonly modelId?: string | null
       readonly onTurnStarted?: (threadId: string) => void | Promise<void>
+      readonly onModelCallRecorded?: (call: {
+        savedConfigId: string | null
+        modelId: string
+        errorCode: string | null
+      }) => void
     },
   ) => Promise<void>
   readonly stop: () => void
@@ -213,6 +218,18 @@ export function useComposerBridge(
             providerConfigId: payload.providerId,
             modelId: payload.modelId,
             onTurnStarted,
+            onModelCallRecorded: ({ savedConfigId, modelId, errorCode }) => {
+              // Only a successful call proves availability; every failure code
+              // stays unknown.
+              if (!savedConfigId || errorCode !== null) return
+              usePromptStore
+                .getState()
+                .recordModelAvailability(
+                  savedConfigId,
+                  modelId,
+                  payload.availabilityEpoch,
+                )
+            },
           })
         } catch (error) {
           // Nothing was sent. Hand the files back and say why — the composer
