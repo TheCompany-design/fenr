@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { logoUrl } from "@/lib/brand/logos"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -75,9 +76,9 @@ describe("OAuthButtons Component", () => {
       expect(html).toContain("Google")
       expect(html).toContain("Apple")
       expect(html).toContain("GitHub")
-      expect(html).toContain("https://logos.lndev.me/logos/google.svg")
-      expect(html).toContain("https://logos.lndev.me/logos/apple.svg")
-      expect(html).toContain("https://logos.lndev.me/logos/github.svg")
+      expect(html).toContain(logoUrl("google"))
+      expect(html).toContain(logoUrl("apple"))
+      expect(html).toContain(logoUrl("github"))
     })
 
     it("marks disabled providers with disabled attribute in SSR", () => {
@@ -169,7 +170,7 @@ describe("OAuthButtons Component", () => {
       )
     })
 
-    it("renders provider brand logos from logos.lndev.me with appropriate dark mode styling", () => {
+    it("renders provider brand logos from the shared logo service with appropriate dark mode styling", () => {
       const { getButton } = mount()
       const googleBtn = getButton("Google")
       const appleBtn = getButton("Apple")
@@ -179,19 +180,13 @@ describe("OAuthButtons Component", () => {
       const appleImg = appleBtn?.querySelector("img")
       const githubImg = githubBtn?.querySelector("img")
 
-      expect(googleImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/google.svg",
-      )
+      expect(googleImg?.getAttribute("src")).toBe(logoUrl("google"))
       expect(googleImg?.classList.contains("dark:invert")).toBe(false)
 
-      expect(appleImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/apple.svg",
-      )
+      expect(appleImg?.getAttribute("src")).toBe(logoUrl("apple"))
       expect(appleImg?.classList.contains("dark:invert")).toBe(true)
 
-      expect(githubImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/github.svg",
-      )
+      expect(githubImg?.getAttribute("src")).toBe(logoUrl("github"))
       expect(githubImg?.classList.contains("dark:invert")).toBe(true)
     })
 

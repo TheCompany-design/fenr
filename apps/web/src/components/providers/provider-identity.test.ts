@@ -7,18 +7,14 @@
  */
 import { describe, expect, it } from "bun:test"
 
+import { logoUrl } from "@/lib/brand/logos"
+
 import {
-  modelMark,
   providerDisplayName,
   providerLogoUrl,
   providerMarkIsMonochrome,
+  VENDORS,
 } from "./provider-identity"
-
-const VENDORS = ["openai", "anthropic", "google", "openrouter"] as const
-// One vendor's mark file is not named after its key — the pinwheel lives at
-// `google-antigravity.svg` — so the mechanical URL loop stays four-wide and
-// the exception is asserted explicitly below.
-const MARKS = [...VENDORS, "antigravity"] as const
 
 describe("provider identity", () => {
   it("names every vendor this build ships", () => {
@@ -29,10 +25,9 @@ describe("provider identity", () => {
   })
 
   it("gives every vendor a logo on the shared service", () => {
-    for (const vendor of VENDORS) {
-      expect(providerLogoUrl(vendor)).toBe(
-        `https://logos.lndev.me/logos/${vendor}.svg`,
-      )
+    // Three of the four marks are stored under the vendor's own key.
+    for (const vendor of ["openai", "anthropic", "openrouter"] as const) {
+      expect(providerLogoUrl(vendor)).toBe(logoUrl(vendor))
     }
   })
 
@@ -41,30 +36,55 @@ describe("provider identity", () => {
     expect(providerLogoUrl("mistral")).toBeNull()
   })
 
-  it("draws Google's models with the Antigravity mark in the picker", () => {
-    // The chat's picker asked for the Antigravity pinwheel over the corporate
-    // "G" for the Gemini family. The settings screen keeps the "G": there the
-    // row is about Google the vendor, and modelMark is not consulted.
-    expect(modelMark("google", "gemini-3.8-flash")).toBe("antigravity")
-    expect(modelMark("google", "gemini-2.5-flash-lite")).toBe("antigravity")
-    expect(providerLogoUrl("antigravity")).toBe(
-      "https://logos.lndev.me/logos/google-antigravity.svg",
-    )
-    expect(providerMarkIsMonochrome("antigravity")).toBe(false)
+  it("gives Google the Antigravity mark, and no other vendor any second mark", () => {
+    // One record per vendor, so Google's models render with the Antigravity
+    // pinwheel in the picker, on the active-model chip, and in the settings
+    // rows alike — there is no surface left that can decide differently.
+    expect(providerLogoUrl("google")).toBe(logoUrl("google-antigravity"))
+    // The `antigravity` pseudo-vendor is gone with it. It existed only so a
+    // second decision layer could point at the same file, which is exactly the
+    // split this record was built to remove — and an id nothing routes to now.
+    expect(providerLogoUrl("antigravity")).toBeNull()
+    expect(providerDisplayName("antigravity")).toBe("antigravity")
   })
 
-  it("scopes the Antigravity mark to Gemini, and the catalogue asks for it whole", () => {
-    // A Google model outside the Gemini family keeps the vendor's own mark —
-    // the request was Gemini-scoped, not "never draw the G again".
-    expect(modelMark("google", "deep-research-max-preview-04-2026")).toBe(
-      "google",
-    )
-    // No model id names a whole catalogue — the picker's provider tab —
-    // which for Google is the Gemini family.
-    expect(modelMark("google")).toBe("antigravity")
-    // Other vendors are never remapped.
-    expect(modelMark("openai", "gpt-5.2")).toBe("openai")
-    expect(modelMark("openrouter", "anthropic/claude")).toBe("openrouter")
+  it("offers exactly the vendors it can name and draw", () => {
+    // Settings builds its "add a provider" menu from this list. If a vendor
+    // were declared without being offered, or offered without a mark, a
+    // workspace could reach a vendor the app cannot draw — the exact split
+    // this record exists to prevent.
+    //
+    // The order is pinned because it is a product decision (OpenRouter second,
+    // as the "bring any vendor" route) that the menu inherits. It is pinned
+    // here rather than on the rendered menu because the form stays closed until
+    // a click, which a static render never performs.
+    expect(VENDORS).toEqual([
+      { id: "openai", displayName: "OpenAI" },
+      { id: "openrouter", displayName: "OpenRouter" },
+      { id: "anthropic", displayName: "Anthropic" },
+      { id: "google", displayName: "Google Gemini" },
+    ])
+    for (const vendor of VENDORS) {
+      expect(providerLogoUrl(vendor.id)).not.toBeNull()
+      // The two facts a menu entry needs, and cannot invent for itself.
+      expect(providerDisplayName(vendor.id)).toBe(vendor.displayName)
+    }
+  })
+
+  it("resolves no vendor key by way of the object prototype", () => {
+    // The vendor name arrives from the runtime, which this build does not
+    // control. The `?? null` / `?? false` fallbacks would absorb an inherited
+    // member either way, so this is defence in depth against a record-shaped
+    // rewrite rather than a regression being pinned today.
+    for (const key of [
+      "constructor",
+      "__proto__",
+      "toString",
+      "hasOwnProperty",
+    ]) {
+      expect(providerLogoUrl(key)).toBeNull()
+      expect(providerMarkIsMonochrome(key)).toBe(false)
+    }
   })
 
   describe("dark-theme treatment", () => {
@@ -77,13 +97,11 @@ describe("provider identity", () => {
       expect(providerMarkIsMonochrome("openai")).toBe(true)
       expect(providerMarkIsMonochrome("anthropic")).toBe(true)
       expect(providerMarkIsMonochrome("openrouter")).toBe(true)
-      // The four-colour "G" is correct on both surfaces; inverting it would
-      // turn a recognised brand mark into a palette Google never shipped.
+      // Google's mark is the Antigravity pinwheel, which is colour — eleven
+      // coloured paths, and the one `fill="black"` in the file is the alpha
+      // mask's own definition, which paints nothing. Inverting the mark would
+      // trade a brand palette for a wrong one to save nothing at all.
       expect(providerMarkIsMonochrome("google")).toBe(false)
-      // The Antigravity pinwheel is colour too — one small black accent
-      // among eleven coloured paths — and inverting the mark would trade a
-      // brand palette for a wrong one to save a single accent.
-      expect(providerMarkIsMonochrome("antigravity")).toBe(false)
     })
 
     it("claims no treatment for a vendor it has never seen", () => {
@@ -96,12 +114,20 @@ describe("provider identity", () => {
     it("only ever inverts a vendor that actually has a mark", () => {
       // Guards the component's filter condition: a vendor with no URL renders
       // a letter mark out of themed tokens, which already adapts on its own.
-      for (const vendor of [...MARKS, "mistral"]) {
-        const url = providerLogoUrl(vendor)
-        const filtered = Boolean(url) && providerMarkIsMonochrome(vendor)
-        if (!url) {
-          expect(filtered).toBe(false)
-        }
+      // Stated for every vendor rather than only the un-named ones, so a
+      // vendor that lost its mark cannot slip past an assertion-free branch.
+      const expected = {
+        openai: true,
+        anthropic: true,
+        google: false,
+        openrouter: true,
+        mistral: false,
+      }
+      for (const [vendor, monochrome] of Object.entries(expected)) {
+        const hasMark = providerLogoUrl(vendor) !== null
+        expect(hasMark && providerMarkIsMonochrome(vendor)).toBe(
+          hasMark && monochrome,
+        )
       }
     })
   })

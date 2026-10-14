@@ -4,7 +4,15 @@
  * Pure data, no JSX: the composer's catalog module (which stays free of React)
  * and the logo component share one source of truth for the vendor's display
  * name, so a picker and a settings screen can never disagree about it.
+ *
+ * This is also the *only* place a model vendor's mark is decided — which mark,
+ * from where, and how it behaves on a dark surface. No consumer picks between
+ * marks or builds logo URLs itself: the record below is the single decision,
+ * and a structural test pins that the logo service's address is named nowhere
+ * else in the source tree. The service itself lives in `lib/brand/logos`.
  */
+
+import { logoUrl } from "@/lib/brand/logos"
 
 /**
  * Everything this build knows about one vendor's identity, declared together.
@@ -14,10 +22,17 @@
  * outside — only a CSS filter can, and only for marks that carry no hue. The
  * two properties are coupled facts about one file: a mark fetched from the
  * service is either achromatic or it is not. Keeping them in one record means
- * adding a vendor is a single atomic edit, and there is no shape of that edit
- * that can ship a logo without saying how it behaves on a dark surface.
+ * there is no shape of a new vendor that can ship a mark without also saying
+ * how it behaves on a dark surface.
+ *
+ * The list carries the `id` inline rather than as a record key so that the
+ * id, the name, and the mark are one declaration. Surfaces that need to
+ * *offer* vendors derive that list from here (`VENDORS`), which is what stops
+ * a vendor being drawn in one place and absent from the menu that adds it.
  */
 interface VendorMark {
+  /** The vendor's key: what the runtime calls it on the wire. */
+  readonly id: string
   /** The vendor's name as a person reads it. */
   readonly displayName: string
   /** The vendor's logo, from the shared SVG logo service. */
@@ -31,61 +46,75 @@ interface VendorMark {
   readonly monochrome: boolean
 }
 
-const VENDOR_MARKS: Readonly<Record<string, VendorMark>> = {
-  openai: {
+/**
+ * The vendors this build ships, in the order surfaces should offer them.
+ *
+ * OpenRouter sits second, ahead of the named vendors: it is the "bring any
+ * vendor" route, so it reads as an alternative rather than a fourth brand.
+ * That ordering is a product decision and the settings menu renders in it.
+ *
+ * `as const` keeps `id` a literal union rather than widening it to `string`,
+ * which is what lets a surface declare something per-vendor (`Record<
+ * VendorId, …>`) and get a compile error for a vendor it forgot.
+ */
+const VENDOR_MARKS = [
+  {
+    id: "openai",
     displayName: "OpenAI",
-    logoUrl: "https://logos.lndev.me/logos/openai.svg",
+    logoUrl: logoUrl("openai"),
     monochrome: true,
   },
-  anthropic: {
-    displayName: "Anthropic",
-    logoUrl: "https://logos.lndev.me/logos/anthropic.svg",
-    monochrome: true,
-  },
-  google: {
-    displayName: "Google Gemini",
-    // The four-colour "G": brand colour is the mark, so it is correct on both
-    // surfaces and inverting it would produce a palette Google never shipped.
-    logoUrl: "https://logos.lndev.me/logos/google.svg",
-    monochrome: false,
-  },
-  openrouter: {
+  {
+    id: "openrouter",
     displayName: "OpenRouter",
-    logoUrl: "https://logos.lndev.me/logos/openrouter.svg",
+    logoUrl: logoUrl("openrouter"),
     monochrome: true,
   },
-  antigravity: {
-    displayName: "Google Antigravity",
-    // Google's model mark in the chat's picker — the workspace asked for the
-    // Antigravity pinwheel there instead of the corporate "G". Full colour
-    // (one small black accent among eleven coloured paths), so like the "G"
-    // it is correct as served on both surfaces.
-    logoUrl: "https://logos.lndev.me/logos/google-antigravity.svg",
+  {
+    id: "anthropic",
+    displayName: "Anthropic",
+    logoUrl: logoUrl("anthropic"),
+    monochrome: true,
+  },
+  {
+    id: "google",
+    displayName: "Google Gemini",
+    // The Antigravity pinwheel, everywhere this vendor's models are drawn —
+    // picker tabs, the active model's chip, and the settings rows alike. One
+    // record means one mark: there is no surface where Google's models render
+    // with a different logo than they do here. Full colour — the artwork is
+    // eleven coloured paths, and the one `fill="black"` in the file is the
+    // alpha mask's own definition, which paints nothing — so like any colour
+    // mark it renders as served on both surfaces, and inverting it would
+    // produce a palette Google never shipped.
+    logoUrl: logoUrl("google-antigravity"),
     monochrome: false,
   },
-}
+] as const satisfies readonly VendorMark[]
+
+/** One of the vendor keys this build knows. */
+export type VendorId = (typeof VENDOR_MARKS)[number]["id"]
 
 function markFor(provider: string): VendorMark | undefined {
-  return VENDOR_MARKS[provider]
+  // An array scan rather than a record lookup, so that a vendor name arriving
+  // from the runtime can never resolve to an inherited key such as
+  // `constructor`. Note that the `?? null` / `?? false` fallbacks below would
+  // already absorb that case; the scan is belt-and-braces, not a fix for an
+  // observed bug.
+  return VENDOR_MARKS.find((mark) => mark.id === provider)
 }
 
 /**
- * The mark a *model* carries, which is not always its vendor's.
+ * The vendors this build ships, in the order a surface should offer them.
  *
- * Google's chat models are the Gemini family, and the picker draws them with
- * the Antigravity mark rather than the corporate "G" — the vendor's own
- * product mark for the models a conversation actually runs. Scoping it here
- * keeps the settings screen drawing the vendor's own "G" for the credential,
- * because there the row is about Google the vendor, not a model on it.
- *
- * `modelId` absent asks for the mark of a whole catalogue — the picker's
- * provider tab — which for Google is the Gemini family.
+ * Settings derives its "add a provider" menu from this, so the set of vendors
+ * the app can draw and the set it lets a workspace add are the same
+ * declaration — a mark cannot exist for a vendor the menu refuses to offer.
  */
-export function modelMark(provider: string, modelId?: string): string {
-  if (provider !== "google") return provider
-  if (modelId === undefined) return "antigravity"
-  return /gemini/i.test(modelId) ? "antigravity" : provider
-}
+export const VENDORS: readonly {
+  readonly id: VendorId
+  readonly displayName: string
+}[] = VENDOR_MARKS.map(({ id, displayName }) => ({ id, displayName }))
 
 /**
  * The vendor's name as a person reads it, for an entry without its own label.

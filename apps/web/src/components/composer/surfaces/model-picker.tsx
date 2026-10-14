@@ -16,7 +16,6 @@ import {
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { useMemo, useState } from "react"
-import { modelMark } from "@/components/providers/provider-identity"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type { Catalog, Connection, ProviderSpec } from "../catalog/capabilities"
 import { resolveCapabilities } from "../catalog/resolve"
@@ -171,14 +170,10 @@ export function ModelPicker() {
         {selectedView ? (
           <>
             {/* The mark stands in for the vendor's name — the model's own
-                name is the text beside it — and the model-scoped mark is
-                why a Gemini model carries the Antigravity pinwheel rather
-                than the corporate "G". */}
+                name is the text beside it — and which mark that is decided
+                in exactly one place, the vendor identity record. */}
             <ProviderLogo
-              provider={modelMark(
-                selectedProvider?.source.vendor ?? "",
-                selectedView.model.id,
-              )}
+              provider={selectedProvider?.source.vendor ?? ""}
               label={selectedProvider?.label}
               size={14}
             />
@@ -231,6 +226,10 @@ export function ModelPicker() {
               <button
                 key={entry.id}
                 type="button"
+                // The tab's own name. The mark beside it is decorative to a
+                // screen reader, and the "Starred" tab carries only an icon,
+                // so without this the first tab announces as an unnamed button.
+                aria-label={entry.label}
                 onClick={() => {
                   setTab(entry.id)
                   setQuery("")
@@ -246,15 +245,16 @@ export function ModelPicker() {
                   <HugeiconsIcon icon={StarIcon} className="size-3.5" />
                 ) : null}
                 {/* The mark stands in for the name; the tooltip names it on a
-                    delayed hover, so scanning a row of them stays quiet. A
-                    Google tab carries the Antigravity mark: the tab stands
-                    for the catalogue the models come from, not the vendor
-                    the credential belongs to. */}
-                <ProviderLogo
-                  provider={modelMark(entry.vendor ?? entry.label)}
-                  label={entry.label}
-                  size={16}
-                />
+                    delayed hover, so scanning a row of them stays quiet. Which
+                    mark a vendor carries is decided by the identity record —
+                    the tab passes the vendor and decides nothing. */}
+                {entry.kind === "provider" ? (
+                  <ProviderLogo
+                    provider={entry.vendor ?? ""}
+                    label={entry.label}
+                    size={16}
+                  />
+                ) : null}
                 {needsKey ? (
                   <HugeiconsIcon
                     icon={Key01Icon}

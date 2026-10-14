@@ -1,9 +1,12 @@
 /**
  * Social authentication provider configurations and metadata.
  *
- * All company/brand logos are fetched directly from https://logos.lndev.me/
- * per Fenr architectural standards.
+ * Brand marks come from the shared logo service, through its one builder —
+ * this module decides *which* sign-in providers exist and how their marks
+ * behave on a dark surface, never where the service lives.
  */
+
+import { logoUrl } from "@/lib/brand/logos"
 
 export type SocialProviderId = "google" | "apple" | "github"
 
@@ -23,7 +26,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     name: "Google",
     label: "Continue with Google",
     enabled: true,
-    logoUrl: "https://logos.lndev.me/logos/google.svg",
+    logoUrl: logoUrl("google"),
     invertInDarkMode: false,
   },
   {
@@ -32,7 +35,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     label: "Continue with Apple",
     enabled: false,
     disabledReason: "Apple sign-in is coming soon",
-    logoUrl: "https://logos.lndev.me/logos/apple.svg",
+    logoUrl: logoUrl("apple"),
     invertInDarkMode: true,
   },
   {
@@ -41,7 +44,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     label: "Continue with GitHub",
     enabled: false,
     disabledReason: "GitHub sign-in is coming soon",
-    logoUrl: "https://logos.lndev.me/logos/github.svg",
+    logoUrl: logoUrl("github"),
     invertInDarkMode: true,
   },
 ] as const

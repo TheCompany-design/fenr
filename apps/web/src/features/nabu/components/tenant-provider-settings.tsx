@@ -52,6 +52,10 @@ import { Label } from "@workspace/ui/components/label"
 import { useState } from "react"
 import { toast } from "sonner"
 import { z } from "zod"
+import {
+  VENDORS,
+  type VendorId,
+} from "@/components/providers/provider-identity"
 import { ProviderLogo } from "@/components/providers/provider-logo"
 import type {
   ProviderModelsResponse,
@@ -86,18 +90,35 @@ const createProviderFormSchema = z.object({
 })
 
 /**
+ * The one example model each vendor's catalogue is expected to carry.
+ *
+ * Typed as a total record over the identity record's vendor union, so adding a
+ * vendor there and forgetting its hint here is a compile error rather than a
+ * tile that silently renders an empty line.
+ */
+const PROVIDER_HINTS: Record<VendorId, string> = {
+  openai: "gpt-4o-mini",
+  openrouter: "vendor/model",
+  anthropic: "claude-sonnet-4-5",
+  google: "gemini-2.5-flash",
+}
+
+/**
  * The vendors a workspace can choose between.
  *
  * The menu, not the law: the runtime owns the closed set and answers an
- * unknown name with a `400` naming it. Rendering the four by name is how a
+ * unknown name with a `400` naming it. Rendering them by name is how a
  * workspace picks one without ever seeing an address.
+ *
+ * Built from the identity record, so the vendors this screen offers are the
+ * vendors the app can name and draw — a mark cannot exist for a vendor the
+ * menu refuses to offer. Only the hint is local to this screen.
  */
-const PROVIDER_OPTIONS = [
-  { value: "openai", label: "OpenAI", hint: "gpt-4o-mini" },
-  { value: "openrouter", label: "OpenRouter", hint: "vendor/model" },
-  { value: "anthropic", label: "Anthropic", hint: "claude-sonnet-4-5" },
-  { value: "google", label: "Google Gemini", hint: "gemini-2.5-flash" },
-]
+const PROVIDER_OPTIONS = VENDORS.map((vendor) => ({
+  value: vendor.id,
+  label: vendor.displayName,
+  hint: PROVIDER_HINTS[vendor.id],
+}))
 
 export interface TenantProviderSettingsProps {
   /** Whether the viewer may change any of this. */

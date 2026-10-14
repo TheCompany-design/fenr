@@ -23,6 +23,7 @@ import {
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
+import { logoUrl } from "@/lib/brand/logos"
 import type { TenantProviderSummary } from "@/lib/schemas/nabu"
 
 import { tenantProviderKeys, tenantProvidersQueryOptions } from "../queries"
@@ -165,6 +166,20 @@ describe("the vendor's mark", () => {
 
     expect(html).not.toContain("logos/mistral.svg")
     expect(html).toContain("M")
+  })
+
+  it("draws Google with the Antigravity mark here, as the composer picker does", async () => {
+    // This is the surface that disagreed with the picker. The identity record
+    // is now the only decision, so the credential row carries the same
+    // pinwheel — and not the corporate "G" the picker no longer shows.
+    const html = await render({
+      providers: [{ ...DEFAULT_ENTRY, provider: "google" }],
+      can_administer: true,
+    })
+
+    expect(html).toContain(logoUrl("google-antigravity"))
+    expect(html).not.toContain(logoUrl("google"))
+    expect(html).toContain('alt="Google Gemini"')
   })
 })
 
