@@ -101,6 +101,7 @@ const PROVIDER_HINTS: Record<VendorId, string> = {
   openrouter: "vendor/model",
   anthropic: "claude-sonnet-4-5",
   google: "gemini-2.5-flash",
+  nvidia: "nvidia/llama-3.1-nemotron-70b-instruct",
 }
 
 /**

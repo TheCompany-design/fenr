@@ -63,6 +63,7 @@ describe("provider identity", () => {
       { id: "openrouter", displayName: "OpenRouter" },
       { id: "anthropic", displayName: "Anthropic" },
       { id: "google", displayName: "Google Gemini" },
+      { id: "nvidia", displayName: "NVIDIA NIM" },
     ])
     for (const vendor of VENDORS) {
       expect(providerLogoUrl(vendor.id)).not.toBeNull()

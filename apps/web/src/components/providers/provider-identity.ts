@@ -90,6 +90,15 @@ const VENDOR_MARKS = [
     logoUrl: logoUrl("google-antigravity"),
     monochrome: false,
   },
+  {
+    id: "nvidia",
+    displayName: "NVIDIA NIM",
+    // NVIDIA's own green eye-mark, everywhere this vendor's models are drawn.
+    // Full colour, so like Google's mark it renders as served on both
+    // surfaces rather than being inverted into a palette NVIDIA never shipped.
+    logoUrl: logoUrl("nvidia"),
+    monochrome: false,
+  },
 ] as const satisfies readonly VendorMark[]
 
 /** One of the vendor keys this build knows. */
