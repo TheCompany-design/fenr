@@ -279,7 +279,12 @@ function fileKindOf(mimeType: string): readonly string[] {
   return []
 }
 
-function formatMb(sizeMb: number): string {
+/**
+ * A size in megabytes, said the way the reader thinks about it. Exported because
+ * the rule that enforces the ceiling and the hint that warns about it have to
+ * say the same number: two formatters would drift into "50 KB" and "0.05 MB".
+ */
+export function formatMb(sizeMb: number): string {
   if (sizeMb < 1) return `${Math.round(sizeMb * 1024)} KB`
   return `${sizeMb} MB`
 }
