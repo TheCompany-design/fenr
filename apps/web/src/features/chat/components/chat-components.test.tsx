@@ -553,9 +553,14 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(
         container?.querySelector('button[aria-label="Send message"]'),
       ).not.toBeNull()
+      // One selector now answers "what can this message reach" — files and
+      // tools together — so there is a single labelled entry point, not two.
+      expect(
+        container?.querySelector('button[aria-label="Add files and tools"]'),
+      ).not.toBeNull()
       expect(
         container?.querySelector('button[aria-label="Attach files"]'),
-      ).not.toBeNull()
+      ).toBeNull()
     })
 
     it("sends with a circular action in the input's corner", () => {
