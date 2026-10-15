@@ -98,11 +98,21 @@ export function PromptInputTextarea({
 
   // The ref is shared through context so caret measurement sees the live
   // element; a caller-supplied ref is chained rather than replaced.
+  //
+  // Keyed on the ref itself and not on the context object. The context value is
+  // rebuilt whenever `value` changes, so a callback keyed on it is a *new*
+  // function per keystroke — and a new ref callback means React detaches the
+  // element (`ref(null)`) and reattaches it during the same commit. Anything
+  // reading `textareaRef.current` from a layout effect therefore saw `null` on
+  // every keystroke, because effects run in tree order and the reader had not
+  // reached the reattach yet. The ref object never changes, so keying on it
+  // makes the callback stable and the ref stays put.
+  const textareaRef = context?.textareaRef
   const setRef = React.useCallback(
     (node: HTMLTextAreaElement | null) => {
-      if (context) context.textareaRef.current = node
+      if (textareaRef) textareaRef.current = node
     },
-    [context],
+    [textareaRef],
   )
 
   return (
