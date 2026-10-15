@@ -13,7 +13,7 @@
  *   state/      the zustand store every surface reads from.
  *   primitives/ headless input shell, autocomplete, trigger detection, caret
  *               measurement. No knowledge of providers or models.
- *   surfaces/   the visible affordances: model picker, effort, tools,
+ *   surfaces/   the visible affordances: add menu, model picker, effort,
  *               context rail, meter, feedback.
  *   data/       derived view models and the `/` and `@` sources.
  *   hooks/      the seams between the store and a host app.
@@ -105,6 +105,15 @@ export {
 } from "./catalog/reconcile"
 export { resolveCapabilities } from "./catalog/resolve"
 
+// --- density ---------------------------------------------------------------
+
+export {
+  type ComposerDensity,
+  DENSITY_OVERFLOW_TOLERANCE_PX,
+  isOverflowing,
+  resolveDensity,
+} from "./state/composer-density"
+
 // --- building blocks ------------------------------------------------------
 
 export { type CaretRect, measureCaret } from "./primitives/caret"
@@ -140,12 +149,12 @@ export {
 
 // --- surfaces -------------------------------------------------------------
 
+export { AddMenu } from "./surfaces/add-menu"
 export { ContextMeter } from "./surfaces/context-meter"
 export { ContextRail, type ContextRailMode } from "./surfaces/context-rail"
 export { EffortControl, encodeEffort } from "./surfaces/effort-control"
 export { ComposerFeedback, formatTokens } from "./surfaces/feedback"
 export { ModelPicker, ProviderGate } from "./surfaces/model-picker"
-export { ToolMenu } from "./surfaces/tool-menu"
 
 // --- data -----------------------------------------------------------------
 

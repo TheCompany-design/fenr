@@ -9,7 +9,7 @@ one folder; copy it into another project and it works.
 catalog/       capability model, provider catalog, reconciliation, tokens
 state/         the zustand store every surface reads from
 primitives/    headless input shell, autocomplete, triggers, caret measuring
-surfaces/      model picker, effort, tools, context rail, meter, feedback
+surfaces/      add menu, model picker, effort, context rail, meter, feedback
 data/          derived view models, `/` and `@` sources
 hooks/         the seams between the store and a host app
 index.ts       the only module a consumer should import
@@ -55,6 +55,22 @@ capability = catalog ∩ entitlements ∩ connection → ResolvedCaps
 Three inputs, one pure function. See `catalog/resolve.ts`.
 
 ## Rules worth preserving
+
+**One box, two densities.** The composer is a single-row `pill` or a
+multi-row `panel`, and the density is never *set* — it is a consequence of two
+facts, both in `state/composer-density.ts`:
+
+```ts
+panel ⟺ the draft no longer fits one line ∨ a file is staged
+```
+
+Everything else follows from keeping that rule this small. The pill does not
+move a single node: the same textarea, the same controls, the same action row —
+it lays the row *over* the text instead of under it, which is why the caret,
+the IME and the selection survive the morph untouched. And the fit test is taken
+at pill geometry even while the box is a panel (`measurePillOverflow`), because
+measured in whichever box it happens to be in, a draft on the wrap boundary
+would expand, fit, collapse, and wrap again on every keystroke.
 
 **Settings are adjusted; content is never discarded.** `reconcile` returns two
 channels and the split is the design:

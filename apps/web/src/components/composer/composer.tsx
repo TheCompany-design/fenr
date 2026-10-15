@@ -1,19 +1,19 @@
 import {
   Alert02Icon,
   ArrowUp01Icon,
-  Attachment01Icon,
   StopIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
 import { usePromptInput } from "@workspace/ui/components/prompt-input"
 import { cn } from "@workspace/ui/lib/utils"
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   actionForCommandId,
   commandSource,
   referenceSource,
 } from "./data/sources"
+import { ComposerDensityProbe } from "./hooks/use-composer-density"
 import { useComposerEvent } from "./hooks/use-composer-event"
 import { useComposerShortcuts } from "./hooks/use-composer-shortcuts"
 import { measureCaret } from "./primitives/caret"
@@ -34,12 +34,13 @@ import {
   useSuggestionState,
   useSuggestionStore,
 } from "./primitives/suggestion"
+import { type ComposerDensity, resolveDensity } from "./state/composer-density"
 import { useCanSend, usePromptStore } from "./state/prompt-store"
+import { AddMenu } from "./surfaces/add-menu"
 import { ContextMeter } from "./surfaces/context-meter"
 import { ContextRail } from "./surfaces/context-rail"
 import { ComposerFeedback } from "./surfaces/feedback"
 import { ModelPicker } from "./surfaces/model-picker"
-import { ToolMenu } from "./surfaces/tool-menu"
 
 /**
  * The editor, wired to the suggestion engine.
@@ -56,7 +57,7 @@ import { ToolMenu } from "./surfaces/tool-menu"
  * opens: a bare `/` would otherwise make Enter commit whichever item happened
  * to sort first, instead of doing nothing.
  */
-function PromptEditor() {
+function PromptEditor({ density }: { density: ComposerDensity }) {
   const { value, onSubmit, textareaRef } = usePromptInput()
   const store = useSuggestionStore()
   const suggestion = useSuggestionState(store)
@@ -192,7 +193,7 @@ function PromptEditor() {
   return (
     <>
       <PromptInputTextarea
-        placeholder="Ask anything, @tag files, or use / for commands"
+        placeholder="Ask anything, or use / for commands"
         onKeyDown={handleKeyDown}
         onChange={(event) => {
           setText(event.target.value)
@@ -213,7 +214,21 @@ function PromptEditor() {
         // rendered at `p-0` and three children would otherwise each guess. All
         // three line up on the same optical edge: text and chips at `px-3`, the
         // icon buttons at `px-2` so their circles clear the border.
-        className="min-h-12 px-3 pt-3 pb-1 text-base leading-relaxed md:text-base"
+        //
+        // The pill replaces them with the room its controls actually occupy, so
+        // the text ends exactly where the model picker begins instead of
+        // wherever a constant guessed.
+        //
+        // `max-h-[1lh]` clamps it to one line — and, with border-box sizing,
+        // clamps the *padding* with it, so the pill's vertical breathing room
+        // belongs to the shell (see `py-3` above) rather than to a box that is
+        // never allowed to grow past its own line.
+        className={cn(
+          "text-base leading-relaxed md:text-base",
+          density === "pill"
+            ? "max-h-[1lh] min-h-0 py-0 pl-[var(--pill-inset-left,0px)] pr-[var(--pill-inset-right,0px)]"
+            : "min-h-12 px-3 pt-3 pb-1",
+        )}
       />
       <PromptAutocomplete
         state={suggestion}
@@ -251,14 +266,19 @@ function runCommand(action: ReturnType<typeof actionForCommandId>): void {
 }
 
 /**
- * ⌘⇧P toggles the model picker. Registered at the document rather than on the
- * textarea so it works when focus is on a tool chip or the send button.
+ * ⌘⇧P opens the model picker, ⌘⇧T the add menu, ⌘⏎ sends. Registered at the
+ * document rather than on the textarea so they work when focus is on a tool
+ * chip or the send button.
  */
-function useOpenModelPicker() {
-  return useComposerShortcuts({
+function useComposerShortcutsFor(onSubmit: () => void): void {
+  useComposerShortcuts({
     onModel: () => {
       window.dispatchEvent(new CustomEvent("composer:open-model-picker"))
     },
+    onTools: () => {
+      window.dispatchEvent(new CustomEvent("composer:open-tools"))
+    },
+    onSubmit,
   })
 }
 
@@ -268,7 +288,13 @@ export function Composer({ className }: { className?: string }) {
   const providersError = usePromptStore((s) => s.providersError)
   const text = usePromptStore((s) => s.text)
   const setText = usePromptStore((s) => s.setText)
+  const hasAttachments = usePromptStore((s) => s.attachments.length > 0)
   const { canSend, busy } = useCanSend()
+
+  // Measured, never set: the box is a pill or a panel because of what is in it.
+  const [overflowing, setOverflowing] = useState(false)
+  const density = resolveDensity({ overflowing, hasAttachments })
+  const pill = density === "pill"
 
   const retryProviders = useCallback(() => {
     usePromptStore.setState({ providersError: null })
@@ -290,7 +316,7 @@ export function Composer({ className }: { className?: string }) {
     input.click()
   }, [addAttachments])
 
-  useOpenModelPicker()
+  useComposerShortcutsFor(handleSend)
 
   useComposerEvent("composer:open-files", pickFiles)
 
@@ -329,34 +355,68 @@ export function Composer({ className }: { className?: string }) {
         value={text}
         onValueChange={setText}
         onSubmit={handleSend}
-        maxHeight={220}
-        // The shell's own `p-2` is replaced rather than added to, because the
+        // The density is a consequence of the draft and the attachments, so it
+        // is stated on the element rather than implied by its class names — both
+        // for the stylesheet and for the tests that drive the morph.
+        data-density={density}
+        // The panel's cap is the shell's business; the pill's is the editor's
+        // (`max-h-[1lh]`), so passing a number here would override it.
+        maxHeight={pill ? undefined : 220}
+        // The shell's own padding is replaced rather than added to, because the
         // rail and the toolbar carry their own gutters and stacking two would
         // push the text off-centre relative to the buttons below it.
-        className="relative p-0 pb-1.5"
+        //
+        // The pill's vertical room lives here for the reason noted on the
+        // textarea: its own box is clamped to a single line and cannot hold
+        // padding, so the shell is what gives the row its height and its centre.
+        // It adds no *horizontal* padding, because the textarea's width has to
+        // be the same in both densities — the fit test is taken at pill gutters
+        // whatever the box currently is, and a shell that was 8px narrower in
+        // one of them would quietly measure against a width the text never gets.
+        //
+        // The radius is the whole visual difference between the two densities:
+        // the palette is monochrome, so height and shape are what say which one
+        // you are looking at.
+        //
+        // Both radii are finite on purpose. `rounded-full` is
+        // `calc(infinity * 1px)`, and a transition *into* an infinite value
+        // never finishes in Chromium: the box sticks at the clamped maximum and
+        // the running transition outranks every later declaration, so the panel
+        // stays fully rounded. The pill's radius is therefore written as what it
+        // actually is — half of one line plus the shell's padding — which also
+        // means it follows the font size instead of assuming it.
+        className={cn(
+          "relative transition-[border-radius] duration-200 motion-reduce:transition-none",
+          pill
+            ? "rounded-[calc(0.5lh+0.75rem)] py-3"
+            : "rounded-4xl p-0 pb-1.5",
+        )}
       >
+        {/* Rendered unconditionally because the density rule guarantees it: an
+            attachment is one of the two reasons there is a panel, so this rail
+            is never mounted inside a pill. */}
         <ContextRail mode="chips" />
 
-        <PromptEditor />
+        <PromptEditor density={density} />
 
-        <PromptInputActionsRow className="px-2 pt-0.5">
-          <PromptInputLead>
-            <PromptInputAction tooltip="Attach files">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="rounded-full"
-                onClick={pickFiles}
-                aria-label="Attach files"
-              >
-                <HugeiconsIcon icon={Attachment01Icon} className="size-4" />
-              </Button>
-            </PromptInputAction>
-
-            <ToolMenu />
+        <PromptInputActionsRow
+          // The pill lays its controls *over* the row the text is written into,
+          // which is what lets the same three regions serve both densities
+          // without moving a single node. The overlay is transparent to input so
+          // the empty half of the pill is still the textarea.
+          className={cn(
+            pill
+              ? "pointer-events-none absolute inset-y-0 left-0 right-0"
+              : "px-2 pt-0.5",
+          )}
+        >
+          <PromptInputLead className={pill ? "pointer-events-auto" : undefined}>
+            <AddMenu />
           </PromptInputLead>
 
-          <PromptInputTrail>
+          <PromptInputTrail
+            className={pill ? "pointer-events-auto" : undefined}
+          >
             <ContextMeter />
             <ModelPicker />
 
@@ -376,6 +436,15 @@ export function Composer({ className }: { className?: string }) {
             </PromptInputAction>
           </PromptInputTrail>
         </PromptInputActionsRow>
+
+        {/* Last, deliberately. This reads the shell's textarea ref from a layout
+            effect, and React runs those in tree order — a probe mounted above
+            the editor would run before React attached the ref and measure
+            nothing on the first paint. */}
+        <ComposerDensityProbe
+          density={density}
+          onOverflowChange={setOverflowing}
+        />
       </PromptInput>
 
       {!hydrated ? (
