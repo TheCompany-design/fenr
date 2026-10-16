@@ -90,7 +90,8 @@ describe("EffortControl", () => {
     return [...container.querySelectorAll<HTMLElement>("[data-level-mark]")]
   }
 
-  async function settle(value: number, levels: readonly { id: string }[]) {
+  /** Moves the bar the way a keyboard or pointer would, and returns nothing. */
+  async function moveTo(value: number): Promise<void> {
     await render()
     const el = bar()
     const setter = Object.getOwnPropertyDescriptor(
@@ -101,7 +102,6 @@ describe("EffortControl", () => {
     await act(async () => {
       el.dispatchEvent(new Event("input", { bubbles: true }))
     })
-    return levels[value]?.id
   }
 
   it("ranges over the model's own levels", async () => {
@@ -122,6 +122,25 @@ describe("EffortControl", () => {
     // Announced as the level's name, not "2 of 4" — which is the reason labels
     // are declared rather than prettified from the id.
     expect(bar().getAttribute("aria-valuetext")).toBe("High")
+  })
+
+  it("carries the knob size on the wrapper, so the marks can see it", async () => {
+    seed(ANTHROPIC, "medium")
+    await render()
+    // happy-dom has no layout, so the percentages below cannot be checked
+    // against a rendered box — but the *scope* of `--effort-thumb` can be, and
+    // getting it wrong is silent: the marks container's `inset-inline` becomes
+    // invalid at computed-value time, falls back to `auto`, shrink-to-fits to
+    // zero width because every mark in it is absolutely positioned, and all the
+    // marks stack at the left end of the bar. The inline `left` values stay
+    // perfectly correct throughout, so a suite asserting only those passes while
+    // the control is broken. Declared on the wrapper, which is the marks'
+    // ancestor; on the input it would be a sibling's property and unset.
+    const host = container.querySelector<HTMLElement>("[data-effort-marks]")
+    expect(host?.parentElement?.className).toContain("effort-bar-scope")
+    expect(container.querySelector("input[type=range]")?.className).toBe(
+      "effort-bar",
+    )
   })
 
   it("draws one mark per level, at that level's own position", async () => {
@@ -159,9 +178,10 @@ describe("EffortControl", () => {
     })
     seed(ANTHROPIC, "low")
     // Index 1 is `low` on OpenAI's scale and `medium` on this one. The bar has
-    // to ask this model.
-    const id = await settle(1, ANTHROPIC)
-    expect(id).toBe("medium")
+    // to ask this model, and the assertion is on what the *component* handed
+    // the store — not on a lookup of the same constant the helper was given,
+    // which would pass even if the component sent nothing.
+    await moveTo(1)
     expect(chosen).toEqual(["medium"])
   })
 
@@ -173,6 +193,10 @@ describe("EffortControl", () => {
     expect(el.min).toBe("0")
     expect(el.max).toBe("1")
     expect(el.value).toBe("0")
+    // Disabled rather than a degenerate range: a range input that cannot move is
+    // a control that lies about being a control, and would announce a maximum
+    // of 1 for a scale that has one level.
+    expect(el.disabled).toBe(true)
     // With nothing to compare it to, the single mark sits in the middle.
     expect(marks()[0].style.left).toBe("50%")
   })

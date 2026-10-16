@@ -5,7 +5,12 @@ import {
   isUsable,
   type ReasoningLevel,
 } from "../catalog/capabilities"
-import { levelIndex, levelPosition, levelRatio } from "../catalog/effort"
+import {
+  levelIndex,
+  levelPosition,
+  levelRatio,
+  settleLevel,
+} from "../catalog/effort"
 import { usePromptStore } from "../state/prompt-store"
 
 /**
@@ -40,11 +45,19 @@ export function EffortControl({ className }: { className?: string }) {
   if (levels.length === 0) return null
 
   // The reconciler settles the stored level onto this list on every mutation, so
-  // a negative index means the list changed under us; showing the bottom of the
-  // scale is better than showing no bar at all.
-  const index = Math.max(0, levelIndex(levels, effort))
+  // a level that is not on offer means the list changed under us. Resolved
+  // through the same rule the wire uses, so what the bar shows and what gets
+  // encoded cannot disagree — showing `levels[0]` while `encodeEffort` sent
+  // nothing, or sent the old id, is the kind of divergence nobody notices until
+  // a provider rejects the request.
+  const settled = settleLevel(levels, effort, caps.reasoning.capability.default)
+  const index = Math.max(0, levelIndex(levels, settled))
   const active = levels[index]
   const at = levelPosition(levels, active.id)
+  // A one-level scale has no range to travel. `max` must exceed `min` for the
+  // control to be valid at all, which would otherwise leave a range input that
+  // looks movable, announces "maximum 1", and does nothing when moved.
+  const solo = levels.length === 1
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
@@ -55,7 +68,7 @@ export function EffortControl({ className }: { className?: string }) {
         {active.label}
       </span>
 
-      <div className="relative flex items-center">
+      <div className="effort-bar-scope relative flex items-center">
         {/* The marks, behind the control and inert: they are a picture of the
             scale, and the input below is what changes it.
 
@@ -64,7 +77,10 @@ export function EffortControl({ className }: { className?: string }) {
             track, so a mark at the track's very end would be a position no
             setting could ever occupy. Derived from the same variable the knob is
             sized from, so the two cannot drift apart. */}
-        <div className="pointer-events-none absolute inset-x-[calc(var(--effort-thumb)/2)] top-1/2 -translate-y-1/2">
+        <div
+          data-effort-marks=""
+          className="pointer-events-none absolute inset-x-[calc(var(--effort-thumb)/2)] top-1/2 -translate-y-1/2"
+        >
           {levels.map((level) => (
             <span
               key={level.id}
@@ -86,11 +102,11 @@ export function EffortControl({ className }: { className?: string }) {
 
         <input
           type="range"
-          // A one-level scale has no range to travel. `max` has to exceed `min`
-          // for the control to be valid, so this keeps the bar renderable
-          // instead of handing the browser a degenerate range.
           min={0}
           max={Math.max(1, levels.length - 1)}
+          // `disabled` rather than a degenerate range: a range input that cannot
+          // move is a control that lies about being a control.
+          disabled={solo}
           step={1}
           value={index}
           onChange={(event) => {
@@ -133,6 +149,13 @@ export function encodeEffort(
   levels: readonly ReasoningLevel[],
 ): Record<string, unknown> {
   if (!effort || encoding.style === "none") return {}
+  // A level this model does not offer is not this model's vocabulary, so it is
+  // not this model's wire form either — and the failure modes differ by style.
+  // A budget would be `0`, which is the one value a provider rejects outright;
+  // an enum or level would forward a name the provider has never heard of. The
+  // store's reconciler keeps the stored level on offer, so this is the boundary
+  // holding for a caller that captured its payload across a change of model.
+  if (levelIndex(levels, effort) < 0) return {}
 
   switch (encoding.style) {
     case "enum":

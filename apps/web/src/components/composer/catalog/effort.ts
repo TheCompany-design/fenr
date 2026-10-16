@@ -104,6 +104,22 @@ export function levelPosition(
 }
 
 /**
+ * The level a narrowed scale should default to when the model's own declared
+ * default was taken away by the key's entitlement.
+ *
+ * The *lowest* level the model offers, and the same answer `settleLevel` gives.
+ * One policy in one module, because the two used to disagree: this path fell
+ * back to the last level while `settleLevel` fell back to the first, so the same
+ * key could be told its effort was raised to the maximum on one path and left
+ * alone on the other. Falling back to the maximum spends the user's tokens
+ * because their plan could not reach the setting they asked for — the one
+ * adjustment that should never be made silently on their behalf.
+ */
+export function narrowedDefault(levels: readonly ReasoningLevel[]): string {
+  return levels[0]?.id ?? ""
+}
+
+/**
  * The level to settle on when the stored one is not on offer.
  *
  * There is no "nearest" level without a shared vocabulary to measure against,

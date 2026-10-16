@@ -103,6 +103,7 @@ export {
   levelIndex,
   levelPosition,
   levelRatio,
+  narrowedDefault,
   narrowScale,
   settleLevel,
 } from "./catalog/effort"

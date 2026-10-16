@@ -169,6 +169,16 @@ position and `levelRatio` is what a level is *worth* — they are deliberately n
 the same function, because the first level is worth `1/n` of a token budget but
 belongs at the left end of the bar.
 
+**Effort is never raised on the user's behalf.** Two paths can ask what to do
+when the level they wanted is not on offer — the resolver, when a key's
+entitlement narrows away a model's declared default, and `reconcile`, when the
+user switches to a model with a different scale — and both take the *lowest* level
+the model still has. They used to disagree, one falling back to the first level
+and the other to the last, so the same key got a different answer depending on
+which path asked; and the one that took the last quietly spent the user's tokens
+at maximum because their plan could not reach the setting they chose. That is the
+one adjustment that must never be made silently.
+
 **One exit from the store.** Every mutation funnels through `apply()`, which
 recomputes capabilities from the patched selection and then reconciles. No
 action can bypass the invariants. Text-only edits take `applyLocal()`, which

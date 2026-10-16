@@ -13,7 +13,7 @@ import type {
   ResolvedCaps,
   ToolKind,
 } from "./capabilities"
-import { levelIndex, narrowScale } from "./effort"
+import { levelIndex, narrowedDefault, narrowScale } from "./effort"
 
 /**
  * The only reason this is a plain function and not a hook: resolution has to
@@ -168,14 +168,16 @@ export function resolveCapabilities(input: {
       )
     } else {
       // The model's own default survives the narrowing when it is still on
-      // offer. The fallback used to be the *last* level, which quietly promoted
-      // every key that could not reach the lowest one to run at maximum — and,
-      // because nothing read this field, the promotion was invisible on top of
-      // that: the effective default was whatever came first in the list.
+      // offer. When the entitlement removed it, the scale defaults to the lowest
+      // level it still has rather than the highest: a key that cannot reach the
+      // setting a model asks for must not be promoted to running at its maximum
+      // instead. That fallback used to be the *last* level, which contradicted
+      // `settleLevel` and meant the same key got a different answer depending on
+      // which path asked.
       const preferred =
         levelIndex(scale.levels, scale.default) >= 0
           ? scale.default
-          : scale.levels[scale.levels.length - 1].id
+          : narrowedDefault(scale.levels)
       const value = { ...scale, default: preferred, encoding }
       reasoning = pending ? gated(value, pending) : offered(value)
     }

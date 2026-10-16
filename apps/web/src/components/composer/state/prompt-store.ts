@@ -1042,10 +1042,27 @@ function sameBlockers(a: Blocker[], b: Blocker[]): boolean {
   return a.every((blocker, index) => blocker.kind === b[index].kind)
 }
 
+/**
+ * Notice identity is its kind *and* its payload.
+ *
+ * Comparing kinds alone was enough while every model offered the same five
+ * level names, because two clamps were almost always the same clamp. They are
+ * not any more: two switches between models whose scales do not overlap produce
+ * two different `effort-clamped` notices, and keying on the kind alone left the
+ * first one's text on screen — so the composer said "Effort set to high." while
+ * the store held the other model's level entirely.
+ */
 function sameNotices(a: Notice[], b: Notice[]): boolean {
   if (a === b) return true
   if (a.length !== b.length) return false
-  return a.every((notice, index) => notice.kind === b[index].kind)
+  return a.every((notice, index) => {
+    const other = b[index]
+    if (notice.kind !== other.kind) return false
+    if (notice.kind === "effort-clamped" && other.kind === "effort-clamped") {
+      return notice.from === other.from && notice.to === other.to
+    }
+    return true
+  })
 }
 
 function firstSelectableSelection(state: PromptStore): Selection | null {
@@ -1155,13 +1172,23 @@ export const useCanSend = () =>
   )
 
 /**
+ * A stable "no levels" answer.
+ *
+ * A fresh `[]` on every read looks equal but is not: a shallow selector compares
+ * by reference, so `usePromptEffort` produced a new value on every store
+ * notification, re-rendered its subscriber, and read the store again — an update
+ * loop that only appears once something actually subscribes. It subscribes now.
+ */
+const NO_EFFORT_LEVELS: readonly ReasoningLevel[] = []
+
+/**
  * The model's own scale, as declared. Records rather than names, so a consumer
  * gets the label the provider chose without having to prettify the id.
  */
 function effortLevels(state: PromptStore): readonly ReasoningLevel[] {
   return isUsable(state.caps.reasoning)
     ? state.caps.reasoning.capability.levels
-    : []
+    : NO_EFFORT_LEVELS
 }
 
 function supportedToolKinds(state: PromptStore): readonly string[] {

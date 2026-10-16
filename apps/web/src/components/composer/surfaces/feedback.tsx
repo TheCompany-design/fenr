@@ -9,9 +9,11 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { AnimatePresence, motion } from "motion/react"
 import { useEffect } from "react"
+import type { ReasoningLevel } from "../catalog/capabilities"
+import { levelAt } from "../catalog/effort"
 import { TRANSITION_LAYOUT } from "../catalog/motion"
 import type { Blocker, Notice } from "../catalog/reconcile"
-import { usePromptStore } from "../state/prompt-store"
+import { usePromptEffort, usePromptStore } from "../state/prompt-store"
 
 /**
  * Renders the two channels `reconcile` produces.
@@ -30,6 +32,11 @@ export function ComposerFeedback({ className }: { className?: string }) {
   const blockers = usePromptStore((s) => s.blockers)
   const notices = usePromptStore((s) => s.notices)
   const dismissNotice = usePromptStore((s) => s.dismissNotice)
+  // Notices name levels, and a level's id is the provider's wire vocabulary
+  // rather than something to show a person — `xhigh`, `medium_effort` and
+  // `BALANCED` would all be read out verbatim. Resolved against the same scale
+  // the notice was raised from.
+  const effortLevels = usePromptEffort().levels
 
   // Notices are transient by definition — they report something already done.
   useEffect(() => {
@@ -71,7 +78,7 @@ export function ComposerFeedback({ className }: { className?: string }) {
                 icon={InformationCircleIcon}
                 className="size-3.5 shrink-0"
               />
-              {describeNotices(notices)}
+              {describeNotices(notices, effortLevels)}
             </p>
           </motion.div>
         ) : null}
@@ -187,12 +194,15 @@ function BlockerRow({ blocker }: { blocker: Blocker }) {
   }
 }
 
-function describeNotices(notices: readonly Notice[]): string {
+function describeNotices(
+  notices: readonly Notice[],
+  effortLevels: readonly ReasoningLevel[],
+): string {
   return notices
     .map((notice) => {
       switch (notice.kind) {
         case "effort-clamped":
-          return `Effort set to ${notice.to}.`
+          return `Effort set to ${levelAt(effortLevels, notice.to)?.label ?? notice.to}.`
         case "effort-dropped":
           return "Effort isn't available on this model."
         case "tools-pruned":

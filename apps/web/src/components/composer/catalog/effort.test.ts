@@ -3,7 +3,9 @@ import type { ReasoningLevel } from "./capabilities"
 import {
   levelAt,
   levelIndex,
+  levelPosition,
   levelRatio,
+  narrowedDefault,
   narrowScale,
   settleLevel,
 } from "./effort"
@@ -25,6 +27,11 @@ const ANTHROPIC = [
   { id: "medium", label: "Medium" },
   { id: "high", label: "High" },
   { id: "max", label: "Max" },
+] satisfies readonly ReasoningLevel[]
+
+/** A single level, to prove the degenerate cases stay renderable. */
+const SOLO = [
+  { id: "balanced", label: "Balanced" },
 ] satisfies readonly ReasoningLevel[]
 
 /** Names and labels that no prettifier could produce from each other. */
@@ -136,6 +143,49 @@ describe("effort vocabulary", () => {
 
     it("offers nothing when the model offers nothing", () => {
       expect(settleLevel([], "high", "medium")).toBeNull()
+    })
+  })
+
+  describe("narrowedDefault", () => {
+    it("falls back to the lowest level the model offers", () => {
+      // Never the highest: a key that cannot reach the setting a model asks for
+      // must not be promoted to running at its maximum instead.
+      expect(narrowedDefault(ANTHROPIC)).toBe("low")
+      expect(narrowedDefault(OPENAI)).toBe("none")
+    })
+
+    it("answers the same as settleLevel, so one model cannot disagree with itself", () => {
+      // These two used to disagree — one fell back to the first level, the other
+      // to the last — so the same key got a different answer depending on which
+      // path asked.
+      expect(narrowedDefault(ANTHROPIC)).toBe("low")
+      expect(settleLevel(ANTHROPIC, "unheard-of", "unheard-of")).toBe("low")
+    })
+
+    it("has nothing to offer for an empty scale", () => {
+      expect(narrowedDefault([])).toBe("")
+    })
+  })
+
+  describe("levelPosition", () => {
+    it("spans the whole bar, ends included", () => {
+      // The knob's travel is inset by half its own width, so a mark at the
+      // track's very end would be a position no setting could occupy.
+      expect(levelPosition(ANTHROPIC, "low")).toBe(0)
+      expect(levelPosition(ANTHROPIC, "max")).toBe(1)
+    })
+
+    it("is not what a level is worth", () => {
+      // The first level is worth 1/n of a token budget but belongs at the left
+      // end of the bar. Collapsing the two would put a stretch of track that no
+      // level can claim ahead of the first one.
+      expect(levelRatio(ANTHROPIC, "low")).toBeCloseTo(0.25, 10)
+      expect(levelPosition(ANTHROPIC, "low")).toBe(0)
+    })
+
+    it("centres a one-level scale rather than dividing by nothing", () => {
+      expect(levelPosition(SOLO, "balanced")).toBe(0.5)
+      expect(levelPosition([], "anything")).toBe(0)
     })
   })
 

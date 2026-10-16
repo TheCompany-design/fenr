@@ -188,28 +188,32 @@
  * the control is the same shape whatever the model offers and only the marks
  * move.
  *
- * This block is UNLAYERED, and that is load-bearing. `::-webkit-slider-thumb` is
- * styled by the browser's own *unlayered* user-agent rules, and an unlayered
- * normal declaration outranks every layered one whatever the layer order — so
- * inside `@layer components` these declarations lose to the UA and the control
- * renders with a bare track and no knob on it at all.
+ * The two sizes live on `effort-bar-scope`, the *wrapper*, and not on
+ * `effort-bar`, the input — and that placement is load-bearing. They are needed
+ * in two places: the input's own box, and the marks container drawn behind it.
+ * The marks are the input's SIBLING, so a custom property declared on the input
+ * is not in scope for them. Declared in the wrong place, `var(--effort-thumb)`
+ * is unset on the container, its `inset-inline` becomes invalid at computed-value
+ * time and falls back to `auto`, and because every mark inside is absolutely
+ * positioned the container shrink-to-fits to zero width — so all the marks stack
+ * at the left end of the bar and the control reads as a plain slider with a
+ * smudge on it. Declaring on the common parent is what keeps the knob, its
+ * travel, and the marks agreeing.
  *
- * Two other routes to the same declarations both silently produce nothing:
- * Tailwind's `@utility` emits the rule's own declarations but drops the nested
- * pseudo-element selectors, and `[&::-webkit-slider-thumb]:` arbitrary variants
- * emit no rule for this pseudo-element whatsoever — the class reaches the
- * element and styles nothing.
- *
+ * A knob is drawn on a track thinner than itself, so both engines are told the
+ * offset rather than left to guess: half the difference between the two sizes.
  * `primary` fills and `background` draws the knob because that is the pairing
- * that reads in both themes: primary is the darkest thing on a light surface and
- * the lightest on a dark one, and background is the opposite. The obvious
- * alternatives do not — `primary-foreground` and `popover` are both near-white
- * on a light surface, and the whole bar vanished.
+ * that reads in both themes — primary is the darkest thing on a light surface
+ * and the lightest on a dark one, and background is the opposite. The obvious
+ * alternatives do not: `primary-foreground` and `popover` are both near-white on
+ * a light surface, and the whole bar vanished.
  */
-.effort-bar {
+@utility effort-bar-scope {
   --effort-track: 6px;
   --effort-thumb: 16px;
+}
 
+@utility effort-bar {
   /* Both spellings: Chromium gives the thumb its own `-webkit-appearance`, and
      overriding only the unprefixed property leaves it natively drawn. */
   -webkit-appearance: none;
@@ -226,45 +230,44 @@
     var(--muted) var(--effort-at),
     var(--muted) 100%
   );
-}
 
-.effort-bar:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
 
-.effort-bar::-webkit-slider-runnable-track {
-  -webkit-appearance: none;
-  height: 6px;
-  border-radius: 9999px;
-  background: transparent;
-}
+  &::-webkit-slider-runnable-track {
+    height: var(--effort-track);
+    border-radius: 9999px;
+    background: transparent;
+  }
 
-.effort-bar::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  /* Half the difference between the two sizes, so a knob larger than the track
-     is centred on it instead of hanging below it. */
-  margin-top: calc((var(--effort-track) - var(--effort-thumb)) / 2);
-  width: var(--effort-thumb);
-  height: var(--effort-thumb);
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  background: var(--background);
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-}
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    /* Half the difference between the two sizes, so a knob larger than the
+       track is centred on it instead of hanging below it. */
+    margin-top: calc((var(--effort-track) - var(--effort-thumb)) / 2);
+    width: var(--effort-thumb);
+    height: var(--effort-thumb);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    background: var(--background);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
 
-.effort-bar::-moz-range-track {
-  height: 6px;
-  border-radius: 9999px;
-  background: transparent;
-}
+  &::-moz-range-track {
+    height: var(--effort-track);
+    border-radius: 9999px;
+    background: transparent;
+  }
 
-.effort-bar::-moz-range-thumb {
-  box-sizing: border-box;
-  width: var(--effort-thumb);
-  height: var(--effort-thumb);
-  border: 1px solid var(--border);
-  border-radius: 9999px;
-  background: var(--background);
+  &::-moz-range-thumb {
+    box-sizing: border-box;
+    width: var(--effort-thumb);
+    height: var(--effort-thumb);
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    background: var(--background);
+  }
 }

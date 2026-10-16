@@ -8,6 +8,7 @@ import {
   type ReasoningLevel,
   type ResolvedCaps,
 } from "../catalog/capabilities"
+import { narrowScale } from "../catalog/effort"
 
 export type CapabilityStatus =
   | "available"
@@ -88,10 +89,15 @@ export function buildModelViews(input: {
       const status = statusFor(caps)
 
       const effortLevels = caps.reasoning.capability?.levels ?? []
-      const entitlement = input.entitlements[providerId]
-      const narrowed = entitlement?.effort
-        ? effortLevels.filter((level) => entitlement.effort?.includes(level.id))
-        : effortLevels
+      // Already narrowed by the resolver, since `resolve()` above ran the same
+      // intersection — but asked through `narrowScale` rather than restated
+      // inline, so the rule has one home. A second copy of it here would be free
+      // to drift, and the narrowing path is exactly the one a plan-downgrade
+      // regression would hide in.
+      const narrowed = narrowScale(
+        { levels: effortLevels, default: "" },
+        input.entitlements[providerId]?.effort,
+      ).levels
 
       views.push({
         model,

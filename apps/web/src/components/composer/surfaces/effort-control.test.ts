@@ -87,6 +87,41 @@ describe("encodeEffort", () => {
     expect(encodeEffort(null, BUDGET, ANTHROPIC)).toEqual({})
   })
 
+  it("sends nothing for a level this model does not offer", () => {
+    // The failure differs by encoding and only one of them is loud: a budget
+    // would be `0` — the one value a provider rejects outright — and an enum
+    // would forward a name the provider has never heard of. The store's
+    // reconciler keeps the stored level on offer, so this is the boundary
+    // holding for a payload captured across a change of model.
+    expect(encodeEffort("none", BUDGET, ANTHROPIC)).toEqual({})
+    expect(
+      encodeEffort("none", { style: "enum", field: "e" }, ANTHROPIC),
+    ).toEqual({})
+    expect(
+      encodeEffort("total_madness", { style: "level", field: "e" }, ANTHROPIC),
+    ).toEqual({})
+  })
+
+  it("still sends a level it has never heard of, when the model offers it", () => {
+    // The guard is "not on *this* model's list", not "is one we recognise" —
+    // otherwise the refactor would have re-introduced the closed vocabulary it
+    // exists to remove.
+    const exotic = [
+      { id: "minimal", label: "Minimal" },
+      { id: "xhigh", label: "Maximum depth" },
+    ] satisfies readonly ReasoningLevel[]
+    const enumStyle: EffortEncoding = {
+      style: "enum",
+      field: "reasoning_effort",
+    }
+    expect(encodeEffort("minimal", enumStyle, exotic)).toEqual({
+      reasoning_effort: "minimal",
+    })
+    expect(encodeEffort("xhigh", enumStyle, exotic)).toEqual({
+      reasoning_effort: "xhigh",
+    })
+  })
+
   it("upper-cases only for the encoding that asks for it", () => {
     const upper: EffortEncoding = { style: "level", field: "reasoning_level" }
     expect(encodeEffort("high", upper, ANTHROPIC)).toEqual({
