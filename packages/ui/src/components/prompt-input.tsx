@@ -135,7 +135,15 @@ export function PromptInputTextarea({
         }
       }}
       className={cn(
-        "min-h-11 w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden",
+        // `block` is load-bearing and not cosmetic. A textarea is an
+        // inline-block by default, so it sits on a line box whose strut adds
+        // its own leading *below* the control: the element that wraps the
+        // draft ends up taller than the text, and the draft sits visibly high
+        // inside it. That is invisible when the textarea is a direct child of
+        // a padded box and obvious once a scroll area wraps it, because the
+        // stray leading becomes part of the box the pill's geometry is derived
+        // from. Block-level, the wrapper is exactly as tall as the text.
+        "block min-h-11 w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden",
         className,
       )}
       {...props}

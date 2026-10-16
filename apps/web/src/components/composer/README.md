@@ -72,6 +72,28 @@ at pill geometry even while the box is a panel (`measurePillOverflow`), because
 measured in whichever box it happens to be in, a draft on the wrap boundary
 would expand, fit, collapse, and wrap again on every keystroke.
 
+**The pill's ends are semicircles because the radius *clears* half the box.** A
+corner is round exactly when the radius reaches half the box's height, and past
+that the browser scales every corner by one uniform factor — so a radius *larger*
+than half renders as precisely half and no more. That is what lets the pill be
+rounded with an `lh` expression that overshoots on purpose, rather than exact
+bookkeeping of the height. Two ways this goes wrong, both invisible without a
+layout engine:
+
+- `rounded-full` is `calc(infinity * 1px)`, and a transition *into* an infinite
+  value never finishes in Chromium — the box sticks fully rounded forever. Both
+  radii stay finite.
+- a radius written as "half a line plus the shell's padding" comes out **short**,
+  because `lh` is the shell's line box (1.5) and not the draft's
+  (`leading-relaxed`). Two pixels short of a semicircle reads as a flat spot
+  rather than as a deliberate shape.
+
+The box's height is the draft's line plus the shell's padding, the border, and
+whatever the editor wraps the draft in — only the first is a line. Which is also
+why the textarea is `block`: as an inline-block it sits on a line box whose strut
+adds leading *below* it, and once a scroll area wraps it that stray leading
+becomes part of the box's height, leaving the draft sitting high in the pill.
+
 **Chrome earns its place in the box.** The `+` and the send button are the
 pill; the model picker and the context meter are not. In the pill they sit on
 the row below it (`ComposerOutboard`), because a pill has one line to spend and

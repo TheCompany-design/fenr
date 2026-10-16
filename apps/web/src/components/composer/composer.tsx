@@ -513,14 +513,23 @@ export function Composer({ className }: { className?: string }) {
         // `calc(infinity * 1px)`, and a transition *into* an infinite value
         // never finishes in Chromium: the box sticks at the clamped maximum and
         // the running transition outranks every later declaration, so the panel
-        // stays fully rounded. The pill's radius is therefore written as what it
-        // actually is — half of one line plus the shell's padding — which also
-        // means it follows the font size instead of assuming it.
+        // stays fully rounded.
+        //
+        // A pill's end is a semicircle exactly when the radius *reaches* half the
+        // box's height, and past that point the browser scales every corner by a
+        // single uniform factor — so a radius larger than half renders as
+        // precisely half and no more. That is what lets the pill's be an `lh`
+        // expression with room to spare instead of exact bookkeeping: the box's
+        // height is the text's line plus the shell's padding, the border, and
+        // whatever the editor wraps the draft in, and only the first of those is
+        // a line. Written as `0.5lh + the padding` it came out two pixels short
+        // of a semicircle, because `lh` here is the shell's line box (1.5) and
+        // not the draft's (`leading-relaxed`), and the short ends read as flat
+        // spots rather than as a deliberate shape. Reaching half is the
+        // requirement; clearing it is free.
         className={cn(
           "relative transition-[border-radius] duration-200 motion-reduce:transition-none",
-          pill
-            ? "rounded-[calc(0.5lh+0.75rem)] py-3"
-            : "rounded-4xl p-0 pb-1.5",
+          pill ? "rounded-[calc(0.5lh+1rem)] py-3" : "rounded-4xl p-0 pb-1.5",
         )}
       >
         {/* Rendered unconditionally because the density rule guarantees it: an

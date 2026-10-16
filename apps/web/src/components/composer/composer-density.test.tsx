@@ -236,6 +236,48 @@ describe("Composer density", () => {
     expect(textarea()?.className).toContain("max-h-[1lh]")
   })
 
+  it("rounds the pill in units that follow the font, and never into an infinite radius", async () => {
+    await render()
+
+    // A pill's end is a semicircle once the radius reaches half the box's
+    // height, and the browser clamps anything past that to exactly half — so
+    // the only way to get this wrong is to come out *under* it. Both ways this
+    // went wrong are invisible without a layout engine, which is why they are
+    // pinned here:
+    //
+    //  - `rounded-full` is `calc(infinity * 1px)`. A transition *into* an
+    //    infinite value never finishes in Chromium, so the panel stays fully
+    //    rounded forever.
+    //  - a radius written as half a line *plus the padding* came out short,
+    //    because the shell's line box (1.5) is not the draft's
+    //    (`leading-relaxed`). The shortfall read as flat spots, not as a
+    //    deliberate shape.
+    //
+    // So: expressed in `lh`, which tracks the font size, and finite.
+    const pillRadius = shell()?.className.match(
+      /rounded-\[calc\(([^)]*)\)\]/,
+    )?.[1]
+    expect(pillRadius).toBeDefined()
+    expect(pillRadius).toContain("lh")
+    expect(shell()?.className).not.toContain("rounded-full")
+
+    layOut(60, 52)
+    await type("a draft long enough to need a second line")
+    expect(shell()?.className).not.toContain("rounded-full")
+    expect(shell()?.className).not.toContain("rounded-[calc(")
+  })
+
+  it("centres the draft in the pill rather than letting the editor's line box push it up", async () => {
+    await render()
+    // A textarea is an inline-block by default, so it sits on a line box whose
+    // strut adds leading *below* the control. Once the scroll area wraps it
+    // that stray leading becomes part of the box's height: the pill grew by it
+    // and the draft ended up sitting high inside it. Block-level, the editor is
+    // exactly as tall as the text and the shell's own padding does the centring.
+    expect(textarea()?.className).toContain("block")
+    expect(textarea()?.className).not.toContain("inline-block")
+  })
+
   it("keeps the model picker and the meter out of the pill", async () => {
     await render()
     const outboard = () =>
