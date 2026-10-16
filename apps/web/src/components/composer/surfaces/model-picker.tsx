@@ -17,7 +17,13 @@ import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import { useMemo, useState } from "react"
 import { ProviderLogo } from "@/components/providers/provider-logo"
-import type { Catalog, Connection, ProviderSpec } from "../catalog/capabilities"
+import {
+  type Catalog,
+  type Connection,
+  isUsable,
+  type ProviderSpec,
+} from "../catalog/capabilities"
+import { levelAt } from "../catalog/effort"
 import {
   resolveCapabilities,
   scopeModelAccessToCredentialRevision,
@@ -58,6 +64,8 @@ export function ModelPicker() {
   const runtime = usePromptStore((s) => s.runtime)
   const selection = usePromptStore((s) => s.selection)
   const starred = usePromptStore((s) => s.starredModels)
+  const caps = usePromptStore((s) => s.caps)
+  const effort = usePromptStore((s) => s.effort)
   const hydrated = usePromptStore((s) => s.hydrated)
   const providersError = usePromptStore((s) => s.providersError)
   const hasNoProviders = hydrated && !providersError && providers.length === 0
@@ -134,6 +142,18 @@ export function ModelPicker() {
   const selectedView = ranked.find((view) => view.isSelected) ?? null
   const selectedProvider = providers.find((p) => p.id === selection?.providerId)
 
+  /**
+   * The chosen level's name, or nothing when reasoning is off or unavailable.
+   *
+   * Read off the model's own scale, so it is the label the provider declared
+   * rather than a prettified guess at the id — and off `caps`, which is already
+   * narrowed by the key's entitlement, so this cannot name a level the account
+   * is not allowed to pick.
+   */
+  const effortLevel = isUsable(caps.reasoning)
+    ? levelAt(caps.reasoning.capability.levels, effort)
+    : null
+
   const tabs: Tab[] = [
     { id: "starred", label: "Starred", vendor: null, kind: "starred" },
     ...providers.map((p) => ({
@@ -169,13 +189,24 @@ export function ModelPicker() {
           <Button
             variant="ghost"
             size="sm"
+            data-slot="model-picker-trigger"
             className="h-8 min-w-0 shrink gap-1.5 rounded-full px-2.5 text-xs font-normal"
-            aria-label="Change model"
           />
         }
       >
+        {/* What the button does, said to anyone not looking at it.
+            The static `aria-label` this replaced overrode the content entirely,
+            so the model name was never announced at all; naming from content and
+            prefixing the action keeps both — a button that announced only its
+            current value gives no hint that pressing it changes anything. It
+            sits outside the branches below because it is true of all of them:
+            without a provider the button still opens the picker, and "No
+            provider configured" read as a command is the exact thing a bare
+            status string sounds like. */}
+        <span className="sr-only">Change model. </span>
         {selectedView ? (
           <>
+            <span className="sr-only">Model:</span>
             {/* The mark stands in for the vendor's name — the model's own
                 name is the text beside it — and which mark that is decided
                 in exactly one place, the vendor identity record. */}
@@ -185,6 +216,20 @@ export function ModelPicker() {
               size={14}
             />
             <span className="max-w-32 truncate">{selectedView.model.name}</span>
+            {/* The effort sits beside the model because it qualifies it: the
+                same model answers differently at a different level, so a name
+                without one does not say what is about to happen. */}
+            {effortLevel ? (
+              <>
+                <span className="sr-only">, effort {effortLevel.label}</span>
+                <span
+                  aria-hidden
+                  className="text-muted-foreground shrink-0 truncate"
+                >
+                  {effortLevel.label}
+                </span>
+              </>
+            ) : null}
             <HugeiconsIcon
               icon={ArrowDown01Icon}
               className="size-3.5 shrink-0 opacity-60"

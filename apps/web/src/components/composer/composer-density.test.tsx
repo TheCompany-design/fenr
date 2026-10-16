@@ -290,10 +290,10 @@ describe("Composer density", () => {
     // name — which is the thing the pill is for.
     expect(outboard()).not.toBeNull()
     expect(
-      outboard()?.querySelector('button[aria-label="Change model"]'),
+      outboard()?.querySelector('[data-slot="model-picker-trigger"]'),
     ).not.toBeNull()
     expect(
-      trail()?.querySelector('button[aria-label="Change model"]'),
+      trail()?.querySelector('[data-slot="model-picker-trigger"]'),
     ).toBeNull()
     expect(
       trail()?.querySelector('button[aria-label="Send message"]'),
@@ -311,15 +311,15 @@ describe("Composer density", () => {
     expect(shell()?.getAttribute("data-density")).toBe("panel")
     expect(outboard).toBeNull()
     expect(
-      trail?.querySelector('button[aria-label="Change model"]'),
+      trail?.querySelector('[data-slot="model-picker-trigger"]'),
     ).not.toBeNull()
   })
 
   it("never has two model pickers, in either density", async () => {
     await render()
     const pickers = () =>
-      container?.querySelectorAll('button[aria-label="Change model"]').length ??
-      0
+      container?.querySelectorAll('[data-slot="model-picker-trigger"]')
+        .length ?? 0
     expect(pickers()).toBe(1)
 
     layOut(52, 26)
@@ -349,7 +349,7 @@ describe("Composer density", () => {
 
     const outboard = container?.querySelector('[data-slot="composer-outboard"]')
     const meter = outboard?.querySelector('button[aria-label^="Context"]')
-    const picker = outboard?.querySelector('button[aria-label="Change model"]')
+    const picker = outboard?.querySelector('[data-slot="model-picker-trigger"]')
 
     expect(meter).not.toBeNull()
     expect(picker).not.toBeNull()
