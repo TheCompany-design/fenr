@@ -7,7 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
 import { usePromptInput } from "@workspace/ui/components/prompt-input"
 import { cn } from "@workspace/ui/lib/utils"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react"
 import {
   actionForCommandId,
   commandSource,
@@ -16,12 +16,13 @@ import {
 import { ComposerDensityProbe } from "./hooks/use-composer-density"
 import { useComposerEvent } from "./hooks/use-composer-event"
 import { useComposerShortcuts } from "./hooks/use-composer-shortcuts"
-import { measureCaret } from "./primitives/caret"
+import { type CaretRect, measureCaret } from "./primitives/caret"
 import { PromptAutocomplete } from "./primitives/prompt-autocomplete"
 import {
   PromptInput,
   PromptInputAction,
   PromptInputActionsRow,
+  PromptInputEditor,
   PromptInputLead,
   PromptInputTextarea,
   PromptInputTrail,
@@ -34,13 +35,38 @@ import {
   useSuggestionState,
   useSuggestionStore,
 } from "./primitives/suggestion"
-import { type ComposerDensity, resolveDensity } from "./state/composer-density"
+import {
+  type ComposerDensity,
+  PANEL_EDITOR_MAX_HEIGHT_PX,
+  resolveDensity,
+} from "./state/composer-density"
 import { useCanSend, usePromptStore } from "./state/prompt-store"
 import { AddMenu } from "./surfaces/add-menu"
 import { ContextMeter } from "./surfaces/context-meter"
 import { ContextRail } from "./surfaces/context-rail"
 import { ComposerFeedback } from "./surfaces/feedback"
 import { ModelPicker } from "./surfaces/model-picker"
+
+/**
+ * The caret's position inside the shell the popup is positioned in.
+ *
+ * Not inside the textarea: the popup is absolutely positioned against the
+ * shell's padding box, and the caret gets there in two steps — its offset
+ * inside the textarea (what the mirror measures), plus the textarea's live
+ * offset inside the shell. The live rect is what makes the anchor correct
+ * while the draft scrolls: scrolling the editor moves the textarea's box
+ * within the shell, and the offset follows it.
+ */
+function anchorFor(textarea: HTMLTextAreaElement, value: string): CaretRect {
+  return (
+    measureCaret(
+      textarea,
+      value,
+      textarea.selectionStart ?? value.length,
+      textarea.closest<HTMLElement>('[data-slot="prompt-input"]') ?? textarea,
+    ) ?? { top: 0, left: 0, height: 0 }
+  )
+}
 
 /**
  * The editor, wired to the suggestion engine.
@@ -88,16 +114,57 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
     // every keystroke would lay out a mirror element per character for a popup
     // that usually does not exist.
     if (state.open) {
-      const rect = measureCaret(
-        textarea,
-        value,
-        textarea.selectionStart ?? value.length,
-      )
-      store.set({ ...state, anchor: rect })
+      store.set({ ...state, anchor: anchorFor(textarea, value) })
     } else {
       store.set(state)
     }
   }, [store, value, mentions, sources, textareaRef])
+
+  /**
+   * Re-anchors the popup when the editor scrolls under it.
+   *
+   * The draft is not its own scroll container any more — the scroll area is —
+   * so a long draft that opens a menu near its end has the browser scroll the
+   * caret into view, which moves the caret without changing a single
+   * character. Without this the popup stays where the caret *was* and the
+   * keyboard walks down a list nobody can see the anchor of.
+   *
+   * The text is read off the textarea rather than out of the closure: a scroll
+   * fired to reveal a fresh keystroke can land after the DOM update but before
+   * React has re-rendered, and the mirror should lay out the text that is
+   * actually in the box. That also frees the handler from changing identity on
+   * every keystroke, so the listener is not re-attached per character.
+   *
+   * Scroll events also fire at frame rate, so this only does work while a menu
+   * is actually open; closed, it is an early return.
+   */
+  const resyncAnchor = useCallback(() => {
+    const textarea = textareaRef.current
+    const state = store.get()
+    if (!textarea || !state.open) return
+    store.set({ ...state, anchor: anchorFor(textarea, textarea.value) })
+  }, [store, textareaRef])
+
+  // The latest re-anchor, reachable from an effect that must not re-run on
+  // every render — same pattern as the density probe's `report` ref.
+  const resyncRef = useRef(resyncAnchor)
+  useLayoutEffect(() => {
+    resyncRef.current = resyncAnchor
+  })
+
+  /**
+   * Re-anchors when the box changes shape under an open menu.
+   *
+   * A density flip does not need a keystroke — a narrowed window re-wraps a
+   * boundary draft past one line, and the probe flips the box from its
+   * ResizeObserver. The caret moves with the geometry (the pill and the panel
+   * put different padding under the same text), but `sync` only runs on input
+   * events, so without this the menu stays anchored where the caret *was*.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `density` is the signal this effect waits on, not an input it reads — the re-anchor itself reaches the live caret through `resyncRef`, which is refreshed on every render for exactly that reason. A flip needs no keystroke and no geometry change of its own: a narrowed window re-wraps a boundary draft past one line and nothing else observable happens, so without this dependency the popup stays anchored where the caret *was*.
+  useLayoutEffect(() => {
+    resyncRef.current()
+  }, [density])
 
   const handleSelect = useCallback(
     (item: SuggestionItem) => {
@@ -192,44 +259,53 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
 
   return (
     <>
-      <PromptInputTextarea
-        placeholder="Ask anything, or use / for commands"
-        onKeyDown={handleKeyDown}
-        onChange={(event) => {
-          setText(event.target.value)
-          sync()
-        }}
-        onKeyUp={sync}
-        onClick={sync}
-        onSelect={sync}
-        onBlur={() => {
-          // A delayed close so a click that lands on a menu row is not
-          // cancelled by the blur it caused.
-          setTimeout(() => {
-            const state = store.get()
-            if (state.open) store.set({ ...state, open: false })
-          }, 120)
-        }}
-        // Gutters are stated here rather than inherited, because the shell is
-        // rendered at `p-0` and three children would otherwise each guess. All
-        // three line up on the same optical edge: text and chips at `px-3`, the
-        // icon buttons at `px-2` so their circles clear the border.
-        //
-        // The pill replaces them with the room its controls actually occupy, so
-        // the text ends exactly where the model picker begins instead of
-        // wherever a constant guessed.
-        //
-        // `max-h-[1lh]` clamps it to one line — and, with border-box sizing,
-        // clamps the *padding* with it, so the pill's vertical breathing room
-        // belongs to the shell (see `py-3` above) rather than to a box that is
-        // never allowed to grow past its own line.
-        className={cn(
-          "text-base leading-relaxed md:text-base",
-          density === "pill"
-            ? "max-h-[1lh] min-h-0 py-0 pl-[var(--pill-inset-left,0px)] pr-[var(--pill-inset-right,0px)]"
-            : "min-h-12 px-3 pt-3 pb-1",
-        )}
-      />
+      <PromptInputEditor
+        maxHeight={PANEL_EDITOR_MAX_HEIGHT_PX}
+        onScroll={resyncAnchor}
+      >
+        <PromptInputTextarea
+          placeholder="Ask anything, or use / for commands"
+          onKeyDown={handleKeyDown}
+          onChange={(event) => {
+            setText(event.target.value)
+            sync()
+          }}
+          onKeyUp={sync}
+          onClick={sync}
+          onSelect={sync}
+          onBlur={() => {
+            // A delayed close so a click that lands on a menu row is not
+            // cancelled by the blur it caused.
+            setTimeout(() => {
+              const state = store.get()
+              if (state.open) store.set({ ...state, open: false })
+            }, 120)
+          }}
+          // Gutters are stated here rather than inherited, because the shell is
+          // rendered at `p-0` and three children would otherwise each guess. All
+          // three line up on the same optical edge: text and chips at `px-3`, the
+          // icon buttons at `px-2` so their circles clear the border.
+          //
+          // The pill replaces them with the room its controls actually occupy, so
+          // the text ends exactly where the model picker begins instead of
+          // wherever a constant guessed.
+          //
+          // `max-h-[1lh]` clamps it to one line — and, with border-box sizing,
+          // clamps the *padding* with it, so the pill's vertical breathing room
+          // belongs to the shell (see `py-3` above) rather than to a box that is
+          // never allowed to grow past its own line.
+          //
+          // The panel has no cap here at all: the scroll area around this
+          // textarea is what takes the overflow, so that the bar on the right is
+          // the app's and not the browser's.
+          className={cn(
+            "text-base leading-relaxed md:text-base",
+            density === "pill"
+              ? "max-h-[1lh] min-h-0 py-0 pl-[var(--pill-inset-left,0px)] pr-[var(--pill-inset-right,0px)]"
+              : "min-h-12 px-3 pt-3 pb-1",
+          )}
+        />
+      </PromptInputEditor>
       <PromptAutocomplete
         state={suggestion}
         onSelect={handleSelect}
@@ -282,6 +358,36 @@ function useComposerShortcutsFor(onSubmit: () => void): void {
   })
 }
 
+/**
+ * The chrome that lives outside the box while the box is a pill.
+ *
+ * A pill has one line and one row, and the controls that describe the draft —
+ * which model will answer it, how much of the context it has already spent —
+ * are not the same size as the draft. Putting them inside the pill spends a
+ * fifth of the line on them and leaves the text ending under a model name; on
+ * the row below, the draft gets the whole width and the two controls get a
+ * quiet strip that reads as belonging to the box rather than inside it.
+ *
+ * Rendered *instead of* the in-box copies rather than alongside them, so there
+ * is only ever one model picker in the document — two would mean two popovers
+ * and two subscriptions to the same store.
+ *
+ * `px-2` is the action row's gutter, deliberately: when the draft expands and
+ * these controls move inside, they land on the same optical edge they occupy
+ * here, so the box changing shape does not also shift every control sideways.
+ */
+function ComposerOutboard() {
+  return (
+    <div
+      data-slot="composer-outboard"
+      className="flex items-center justify-between gap-2 px-2"
+    >
+      <ModelPicker />
+      <ContextMeter />
+    </div>
+  )
+}
+
 export function Composer({ className }: { className?: string }) {
   const addAttachments = usePromptStore((s) => s.addAttachments)
   const hydrated = usePromptStore((s) => s.hydrated)
@@ -295,6 +401,31 @@ export function Composer({ className }: { className?: string }) {
   const [overflowing, setOverflowing] = useState(false)
   const density = resolveDensity({ overflowing, hasAttachments })
   const pill = density === "pill"
+
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * Gives the draft back the focus a flip tore out from under it.
+   *
+   * The outboard row unmounts when the box stops being a pill, and the flip
+   * does not need a keystroke — a narrowed window can re-wrap a boundary draft,
+   * and a dropped file stages without a click. If the picker's popover happened
+   * to be open, its teardown leaves the focus nowhere at all, which strands a
+   * keyboard user mid-sentence. The guard is narrow on purpose: only a focus
+   * that genuinely fell to the body is reclaimed, and never on the first run —
+   * a composer that grabs the focus the moment it mounts is a bug, not a
+   * courtesy.
+   */
+  const seenFirstDensity = useRef(false)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `density` is the signal this effect waits on, not an input it reads. The outboard row unmounts on a flip and nothing else in the tree changes, so this is the only thing that can notice the focus was torn out.
+  useLayoutEffect(() => {
+    if (!seenFirstDensity.current) {
+      seenFirstDensity.current = true
+      return
+    }
+    if (document.activeElement !== document.body) return
+    rootRef.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus()
+  }, [density])
 
   const retryProviders = useCallback(() => {
     usePromptStore.setState({ providersError: null })
@@ -321,7 +452,10 @@ export function Composer({ className }: { className?: string }) {
   useComposerEvent("composer:open-files", pickFiles)
 
   return (
-    <div className={cn("relative flex w-full flex-col gap-2", className)}>
+    <div
+      ref={rootRef}
+      className={cn("relative flex w-full flex-col gap-2", className)}
+    >
       <ComposerFeedback />
 
       {/* A provider list that could not be read is said out loud, with the
@@ -359,9 +493,6 @@ export function Composer({ className }: { className?: string }) {
         // is stated on the element rather than implied by its class names — both
         // for the stylesheet and for the tests that drive the morph.
         data-density={density}
-        // The panel's cap is the shell's business; the pill's is the editor's
-        // (`max-h-[1lh]`), so passing a number here would override it.
-        maxHeight={pill ? undefined : 220}
         // The shell's own padding is replaced rather than added to, because the
         // rail and the toolbar carry their own gutters and stacking two would
         // push the text off-centre relative to the buttons below it.
@@ -417,8 +548,16 @@ export function Composer({ className }: { className?: string }) {
           <PromptInputTrail
             className={pill ? "pointer-events-auto" : undefined}
           >
-            <ContextMeter />
-            <ModelPicker />
+            {/* The meter and the picker are only in here once there is room for
+                a row of their own. In the pill they are below the box — see
+                `ComposerOutboard` — which is what buys the draft a full-width
+                line instead of a 200px hole at the right end of it. */}
+            {pill ? null : (
+              <>
+                <ContextMeter />
+                <ModelPicker />
+              </>
+            )}
 
             <PromptInputAction tooltip={busy ? "Stop" : "Send"}>
               <Button
@@ -446,6 +585,8 @@ export function Composer({ className }: { className?: string }) {
           onOverflowChange={setOverflowing}
         />
       </PromptInput>
+
+      {pill ? <ComposerOutboard /> : null}
 
       {!hydrated ? (
         <p className="text-muted-foreground px-3 text-xs">Loading providers…</p>

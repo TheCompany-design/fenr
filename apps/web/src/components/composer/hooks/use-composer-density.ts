@@ -1,5 +1,6 @@
 import { usePromptInput } from "@workspace/ui/components/prompt-input"
 import { useLayoutEffect, useRef, useState } from "react"
+import { editorScrollHost } from "../primitives/prompt-input"
 import { type ComposerDensity, isOverflowing } from "../state/composer-density"
 import { usePromptStore } from "../state/prompt-store"
 
@@ -168,11 +169,13 @@ export function ComposerDensityProbe({
   }, [textareaRef])
 
   // A box that has just become a pill is a box that was scrolled to its middle
-  // a moment ago; without this it opens on empty space or mid-word.
+  // a moment ago; without this it opens on empty space or mid-word. The
+  // scroll position lives on the viewport around the textarea, not on the
+  // textarea, so it is that element which has to be rewound.
   useLayoutEffect(() => {
     if (density !== "pill") return
     const textarea = textareaRef.current
-    if (textarea) textarea.scrollTop = 0
+    if (textarea) editorScrollHost(textarea).scrollTop = 0
   }, [density, textareaRef])
 
   return null

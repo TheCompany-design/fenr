@@ -3,6 +3,7 @@ import {
   type PromptInputProps,
   PromptInput as PromptInputShell,
 } from "@workspace/ui/components/prompt-input"
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import type * as React from "react"
 
@@ -29,6 +30,63 @@ export function PromptInputActionsRow({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return <PromptInputActions className={className} {...props} />
+}
+
+export type PromptInputEditorProps = React.HTMLAttributes<HTMLDivElement> & {
+  /** Where the draft stops growing, in pixels. Required — see below. */
+  maxHeight: number
+}
+
+/**
+ * The draft's scroll area.
+ *
+ * The cap belongs to this element and not to the textarea, and the difference
+ * is the scrollbar. A textarea that is itself capped is a scroll container, so
+ * the browser draws its own bar across the text — and this repo has one
+ * scrollbar language (`ScrollArea`) and no native ones. Here the textarea is
+ * left as tall as its text needs to be and this root takes the overflow, which
+ * means the *viewport* scrolls and the thumb is ours.
+ *
+ * `maxHeight` is required rather than optional for the same reason it is the
+ * caller's: an uncapped editor does not get shorter, it takes the page with it.
+ *
+ * The consequence worth knowing: the textarea is no longer the element that
+ * scrolls. The browser reveals the caret by scrolling an *ancestor*, so
+ * anything positioned from the textarea's own box has to account for the
+ * scroll between it and its containing block — see `measureCaret`.
+ */
+export function PromptInputEditor({
+  maxHeight,
+  className,
+  style,
+  ...props
+}: PromptInputEditorProps) {
+  return (
+    <ScrollArea
+      data-slot="prompt-editor"
+      // The cap is merged into — not replaced by — a caller's style: the
+      // spread order would otherwise let an ordinary `style` prop silently
+      // delete the one thing this component exists to guarantee.
+      style={{ ...style, maxHeight }}
+      className={className}
+      {...props}
+    />
+  )
+}
+
+/**
+ * The element that actually scrolls a given part of the editor.
+ *
+ * The draft is uncapped by design, so `element.scrollTop = 0` on the textarea
+ * is a write to a number that is already zero. Anything that has to move the
+ * editor's scroll position — resetting it when the box collapses back to a
+ * pill, for one — has to reach the viewport around the textarea instead.
+ */
+export function editorScrollHost(element: HTMLElement): HTMLElement {
+  return (
+    element.closest<HTMLElement>('[data-slot="scroll-area-viewport"]') ??
+    element
+  )
 }
 
 export function PromptInputLead({

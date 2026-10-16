@@ -14,7 +14,13 @@ import * as React from "react"
  * One implementation of "rounded panel that focuses a textarea" for every
  * chat surface, with named regions instead of a hard-coded layout: the caller
  * decides what sits in the leading and trailing clusters, and the textarea
- * grows with its content up to `maxHeight`.
+ * grows with its content.
+ *
+ * The textarea is deliberately never capped. A capped textarea is a scroll
+ * container in its own right, so the browser paints its own scrollbar across the
+ * draft — and this repo has one scrollbar language (`ScrollArea`) and no native
+ * ones. Height limits belong to the element *around* the editor, which scrolls
+ * it with a thumb instead.
  *
  * The context is the measurement handle: the autocomplete popup needs the
  * textarea's ref to measure the caret, and reading it from context beats
@@ -24,7 +30,6 @@ type PromptInputContextValue = {
   value: string
   onSubmit: (() => void) | undefined
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
-  maxHeight: number | undefined
 }
 
 const PromptInputContext = React.createContext<PromptInputContextValue | null>(
@@ -47,15 +52,12 @@ export type PromptInputProps = React.HTMLAttributes<HTMLDivElement> & {
   onValueChange?: (value: string) => void
   /** Called on Enter (without Shift) from the textarea. */
   onSubmit?: () => void
-  /** Where the textarea stops growing, in pixels. */
-  maxHeight?: number
 }
 
 export function PromptInput({
   value,
   onValueChange,
   onSubmit,
-  maxHeight,
   className,
   children,
   ...props
@@ -63,8 +65,8 @@ export function PromptInput({
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
 
   const contextValue = React.useMemo<PromptInputContextValue>(
-    () => ({ value, onSubmit, textareaRef, maxHeight }),
-    [value, onSubmit, maxHeight],
+    () => ({ value, onSubmit, textareaRef }),
+    [value, onSubmit],
   )
 
   return (
@@ -94,7 +96,6 @@ export function PromptInputTextarea({
 }: PromptInputTextareaProps) {
   const context = React.useContext(PromptInputContext)
   const value = context?.value
-  const maxHeight = context?.maxHeight
 
   // The ref is shared through context so caret measurement sees the live
   // element; a caller-supplied ref is chained rather than replaced.
@@ -133,7 +134,6 @@ export function PromptInputTextarea({
           context.onSubmit()
         }
       }}
-      style={maxHeight !== undefined ? { maxHeight } : undefined}
       className={cn(
         "min-h-11 w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden",
         className,

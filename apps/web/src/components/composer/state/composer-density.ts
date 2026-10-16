@@ -35,6 +35,21 @@ export type ComposerDensity = "pill" | "panel"
 export const DENSITY_OVERFLOW_TOLERANCE_PX = 1
 
 /**
+ * Where the panel's draft stops growing.
+ *
+ * Roughly eight lines. Past that the draft stops being a thing you read at a
+ * glance and becomes a document, and the conversation above it — which is the
+ * context the draft is written *into* — starts losing the screen to a box the
+ * user is only scrolling past. The overflow is the app's `ScrollArea`, not the
+ * browser's, so a long draft scrolls with the thumb the rest of the app uses.
+ *
+ * The pill's cap is not a number: it is one line, and it lives on the textarea
+ * (`max-h-[1lh]`) because the pill has to *measure* against that exact height
+ * rather than approximate it.
+ */
+export const PANEL_EDITOR_MAX_HEIGHT_PX = 220
+
+/**
  * Whether a clamped textarea has content below the fold.
  *
  * Takes the two measured numbers rather than the element so the rule is

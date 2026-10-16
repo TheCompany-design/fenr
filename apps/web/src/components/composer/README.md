@@ -72,6 +72,31 @@ at pill geometry even while the box is a panel (`measurePillOverflow`), because
 measured in whichever box it happens to be in, a draft on the wrap boundary
 would expand, fit, collapse, and wrap again on every keystroke.
 
+**Chrome earns its place in the box.** The `+` and the send button are the
+pill; the model picker and the context meter are not. In the pill they sit on
+the row below it (`ComposerOutboard`), because a pill has one line to spend and
+a model name is a fifth of it — and because a control that describes the draft
+belongs beside it, not inside the thing being described. In the panel there is
+a row to spare, so they move back inside. Exactly one instance of each is ever
+mounted: two pickers would be two popovers and two subscriptions to one store.
+
+**The textarea is never capped.** A capped textarea is a scroll container, and a
+scroll container draws the browser's scrollbar — this repo has one scrollbar
+language (`ScrollArea`) and no native ones. So `PromptInputEditor` caps the
+*scroll area* around the draft (`PANEL_EDITOR_MAX_HEIGHT_PX`) and leaves the
+textarea exactly as tall as its text. Two things follow, and both are easy to
+get wrong:
+
+- the browser now reveals the caret by scrolling an **ancestor**, so anything
+  positioned from the textarea's box has to subtract the scroll between them
+  (`measureCaret`'s `relativeTo`) and re-anchor when it moves (`onScroll`);
+- "reset the editor's scroll" now means resetting the viewport, not the textarea
+  (`editorScrollHost`) — writing `scrollTop = 0` on the textarea is a write to a
+  number that is already zero.
+
+The pill's one-line clamp is the exception, and it stays on the textarea: there
+it is a *measurement*, not a cap.
+
 **Settings are adjusted; content is never discarded.** `reconcile` returns two
 channels and the split is the design:
 
