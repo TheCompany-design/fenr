@@ -81,6 +81,29 @@ export function levelRatio(
 }
 
 /**
+ * Where a level's *mark* sits along a bar of levels, as a fraction.
+ *
+ * Deliberately not `levelRatio`. That is what a level is worth — the first level
+ * is worth `1/n` of a token budget — and worth is not where a mark belongs: a
+ * first level that is worth one n-th but whose mark sat at `1/n` would leave a
+ * stretch of bar before it that no level can ever claim, so the knob could never
+ * reach either end of the track.
+ *
+ * Marks therefore span the whole bar, ends included, which is also why a
+ * one-level scale is centred rather than left at zero: with nothing to compare it
+ * to, the middle is the honest place, and `0/0` is not.
+ */
+export function levelPosition(
+  levels: readonly ReasoningLevel[],
+  id: EffortLevelId | null,
+): number {
+  const index = levelIndex(levels, id)
+  if (index < 0) return 0
+  if (levels.length <= 1) return 0.5
+  return index / (levels.length - 1)
+}
+
+/**
  * The level to settle on when the stored one is not on offer.
  *
  * There is no "nearest" level without a shared vocabulary to measure against,

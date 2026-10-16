@@ -160,6 +160,15 @@ person. `xhigh`, `medium_effort` and `BALANCED` are all names a provider might
 use, and a UI that prettifies the id renders the first two adequately and the
 third as shouting caps.
 
+The control is a bar rather than a row of buttons for the same reason. Segments
+have to be given a width whether the model has two levels or six, so they narrow
+as providers add levels and the chosen one gets harder to read; a bar places its
+marks at the levels' own positions instead, so the control is the same shape
+whatever the model offers and only the marks move. `levelPosition` is the knob's
+position and `levelRatio` is what a level is *worth* — they are deliberately not
+the same function, because the first level is worth `1/n` of a token budget but
+belongs at the left end of the bar.
+
 **One exit from the store.** Every mutation funnels through `apply()`, which
 recomputes capabilities from the patched selection and then reconciles. No
 action can bypass the invariants. Text-only edits take `applyLocal()`, which

@@ -101,6 +101,7 @@ export {
 export {
   levelAt,
   levelIndex,
+  levelPosition,
   levelRatio,
   narrowScale,
   settleLevel,
