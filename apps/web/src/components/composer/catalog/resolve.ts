@@ -3,16 +3,17 @@ import type {
   Cap,
   Connection,
   EffortEncoding,
-  EffortLevel,
   Entitlements,
   Gate,
   ModelSpec,
   NativeToolKind,
   ProviderSpec,
+  ReasoningScale,
   Resolved,
   ResolvedCaps,
   ToolKind,
 } from "./capabilities"
+import { levelIndex, narrowScale } from "./effort"
 
 /**
  * The only reason this is a plain function and not a hook: resolution has to
@@ -146,24 +147,16 @@ export function resolveCapabilities(input: {
   const encoding = provider.source.effortEncoding
 
   const reasoningCap = caps.reasoning
-  let reasoning: Resolved<{
-    levels: readonly EffortLevel[]
-    default: EffortLevel
-    encoding: EffortEncoding
-  }>
+  let reasoning: Resolved<ReasoningScale & { encoding: EffortEncoding }>
   if (!reasoningCap.supported) {
     reasoning = unavailable("Not supported by this model")
   } else {
     // Entitlement narrows the model's levels; the model still decides the
-    // ordering and the default, so the intersection keeps the declared order.
-    const levels = entitlements.effort
-      ? reasoningCap.levels.filter((level) =>
-          entitlements.effort?.includes(level),
-        )
-      : reasoningCap.levels
-    if (levels.length === 0) {
+    // ordering, so the intersection keeps the declared order — see `narrowScale`.
+    const scale = narrowScale(reasoningCap, entitlements.effort)
+    if (scale.levels.length === 0) {
       reasoning = offered(
-        { levels: [], default: reasoningCap.default, encoding },
+        { ...scale, encoding },
         {
           kind: "gated",
           gate: {
@@ -174,13 +167,16 @@ export function resolveCapabilities(input: {
         },
       )
     } else {
-      const value = {
-        levels,
-        default: levels.includes(reasoningCap.default)
-          ? reasoningCap.default
-          : levels[levels.length - 1],
-        encoding,
-      }
+      // The model's own default survives the narrowing when it is still on
+      // offer. The fallback used to be the *last* level, which quietly promoted
+      // every key that could not reach the lowest one to run at maximum — and,
+      // because nothing read this field, the promotion was invisible on top of
+      // that: the effective default was whatever came first in the list.
+      const preferred =
+        levelIndex(scale.levels, scale.default) >= 0
+          ? scale.default
+          : scale.levels[scale.levels.length - 1].id
+      const value = { ...scale, default: preferred, encoding }
       reasoning = pending ? gated(value, pending) : offered(value)
     }
   }

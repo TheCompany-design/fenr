@@ -5,6 +5,7 @@ import {
   isUsable,
   type ModelSpec,
   type ProviderId,
+  type ReasoningLevel,
   type ResolvedCaps,
 } from "../catalog/capabilities"
 
@@ -23,9 +24,15 @@ export type ModelView = {
   providerId: ProviderId
   /** Whether the model itself is selectable; unrelated to its capabilities. */
   status: CapabilityStatus
-  /** Present even when gated, so a locked row can show what it would grant. */
-  effortLevels: readonly string[]
-  availableEffortLevels: readonly string[]
+  /**
+   * Present even when gated, so a locked row can show what it would grant.
+   *
+   * Records, not names: the list is the model's own scale in its own order, and
+   * the only thing that should ever stand between a level and the user is the
+   * label the provider chose for it.
+   */
+  effortLevels: readonly ReasoningLevel[]
+  availableEffortLevels: readonly ReasoningLevel[]
   supportsVision: boolean
   supportsTools: boolean
   supportsSearch: boolean
@@ -33,8 +40,6 @@ export type ModelView = {
   badges: readonly string[]
   isSelected: boolean
 }
-
-const EFFORT_RANK = ["none", "low", "medium", "high", "max"] as const
 
 function statusFor(caps: ResolvedCaps): CapabilityStatus {
   if (!caps.model) return "no-model"
@@ -85,9 +90,7 @@ export function buildModelViews(input: {
       const effortLevels = caps.reasoning.capability?.levels ?? []
       const entitlement = input.entitlements[providerId]
       const narrowed = entitlement?.effort
-        ? effortLevels.filter((level) =>
-            entitlement.effort?.includes(level as never),
-          )
+        ? effortLevels.filter((level) => entitlement.effort?.includes(level.id))
         : effortLevels
 
       views.push({
@@ -135,20 +138,7 @@ export function rankModels(views: readonly ModelView[]): ModelView[] {
   })
 }
 
-export function effortLabel(level: string): string {
-  return level.charAt(0).toUpperCase() + level.slice(1)
-}
-
 export function formatContextWindow(tokens: number): string {
   if (tokens >= 1_000_000) return `${Math.round(tokens / 100_000) / 10}M`
   return `${Math.round(tokens / 1000)}k`
-}
-
-export function maxEffortRank(levels: readonly string[]): number {
-  let best = -1
-  for (const level of levels) {
-    const index = EFFORT_RANK.indexOf(level as never)
-    if (index > best) best = index
-  }
-  return best
 }

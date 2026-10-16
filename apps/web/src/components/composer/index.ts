@@ -71,7 +71,7 @@ export {
   type Connection,
   catalogModels,
   type EffortEncoding,
-  type EffortLevel,
+  type EffortLevelId,
   type Entitlements,
   type FileKind,
   type Gate,
@@ -83,6 +83,7 @@ export {
   type PlanId,
   type ProviderId,
   type ProviderSpec,
+  type ReasoningLevel,
   type Region,
   type Resolved,
   type ResolvedCaps,
@@ -93,6 +94,17 @@ export {
   type CredentialStore,
   LocalCredentialStore,
 } from "./catalog/credentials"
+// The only sanctioned way to ask a question about a model's reasoning scale.
+// Exported because a host that renders its own effort affordance has to reach the
+// same answers the composer does — and must not be tempted to rank level names
+// itself, which is the one thing that cannot be done correctly.
+export {
+  levelAt,
+  levelIndex,
+  levelRatio,
+  narrowScale,
+  settleLevel,
+} from "./catalog/effort"
 export {
   type Blocker,
   type ComposerState,
@@ -161,7 +173,6 @@ export { ModelPicker, ProviderGate } from "./surfaces/model-picker"
 export {
   buildModelViews,
   type CapabilityStatus,
-  effortLabel,
   formatContextWindow,
   type ModelView,
   rankModels,

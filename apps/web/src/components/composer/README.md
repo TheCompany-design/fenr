@@ -137,10 +137,28 @@ together and never independently, because "this model" always implies its
 provider. They are presented as a tab strip rather than two controls for the
 same reason.
 
-**Effort is stored canonically and encoded at the boundary.** The store holds
-`"high"`. Each provider decides what that means — a string for OpenAI, a token
-budget for Anthropic, nothing at all for a local model. See
-`surfaces/effort-control.tsx`.
+**A model's levels are its own, and nothing ranks their names.** Effort is stored
+as the level's *id* and encoded at the boundary — a string for OpenAI, a token
+budget for Anthropic, nothing at all for a local model. But the vocabulary is
+declared per model (`{ id, label }` pairs, in the provider's order) and that
+declaration is the only ordering in the composer. There is deliberately no
+function anywhere that compares two level *names*, because that operation cannot
+be done correctly: OpenAI has no `max`, Anthropic has no `none`, and other
+providers name levels in ways no shared table covers.
+
+That is not a stylistic preference. Five copies of a fixed `none…max` ordering
+lived in this folder, and each one produced a different bug — the control lit the
+wrong level for any model not starting at the bottom of that table, the clamp
+scored every unknown name as equally distant and so picked whichever was declared
+first, and the budget ratio divided by five so a four-level model spent its top
+level at four fifths of its own ceiling. See `catalog/effort.ts`, and
+`catalog/providers.ts` for the one place a scale is declared.
+
+A level's `id` and its `label` are separate because they are separate things: the
+wire value is the provider's vocabulary and goes out verbatim, the label is for a
+person. `xhigh`, `medium_effort` and `BALANCED` are all names a provider might
+use, and a UI that prettifies the id renders the first two adequately and the
+third as shouting caps.
 
 **One exit from the store.** Every mutation funnels through `apply()`, which
 recomputes capabilities from the patched selection and then reconciles. No

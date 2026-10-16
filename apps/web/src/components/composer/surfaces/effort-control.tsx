@@ -1,11 +1,13 @@
 import { ZapIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { cn } from "@workspace/ui/lib/utils"
-import { type EffortLevel, isUsable } from "../catalog/capabilities"
-import { effortLabel } from "../data/model-views"
+import {
+  type EffortLevelId,
+  isUsable,
+  type ReasoningLevel,
+} from "../catalog/capabilities"
+import { levelIndex, levelRatio } from "../catalog/effort"
 import { usePromptStore } from "../state/prompt-store"
-
-const ORDER: readonly EffortLevel[] = ["none", "low", "medium", "high", "max"]
 
 /**
  * A segmented control rather than a dropdown, for two reasons that only become
@@ -17,6 +19,12 @@ const ORDER: readonly EffortLevel[] = ["none", "low", "medium", "high", "max"]
  * entitlement, so a key that cannot reach `max` never shows a `max` segment to
  * be greyed out — it simply does not exist. Offering a disabled affordance for
  * something the account cannot buy is a dead end.
+ *
+ * Position comes from `levelIndex` over the model's own list. That is the whole
+ * point: it used to index a fixed five-name table and compare the result with the
+ * *model's* index, so any model whose levels did not begin at the bottom of that
+ * table highlighted the wrong one — a model offering `low`…`max` with `low`
+ * stored lit up `medium`.
  */
 export function EffortControl({ className }: { className?: string }) {
   const caps = usePromptStore((s) => s.caps)
@@ -28,7 +36,7 @@ export function EffortControl({ className }: { className?: string }) {
   const levels = caps.reasoning.capability.levels
   if (levels.length === 0) return null
 
-  const activeIndex = effort ? ORDER.indexOf(effort) : -1
+  const activeIndex = levelIndex(levels, effort)
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
@@ -46,7 +54,7 @@ export function EffortControl({ className }: { className?: string }) {
           // without this component re-implementing roving focus.
           return (
             <label
-              key={level}
+              key={level.id}
               className={cn(
                 "cursor-pointer rounded-full px-2 py-0.5 text-xs transition-colors",
                 active
@@ -59,9 +67,9 @@ export function EffortControl({ className }: { className?: string }) {
                 name="composer-effort"
                 className="sr-only"
                 checked={active}
-                onChange={() => setEffort(level)}
+                onChange={() => setEffort(level.id)}
               />
-              {effortLabel(level)}
+              {level.label}
             </label>
           )
         })}
@@ -74,13 +82,21 @@ export function EffortControl({ className }: { className?: string }) {
  * The provider-specific wire form, applied only at the submit boundary.
  *
  * Keeping this out of the store is the whole reason `EffortEncoding` exists:
- * the composer holds `"high"` and each provider decides what that means. An
- * OpenAI key sends a string, an Anthropic key sends a token budget, and a
+ * the composer holds the level's *id* and each provider decides what that means.
+ * An OpenAI key sends a string, an Anthropic key sends a token budget, and a
  * local model sends nothing at all.
+ *
+ * `levels` is required rather than optional because the budget form cannot be
+ * computed without it. A token budget is a fraction of the provider's ceiling,
+ * and the fraction is a position on *this model's* scale: dividing by a fixed
+ * five made every model that did not offer five levels spend the wrong share of
+ * its range, so `max` on a four-level model topped out at four fifths of the
+ * ceiling it was entitled to.
  */
 export function encodeEffort(
-  effort: EffortLevel | null,
+  effort: EffortLevelId | null,
   encoding: import("../catalog/capabilities").EffortEncoding,
+  levels: readonly ReasoningLevel[],
 ): Record<string, unknown> {
   if (!effort || encoding.style === "none") return {}
 
@@ -90,12 +106,18 @@ export function encodeEffort(
     case "level":
       return { [encoding.field]: effort.toUpperCase() }
     case "budget": {
-      // A continuous budget expressed as discrete segments. The mapping is
-      // proportional to the range rather than linear in the enum, so `medium`
-      // sits at the middle of the budget instead of a third of the way.
-      const ratio = (ORDER.indexOf(effort) + 1) / ORDER.length
-      const budget = Math.round((encoding.max * ratio) / 1024) * 1024
-      return { [encoding.field]: budget }
+      // Proportional to this model's own scale rather than linear in the enum,
+      // so `medium` sits in the middle of the budget instead of a third of the
+      // way, and the top level is entitled to the whole ceiling.
+      //
+      // Not rounded to a multiple of anything. The old rounding to 1024 was for
+      // tidier numbers, and it cost the top level the top: a ceiling of 32 000
+      // is not a multiple of 1024, so the highest effort a user could ask for
+      // was silently 31 744 tokens — the one level that is supposed to be the
+      // whole range was the only one that could never be.
+      return {
+        [encoding.field]: Math.round(encoding.max * levelRatio(levels, effort)),
+      }
     }
   }
 }

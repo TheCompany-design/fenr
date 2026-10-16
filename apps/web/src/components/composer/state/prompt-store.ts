@@ -14,12 +14,13 @@ import {
   type Catalog,
   type Connection,
   catalogModels,
-  type EffortLevel,
+  type EffortLevelId,
   type Entitlements,
   isUsable,
   type ModelSpec,
   type ProviderId,
   type ProviderSpec,
+  type ReasoningLevel,
   type ResolvedCaps,
 } from "../catalog/capabilities"
 import {
@@ -102,7 +103,7 @@ export type PromptStore = ComposerState & {
   /** Recomputes caps from the selection, then reconciles. The only exit. */
   apply: (patch: Partial<ComposerState>) => void
   select: (providerId: ProviderId, modelId: string) => void
-  setEffort: (effort: EffortLevel) => void
+  setEffort: (effort: EffortLevelId) => void
   toggleTool: (toolId: string) => void
   toggleSearch: () => void
   setText: (text: string) => void
@@ -1077,7 +1078,7 @@ export type SendPayload = {
   providerId: string
   modelId: string
   availabilityEpoch: number
-  effort: EffortLevel | null
+  effort: EffortLevelId | null
   toolIds: string[]
   search: boolean
   /**
@@ -1153,7 +1154,11 @@ export const useCanSend = () =>
     }),
   )
 
-function effortLevels(state: PromptStore): readonly EffortLevel[] {
+/**
+ * The model's own scale, as declared. Records rather than names, so a consumer
+ * gets the label the provider chose without having to prettify the id.
+ */
+function effortLevels(state: PromptStore): readonly ReasoningLevel[] {
   return isUsable(state.caps.reasoning)
     ? state.caps.reasoning.capability.levels
     : []

@@ -6,15 +6,42 @@ export type PlanId = string
 export type ToolId = string
 export type Region = string
 
-export type EffortLevel = "none" | "low" | "medium" | "high" | "max"
+/**
+ * A provider's own name for one reasoning level.
+ *
+ * Deliberately open. This used to be a five-name union, and five copies of its
+ * ordering lived in this folder — all of which had to rank a level's *name* to
+ * answer questions that are really about the *model*. Nobody's scale is a subset
+ * of `none…max`: OpenAI has no `max`, Anthropic has no `none`, and other
+ * providers have levels with no English equivalent at all. An open string keeps
+ * the declaration honest — the type now says what the composer knows, which is
+ * that a level is whatever its provider calls it.
+ *
+ * See `effort.ts` for the four questions that used to need a global order.
+ */
+export type EffortLevelId = string
 
-export const EFFORT_ORDER: readonly EffortLevel[] = [
-  "none",
-  "low",
-  "medium",
-  "high",
-  "max",
-] as const
+/**
+ * One reasoning level: what the provider calls it, and what the user reads.
+ *
+ * Two fields because they are genuinely two things. The wire value is the
+ * provider's vocabulary and is sent verbatim; the label is for a person. Nothing
+ * obliges them to match — `xhigh`, `medium_effort` and `BALANCED` are all names a
+ * provider might use, and a UI that derives its label by prettifying the id
+ * renders the first three adequately and the fourth as shouting caps. Declaring
+ * the label is what lets a provider name a level the way it names it.
+ */
+export type ReasoningLevel = {
+  id: EffortLevelId
+  label: string
+}
+
+/** A model's declared scale, lowest first. The array order *is* the ordering. */
+export type ReasoningScale = {
+  levels: readonly ReasoningLevel[]
+  /** The level this model runs at unless the user says otherwise. */
+  default: EffortLevelId
+}
 
 /**
  * A gate carries the action that unblocks it, not just the reason. "Needs
@@ -69,10 +96,7 @@ export type ModelCaps = {
     maxSizeMb: number
   }>
   pdf: Cap<{ maxPages: number }>
-  reasoning: Cap<{
-    levels: readonly EffortLevel[]
-    default: EffortLevel
-  }>
+  reasoning: Cap<ReasoningScale>
   tools: Cap<{ max: number; kinds: readonly ToolKind[] }>
   native: Cap<{ kinds: readonly NativeToolKind[] }>
   search: Cap
@@ -158,7 +182,7 @@ export type Catalog =
  * from "you can use it" — the distinction `requiresAuth` used to flatten.
  */
 export type Entitlements = {
-  effort?: readonly EffortLevel[]
+  effort?: readonly EffortLevelId[]
   deniedModels?: readonly ModelId[]
   /** Results observed from real calls for this provider key. */
   availableModels?: readonly ModelId[]
@@ -197,11 +221,7 @@ export type ResolvedCaps = {
     maxFiles: number
     maxSizeMb: number
   }>
-  reasoning: Resolved<{
-    levels: readonly EffortLevel[]
-    default: EffortLevel
-    encoding: EffortEncoding
-  }>
+  reasoning: Resolved<ReasoningScale & { encoding: EffortEncoding }>
   tools: Resolved<{ max: number; kinds: readonly ToolKind[] }>
   native: Resolved<{ kinds: readonly NativeToolKind[] }>
   /**

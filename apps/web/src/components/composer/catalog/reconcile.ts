@@ -1,10 +1,11 @@
 import type { Attachment } from "./attachments"
 import {
-  type EffortLevel,
+  type EffortLevelId,
   isUsable,
   type ResolvedCaps,
   type ToolKind,
 } from "./capabilities"
+import { settleLevel } from "./effort"
 import type { ContextUsage } from "./usage"
 
 const TOOL_KINDS: readonly ToolKind[] = [
@@ -55,7 +56,7 @@ export type ComposerState = {
   mentions: Mention[]
   attachments: Attachment[]
   selection: Selection | null
-  effort: EffortLevel | null
+  effort: EffortLevelId | null
   toolIds: string[]
   search: boolean
 }
@@ -77,7 +78,7 @@ export type Blocker =
   | { kind: "no-model" }
 
 export type Notice =
-  | { kind: "effort-clamped"; from: EffortLevel; to: EffortLevel }
+  | { kind: "effort-clamped"; from: EffortLevelId; to: EffortLevelId }
   | { kind: "effort-dropped" }
   | { kind: "tools-pruned"; removed: string[] }
   | { kind: "search-disabled" }
@@ -86,29 +87,6 @@ export type ReconcileResult = {
   state: ComposerState
   blockers: Blocker[]
   notices: Notice[]
-}
-
-/** Nearest level that still exists in the offered set, by declared order. */
-function clampEffort(
-  requested: EffortLevel | null,
-  levels: readonly EffortLevel[],
-): EffortLevel | null {
-  if (requested === null) return levels[0] ?? null
-  if (levels.includes(requested)) return requested
-
-  const order = ["none", "low", "medium", "high", "max"] as const
-  const target = order.indexOf(requested)
-  let best: EffortLevel | null = null
-  let bestDistance = Number.POSITIVE_INFINITY
-
-  for (const level of levels) {
-    const distance = Math.abs(order.indexOf(level) - target)
-    if (distance < bestDistance) {
-      best = level
-      bestDistance = distance
-    }
-  }
-  return best
 }
 
 export function reconcile(
@@ -127,8 +105,8 @@ export function reconcile(
 
   // --- effort: a setting, so it is adjusted rather than surfaced -----------
   if (isUsable(caps.reasoning)) {
-    const levels = caps.reasoning.capability.levels
-    const clamped = clampEffort(state.effort, levels)
+    const scale = caps.reasoning.capability
+    const clamped = settleLevel(scale.levels, state.effort, scale.default)
     if (state.effort !== null && clamped !== null && clamped !== state.effort) {
       notices.push({
         kind: "effort-clamped",

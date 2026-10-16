@@ -3,6 +3,7 @@ import type {
   ModelCaps,
   ModelSpec,
   ProviderSpec,
+  ReasoningLevel,
 } from "./capabilities"
 
 /**
@@ -28,12 +29,37 @@ const caps = (overrides: Partial<ModelCaps>): ModelCaps => ({
   ...overrides,
 })
 
+/**
+ * Declares a provider's reasoning scale, lowest first.
+ *
+ * This is the *only* place in the composer that states what a provider's levels
+ * are, and the array order is the scale — position is what every consumer ranks
+ * by, so `("low", "medium", "high")` is a claim about that provider, not a
+ * lookup in a shared table. Nothing downstream compares level names to each
+ * other, which is what lets two providers here disagree: OpenAI stops at `high`
+ * and Anthropic has no `none`, so the two lists are not subsets of one another
+ * and the composer's controls still light the right one on either.
+ *
+ * Labels are derived here, at the point of declaration, rather than in the UI.
+ * That is the whole extent of the convenience: a provider whose names need more
+ * than a capital letter passes `{ id, label }` pairs directly, and the rest of
+ * the composer cannot tell the difference.
+ */
+const levels = (
+  ...names: readonly (string | ReasoningLevel)[]
+): readonly ReasoningLevel[] =>
+  names.map((name) =>
+    typeof name === "string"
+      ? { id: name, label: name.charAt(0).toUpperCase() + name.slice(1) }
+      : name,
+  )
+
 function openai(overrides: Partial<ModelCaps> = {}): ModelCaps {
   return caps({
     vision: { supported: true, maxImages: 20 },
     reasoning: {
       supported: true,
-      levels: ["none", "low", "medium", "high"],
+      levels: levels("none", "low", "medium", "high"),
       default: "medium",
     },
     native: { supported: true, kinds: ["web_search"] },
@@ -110,7 +136,7 @@ export const ANTHROPIC_MODELS: ModelSpec[] = [
       // Anthropic's budget is a token count, not an enum — see the encoding.
       reasoning: {
         supported: true,
-        levels: ["low", "medium", "high", "max"],
+        levels: levels("low", "medium", "high", "max"),
         default: "high",
       },
       tools: {
@@ -134,7 +160,7 @@ export const ANTHROPIC_MODELS: ModelSpec[] = [
       vision: { supported: true, maxImages: 20 },
       reasoning: {
         supported: true,
-        levels: ["low", "medium", "high"],
+        levels: levels("low", "medium", "high"),
         default: "medium",
       },
       tools: {
