@@ -112,6 +112,11 @@ export interface ComposerBridgeOptions {
     options?: {
       readonly providerConfigId?: string | null
       readonly modelId?: string | null
+      /**
+       * The conversation's reasoning-effort choice, as the picker holds it —
+       * the level id the runtime expects, settled on the runtime's side.
+       */
+      readonly effort?: string | null
       readonly onTurnStarted?: (threadId: string) => void | Promise<void>
       readonly onModelCallRecorded?: (call: {
         savedConfigId: string | null
@@ -217,6 +222,7 @@ export function useComposerBridge(
           await sendTurn(prompt, threadIdRef.current, {
             providerConfigId: payload.providerId,
             modelId: payload.modelId,
+            effort: payload.effort,
             onTurnStarted,
             onModelCallRecorded: ({ savedConfigId, modelId, errorCode }) => {
               // Only a successful call proves availability; every failure code

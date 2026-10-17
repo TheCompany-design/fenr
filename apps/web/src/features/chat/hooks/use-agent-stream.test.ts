@@ -409,6 +409,73 @@ describe("useAgentStream Hook", () => {
     expect(secondBody.prompt).toBe("Second prompt")
     expect(secondBody.thread_id).toBe(serverThreadId)
   })
+
+  it("sends the picker's choices — provider, model, effort — on the turn request", async () => {
+    const ssePayload = `data: {"type":"turn_started","data":{"thread_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c399","turn_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c39a"}}\n\n`
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(ssePayload))
+        controller.close()
+      },
+    })
+
+    let body: string | null = null
+    globalThis.fetch = mock(async (_url, init) => {
+      body = (init?.body as string) ?? null
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const hook = renderStreamHook()
+    await act(async () => {
+      await hook.current.send("a question", null, {
+        providerConfigId: "config-1",
+        modelId: "openai/gpt-5",
+        effort: "high",
+      })
+    })
+
+    const sent = JSON.parse(body ?? "{}") as Record<string, unknown>
+    expect(sent.provider_config_id).toBe("config-1")
+    expect(sent.model).toBe("openai/gpt-5")
+    expect(sent.effort).toBe("high")
+  })
+
+  it("leaves every picker choice absent from the body that had none, rather than sending nulls", async () => {
+    // Absence has meaning on both sides — "carry on with what this thread was
+    // running" — and `undefined` keeps that meaning intact in the JSON body
+    // exactly as the runtime's serde defaults read it.
+    const ssePayload = `data: {"type":"turn_started","data":{"thread_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c399","turn_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c39a"}}\n\n`
+
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(ssePayload))
+        controller.close()
+      },
+    })
+
+    let body: string | null = null
+    globalThis.fetch = mock(async (_url, init) => {
+      body = (init?.body as string) ?? null
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const hook = renderStreamHook()
+    await act(async () => {
+      await hook.current.send("a question", null)
+    })
+
+    const sent = JSON.parse(body ?? "{}") as Record<string, unknown>
+    expect("provider_config_id" in sent).toBe(false)
+    expect("model" in sent).toBe(false)
+    expect("effort" in sent).toBe(false)
+  })
 })
 
 describe("what a failure tells the reader", () => {

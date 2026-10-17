@@ -29,6 +29,14 @@ export interface SendOptions {
    * configuration's default".
    */
   readonly modelId?: string | null
+  /**
+   * The conversation's reasoning-effort choice: an id from the chosen model's
+   * own declared scale, exactly as the listing served it. Absent means "carry
+   * on with what this thread was running, or the model's declared default" —
+   * the runtime settles the level, so sending only the id keeps the composer
+   * out of the per-vendor wire-form business.
+   */
+  readonly effort?: string | null
   /** Reports runtime evidence for one saved provider/model call. */
   readonly onModelCallRecorded?: (call: {
     savedConfigId: string | null
@@ -248,6 +256,7 @@ export function useAgentStream(): UseAgentStreamReturn {
             thread_id: threadId ?? undefined,
             provider_config_id: options?.providerConfigId ?? undefined,
             model: options?.modelId ?? undefined,
+            effort: options?.effort ?? undefined,
           }),
           signal: abortController.signal,
         })
