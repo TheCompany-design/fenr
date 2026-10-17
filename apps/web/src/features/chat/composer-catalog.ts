@@ -132,7 +132,6 @@ export function toComposerProvider(
       vendor: config.provider,
       // The credential is server-side; there is nothing to validate here.
       requiresCredential: false,
-      effortEncoding: { style: "none" },
       // The vendor's own catalogue, fetched with the stored credential at
       // hydrate time. A refusal or an unreachable runtime lands the tab in
       // the catalog's failed state, which names the finding and offers a

@@ -34,7 +34,6 @@ function capsWith(
       capability: {
         levels,
         default: defaultId,
-        encoding: { style: "enum", field: "reasoning_effort" },
       },
     },
   } as unknown as ResolvedCaps

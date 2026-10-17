@@ -2,7 +2,6 @@ import type {
   Access,
   Cap,
   Connection,
-  EffortEncoding,
   Entitlements,
   Gate,
   ModelSpec,
@@ -142,12 +141,12 @@ export function resolveCapabilities(input: {
   }
 
   const caps = model.caps
-  // The wire form of an effort level is a property of the provider, not the
-  // model, so it is attached here rather than declared per model.
-  const encoding = provider.source.effortEncoding
+  // Every capability is the model's own declaration, served with its listing.
+  // The effort level's wire form is the runtime's knowledge — the composer
+  // sends the id and the runtime encodes it per vendor.
 
   const reasoningCap = caps.reasoning
-  let reasoning: Resolved<ReasoningScale & { encoding: EffortEncoding }>
+  let reasoning: Resolved<ReasoningScale>
   if (!reasoningCap.supported) {
     reasoning = unavailable("Not supported by this model")
   } else {
@@ -155,17 +154,14 @@ export function resolveCapabilities(input: {
     // ordering, so the intersection keeps the declared order — see `narrowScale`.
     const scale = narrowScale(reasoningCap, entitlements.effort)
     if (scale.levels.length === 0) {
-      reasoning = offered(
-        { ...scale, encoding },
-        {
-          kind: "gated",
-          gate: {
-            kind: "upgrade",
-            plan: "reasoning",
-            label: "Your key's tier has no reasoning levels",
-          },
+      reasoning = offered(scale, {
+        kind: "gated",
+        gate: {
+          kind: "upgrade",
+          plan: "reasoning",
+          label: "Your key's tier has no reasoning levels",
         },
-      )
+      })
     } else {
       // The model's own default survives the narrowing when it is still on
       // offer. When the entitlement removed it, the scale defaults to the lowest
@@ -178,8 +174,9 @@ export function resolveCapabilities(input: {
         levelIndex(scale.levels, scale.default) >= 0
           ? scale.default
           : narrowedDefault(scale.levels)
-      const value = { ...scale, default: preferred, encoding }
-      reasoning = pending ? gated(value, pending) : offered(value)
+      reasoning = pending
+        ? gated({ ...scale, default: preferred }, pending)
+        : offered({ ...scale, default: preferred })
     }
   }
 

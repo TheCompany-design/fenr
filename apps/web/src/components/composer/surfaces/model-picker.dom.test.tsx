@@ -70,12 +70,6 @@ describe("ModelPicker trigger", () => {
         capability: {
           levels,
           default: defaultId,
-          encoding: {
-            style: "budget",
-            field: "thinking.budget_tokens",
-            max: 32000,
-            unit: "tokens",
-          },
         },
       },
     } as unknown as ResolvedCaps

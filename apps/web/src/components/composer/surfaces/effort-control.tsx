@@ -1,16 +1,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 import type * as React from "react"
-import {
-  type EffortLevelId,
-  isUsable,
-  type ReasoningLevel,
-} from "../catalog/capabilities"
-import {
-  levelIndex,
-  levelPosition,
-  levelRatio,
-  settleLevel,
-} from "../catalog/effort"
+import { isUsable } from "../catalog/capabilities"
+import { levelIndex, levelPosition, settleLevel } from "../catalog/effort"
 import { usePromptStore } from "../state/prompt-store"
 
 /**
@@ -46,10 +37,10 @@ export function EffortControl({ className }: { className?: string }) {
 
   // The reconciler settles the stored level onto this list on every mutation, so
   // a level that is not on offer means the list changed under us. Resolved
-  // through the same rule the wire uses, so what the bar shows and what gets
-  // encoded cannot disagree — showing `levels[0]` while `encodeEffort` sent
-  // nothing, or sent the old id, is the kind of divergence nobody notices until
-  // a provider rejects the request.
+  // through the same rule the runtime applies, so what the bar shows and what
+  // the turn request sends cannot disagree — showing `levels[0]` while the
+  // request carried the old id is the kind of divergence nobody notices until
+  // the runtime settles a different level than the name on screen.
   const settled = settleLevel(levels, effort, caps.reasoning.capability.default)
   const index = Math.max(0, levelIndex(levels, settled))
   const active = levels[index]
@@ -129,52 +120,12 @@ export function EffortControl({ className }: { className?: string }) {
 }
 
 /**
- * The provider-specific wire form, applied only at the submit boundary.
+ * The level's wire form is the runtime's knowledge, not the composer's.
  *
- * Keeping this out of the store is the whole reason `EffortEncoding` exists:
- * the composer holds the level's *id* and each provider decides what that means.
- * An OpenAI key sends a string, an Anthropic key sends a token budget, and a
- * local model sends nothing at all.
- *
- * `levels` is required rather than optional because the budget form cannot be
- * computed without it. A token budget is a fraction of the provider's ceiling,
- * and the fraction is a position on *this model's* scale: dividing by a fixed
- * five made every model that did not offer five levels spend the wrong share of
- * its range, so `max` on a four-level model topped out at four fifths of the
- * ceiling it was entitled to.
+ * The composer holds the level's *id* and sends it as it stands (`SendOptions`
+ * in the chat host); the runtime decides what that id becomes on each vendor's
+ * wire. There is no provider-specific encoding here to get out of date the day
+ * a provider recalibrates its control — which is exactly what happened when
+ * Anthropic's thinking budget became an effort level and Gemini's `MINIMAL`
+ * appeared beside OpenAI's `none`.
  */
-export function encodeEffort(
-  effort: EffortLevelId | null,
-  encoding: import("../catalog/capabilities").EffortEncoding,
-  levels: readonly ReasoningLevel[],
-): Record<string, unknown> {
-  if (!effort || encoding.style === "none") return {}
-  // A level this model does not offer is not this model's vocabulary, so it is
-  // not this model's wire form either — and the failure modes differ by style.
-  // A budget would be `0`, which is the one value a provider rejects outright;
-  // an enum or level would forward a name the provider has never heard of. The
-  // store's reconciler keeps the stored level on offer, so this is the boundary
-  // holding for a caller that captured its payload across a change of model.
-  if (levelIndex(levels, effort) < 0) return {}
-
-  switch (encoding.style) {
-    case "enum":
-      return { [encoding.field]: effort }
-    case "level":
-      return { [encoding.field]: effort.toUpperCase() }
-    case "budget": {
-      // Proportional to this model's own scale rather than linear in the enum,
-      // so `medium` sits in the middle of the budget instead of a third of the
-      // way, and the top level is entitled to the whole ceiling.
-      //
-      // Not rounded to a multiple of anything. The old rounding to 1024 was for
-      // tidier numbers, and it cost the top level the top: a ceiling of 32 000
-      // is not a multiple of 1024, so the highest effort a user could ask for
-      // was silently 31 744 tokens — the one level that is supposed to be the
-      // whole range was the only one that could never be.
-      return {
-        [encoding.field]: Math.round(encoding.max * levelRatio(levels, effort)),
-      }
-    }
-  }
-}

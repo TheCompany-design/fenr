@@ -4,7 +4,7 @@
  *
  * This module exists because four questions — which level is lit, how far along
  * the bar the knob sits, what should happen when the model changes, and what a
- * level is worth in tokens — were each answered by ranking a level's *name*
+ * level's wire form should be — were each answered by ranking a level's *name*
  * against a hardcoded `none…max` table. There were five copies of that table in
  * this folder and they did not agree with each other, or with any provider:
  *
@@ -14,12 +14,17 @@
  *   - the clamp scored every name it did not recognise at -1, so switching to a
  *     model with different names left every level tied at the same distance and
  *     the winner was whichever happened to be declared first;
- *   - the budget ratio divided by the global list's length, so a four-level model
- *     spent three quarters of its budget range in three quarters of the bar.
+ *   - the wire form was encoded here per provider — an enum, a title-cased
+ *     string, a token budget — and every encoder drifted from its vendor's
+ *     reality: budgets were divided by the wrong level count and a ceiling that
+ *     was not a multiple of 1024 could never be reached at all.
  *
  * None of that is recoverable from the names. A provider's scale is whatever the
  * provider says it is, and the declaration order *is* the order. So the only
- * decision left is where this logic lives: here, once, over the model's own list.
+ * decision left is where this logic lives: here, once, over the model's own
+ * list — and the wire form, the last of the four, is now the runtime's own
+ * declaration served with the listing; the composer sends the id and must not
+ * re-decide what it means.
  *
  * There is deliberately no function here that compares two level *names*. That is
  * the operation that cannot be done correctly, and pretending otherwise is what
@@ -57,37 +62,11 @@ export function levelAt(
 }
 
 /**
- * How far along the model's scale a level sits, as a fraction of the whole.
- *
- * Both the knob's position on the bar and the share of a token budget a level
- * buys are this question, which is why they share this function rather than
- * each rounding differently.
- *
- * Divided by the level *count*, not by `count - 1`: the first level is worth
- * something. A budget of zero is not "no reasoning", it is a request the provider
- * rejects, so the scale starts at `1/n` and ends at `1`. If the last level ever
- * needs to be worth more than the whole budget, that is a change to this
- * function and to the encoding that calls it — not something each call site
- * should be re-deciding.
- */
-export function levelRatio(
-  levels: readonly ReasoningLevel[],
-  id: EffortLevelId | null,
-): number {
-  if (levels.length === 0) return 0
-  const index = levelIndex(levels, id)
-  if (index < 0) return 0
-  return (index + 1) / levels.length
-}
-
-/**
  * Where a level's *mark* sits along a bar of levels, as a fraction.
  *
- * Deliberately not `levelRatio`. That is what a level is worth — the first level
- * is worth `1/n` of a token budget — and worth is not where a mark belongs: a
- * first level that is worth one n-th but whose mark sat at `1/n` would leave a
- * stretch of bar before it that no level can ever claim, so the knob could never
- * reach either end of the track.
+ * A mark is not a level's worth: a first level whose mark sat at the one-over-n
+ * position of a "value" ratio would leave a stretch of bar before it that no
+ * level can ever claim, so the knob could never reach either end of the track.
  *
  * Marks therefore span the whole bar, ends included, which is also why a
  * one-level scale is centred rather than left at zero: with nothing to compare it

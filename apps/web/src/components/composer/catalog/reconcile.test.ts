@@ -61,7 +61,6 @@ function offered(
     capability: {
       levels,
       default: defaultId,
-      encoding: { style: "enum", field: "reasoning_effort" },
     },
   }
 }

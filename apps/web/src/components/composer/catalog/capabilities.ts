@@ -77,17 +77,6 @@ export type ToolKind =
   | "db"
   | "http"
 
-/**
- * The same effort level reaches the wire differently per provider. This lives
- * on the provider, not the model, and is applied only in the submit path —
- * the store never holds an encoded effort.
- */
-export type EffortEncoding =
-  | { style: "enum"; field: string }
-  | { style: "budget"; field: string; max: number; unit: "tokens" }
-  | { style: "level"; field: string }
-  | { style: "none" }
-
 export type ModelCaps = {
   vision: Cap<{ maxImages: number }>
   files: Cap<{
@@ -129,8 +118,6 @@ export type CatalogSource = {
   vendor: string
   /** A self-hosted endpoint may need no credential at all. */
   requiresCredential: boolean
-  /** Defaults applied to every model this provider returns. */
-  effortEncoding: EffortEncoding
   icon?: IconSvgElement
   load: (credential: string | null) => Promise<readonly ModelSpec[]>
 }
@@ -221,7 +208,7 @@ export type ResolvedCaps = {
     maxFiles: number
     maxSizeMb: number
   }>
-  reasoning: Resolved<ReasoningScale & { encoding: EffortEncoding }>
+  reasoning: Resolved<ReasoningScale>
   tools: Resolved<{ max: number; kinds: readonly ToolKind[] }>
   native: Resolved<{ kinds: readonly NativeToolKind[] }>
   /**

@@ -133,7 +133,6 @@ export const ANTHROPIC_MODELS: ModelSpec[] = [
     releasedAt: "2026-09-02",
     caps: caps({
       vision: { supported: true, maxImages: 20 },
-      // Anthropic's budget is a token count, not an enum — see the encoding.
       reasoning: {
         supported: true,
         levels: levels("low", "medium", "high", "max"),
@@ -210,7 +209,6 @@ const OPENAI_SOURCE = {
   label: "OpenAI",
   vendor: "openai",
   requiresCredential: true,
-  effortEncoding: { style: "enum", field: "reasoning_effort" },
   load: async () => OPENAI_MODELS,
 } as const
 
@@ -219,12 +217,6 @@ const ANTHROPIC_SOURCE = {
   label: "Anthropic",
   vendor: "anthropic",
   requiresCredential: true,
-  effortEncoding: {
-    style: "budget",
-    field: "thinking.budget_tokens",
-    max: 32_000,
-    unit: "tokens",
-  },
   load: async () => ANTHROPIC_MODELS,
 } as const
 
@@ -237,7 +229,6 @@ const LOCAL_SOURCE = {
   label: "Ollama (local)",
   vendor: "local",
   requiresCredential: false,
-  effortEncoding: { style: "none" },
   load: async () => LOCAL_MODELS,
 } as const
 

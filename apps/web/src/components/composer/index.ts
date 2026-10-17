@@ -70,7 +70,6 @@ export {
   type CatalogSource,
   type Connection,
   catalogModels,
-  type EffortEncoding,
   type EffortLevelId,
   type Entitlements,
   type FileKind,
@@ -102,7 +101,6 @@ export {
   levelAt,
   levelIndex,
   levelPosition,
-  levelRatio,
   narrowedDefault,
   narrowScale,
   settleLevel,
@@ -166,7 +164,7 @@ export {
 export { AddMenu } from "./surfaces/add-menu"
 export { ContextMeter } from "./surfaces/context-meter"
 export { ContextRail, type ContextRailMode } from "./surfaces/context-rail"
-export { EffortControl, encodeEffort } from "./surfaces/effort-control"
+export { EffortControl } from "./surfaces/effort-control"
 export { ComposerFeedback, formatTokens } from "./surfaces/feedback"
 export { ModelPicker, ProviderGate } from "./surfaces/model-picker"
 

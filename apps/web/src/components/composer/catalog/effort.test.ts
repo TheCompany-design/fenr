@@ -4,7 +4,6 @@ import {
   levelAt,
   levelIndex,
   levelPosition,
-  levelRatio,
   narrowedDefault,
   narrowScale,
   settleLevel,
@@ -76,41 +75,6 @@ describe("effort vocabulary", () => {
     })
   })
 
-  describe("levelRatio", () => {
-    it("puts the last level at the top of the model's own scale", () => {
-      // The bug this replaces: dividing by a fixed five made a four-level model
-      // reach four fifths of its range, so its top level never got the ceiling.
-      expect(levelRatio(ANTHROPIC, "max")).toBe(1)
-      expect(levelRatio(OPENAI, "high")).toBe(1)
-    })
-
-    it("never gives a level a value of nothing", () => {
-      // A budget of zero is not "no reasoning", it is a request the provider
-      // rejects, so the scale starts at 1/n rather than 0.
-      expect(levelRatio(OPENAI, "none")).toBeCloseTo(0.25, 10)
-      expect(levelRatio(ANTHROPIC, "low")).toBeCloseTo(0.25, 10)
-    })
-
-    it("spaces the levels evenly and spans the whole range", () => {
-      // Evenly means *evenly for this scale*: consecutive levels are one
-      // n-th apart and the top one reaches 1. A four-level scale has no single
-      // middle element, so the invariant is the spacing rather than a landmark.
-      const gaps = OPENAI.map((level, i) =>
-        i === 0
-          ? null
-          : levelRatio(OPENAI, level.id) - levelRatio(OPENAI, OPENAI[i - 1].id),
-      ).filter((gap): gap is number => gap !== null)
-      expect(new Set(gaps.map((gap) => gap.toFixed(10))).size).toBe(1)
-      expect(levelRatio(OPENAI, OPENAI[0].id)).toBeCloseTo(0.25, 10)
-      expect(levelRatio(OPENAI, OPENAI[OPENAI.length - 1].id)).toBe(1)
-    })
-
-    it("answers zero for a level that is not on offer, and for no scale at all", () => {
-      expect(levelRatio(OPENAI, "max")).toBe(0)
-      expect(levelRatio([], "low")).toBe(0)
-    })
-  })
-
   describe("settleLevel", () => {
     it("keeps a level the new model also offers", () => {
       expect(settleLevel(ANTHROPIC, "high", "high")).toBe("high")
@@ -176,10 +140,8 @@ describe("effort vocabulary", () => {
     })
 
     it("is not what a level is worth", () => {
-      // The first level is worth 1/n of a token budget but belongs at the left
-      // end of the bar. Collapsing the two would put a stretch of track that no
-      // level can claim ahead of the first one.
-      expect(levelRatio(ANTHROPIC, "low")).toBeCloseTo(0.25, 10)
+      // The first level belongs at the left end of the bar: placing its mark
+      // anywhere else would leave a stretch of track no level can claim.
       expect(levelPosition(ANTHROPIC, "low")).toBe(0)
     })
 
