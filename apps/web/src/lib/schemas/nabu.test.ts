@@ -94,6 +94,44 @@ describe("listedModelSchema", () => {
       }).pricing,
     ).toEqual({ input_usd: 0, output_usd: 0 })
   })
+
+  // The runtime declares the scale, lowest first, with the vendor's own
+  // default. Verbatim here so the picker shows the level the provider names,
+  // not one this service re-worded.
+  const scale = {
+    levels: [
+      { id: "low", label: "Low" },
+      { id: "high", label: "High" },
+    ],
+    default: "high",
+  }
+
+  it("carries the runtime's declared reasoning scale verbatim", () => {
+    expect(
+      listedModelSchema.parse({ id: "m", reasoning: scale }).reasoning,
+    ).toEqual(scale)
+  })
+
+  it("rejects a scale whose default names no offered level", () => {
+    // A default off the list would leave the picker selecting a level whose
+    // turn request is clamped away again — the malformed shape fails here,
+    // where the schema can name the runtime's own broken declaration.
+    expect(
+      listedModelSchema.safeParse({
+        id: "m",
+        reasoning: { ...scale, default: "max" },
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a scale that names no levels, which declares nothing", () => {
+    expect(
+      listedModelSchema.safeParse({
+        id: "m",
+        reasoning: { levels: [], default: "high" },
+      }).success,
+    ).toBe(false)
+  })
 })
 
 describe("providerModelsResponseSchema", () => {

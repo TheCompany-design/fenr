@@ -112,6 +112,29 @@ describe("saved providers as the composer's catalog", () => {
     expect(sparse.caps.vision.supported).toBe(false)
   })
 
+  it("carries the runtime's declared effort scale into the picker verbatim", () => {
+    const scale = {
+      levels: [
+        { id: "low", label: "Low" },
+        { id: "medium", label: "Medium" },
+        { id: "high", label: "High" },
+      ],
+      default: "medium",
+    }
+    const spec = toCatalogModel(
+      { id: "openai/gpt-5", reasoning: scale },
+      "config-1",
+    )
+    expect(spec.caps.reasoning).toEqual({ supported: true, ...scale })
+  })
+
+  it("reads absence of a declared scale as no effort control", () => {
+    // Absent, not empty: a model the runtime declares nothing for runs without
+    // a level, and the composer must not invent a picker for it.
+    const spec = toCatalogModel({ id: "m" }, "config-1")
+    expect(spec.caps.reasoning).toEqual({ supported: false })
+  })
+
   it("lands a declined credential in the catalog's failed state, in the vendor's words", async () => {
     const refused = async () => ({
       ok: false as const,

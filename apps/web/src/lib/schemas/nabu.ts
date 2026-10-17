@@ -239,6 +239,38 @@ export const listedModelSchema = z.object({
    * `false`: absent means the vendor published no modalities at all.
    */
   accepts_images: z.boolean().optional(),
+  /**
+   * The model's reasoning-effort scale: the levels its provider names, in the
+   * order the backend declared them (lowest first), and the vendor-documented
+   * default. No vendor's `/models` publishes effort vocabularies, so this is
+   * the runtime's own declaration — attached by thebookofnabu, and absent when
+   * the runtime declares none.
+   */
+  reasoning: z
+    .object({
+      levels: z
+        .array(
+          z.object({
+            /** The provider's own name, sent back verbatim. */
+            id: z.string().min(1),
+            /** What the picker shows. */
+            label: z.string().min(1),
+          }),
+        )
+        .min(1),
+      /** The level the model runs at unless the user says otherwise. */
+      default: z.string().min(1),
+    })
+    // The contract the backend's own declaration makes: the default is one of
+    // the offered levels. A scale whose default is off-scale would leave the
+    // picker selecting a level every reconcile clamps back, so the malformed
+    // shape is refused here — where a field name can name the vendor's
+    // response — rather than surfacing as a broken control.
+    .refine(
+      (scale) => scale.levels.some((level) => level.id === scale.default),
+      { message: "the declared default is not one of the offered levels" },
+    )
+    .optional(),
   /** What the vendor advertises, in US dollars per million tokens. */
   pricing: z
     .object({

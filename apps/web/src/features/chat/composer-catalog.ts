@@ -61,7 +61,16 @@ export function toCatalogModel(
         maxSizeMb: 0.05,
       },
       pdf: { supported: false },
-      reasoning: { supported: false },
+      reasoning: model.reasoning
+        ? {
+            supported: true,
+            // Verbatim from the listing: the backend declared these levels in
+            // its declared order (lowest first), and the ids are exactly what
+            // a turn request sends back.
+            levels: model.reasoning.levels,
+            default: model.reasoning.default,
+          }
+        : { supported: false },
       // Tools are chosen by the runtime's own policy per turn, not per
       // message; they are shown as runtime-managed rows instead of toggles.
       tools: { supported: false },
