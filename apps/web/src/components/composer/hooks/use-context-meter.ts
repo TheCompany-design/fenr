@@ -64,7 +64,11 @@ export function useContextMeter(source: () => ConversationSnapshot): void {
 
   // Guards against the effect re-running forever when the store rejects a
   // measurement as unchanged: the ref remembers what was last *offered*, not
-  // what was last stored.
+  // what was last stored. The comparison covers the whole measurement, not
+  // just the total — a guard on `used` alone silently dropped the update
+  // where a model resolved and every token count stayed identical, so the
+  // meter kept reporting the old (window 0) measurement and a phantom
+  // context-overflow blocker outlived the model it was measured against.
   const lastOffered = useRef<number | null>(null)
 
   useEffect(() => {
@@ -72,6 +76,7 @@ export function useContextMeter(source: () => ConversationSnapshot): void {
     if (
       current &&
       current.used === usage.used &&
+      current.window === usage.window &&
       lastOffered.current === usage.used
     ) {
       return
