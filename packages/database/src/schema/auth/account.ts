@@ -13,7 +13,7 @@ export const account = pgTable(
   "account",
   {
     id: idColumn(),
-    // v1.7 identity namespacing: synthetic issuer like "local:credential".
+
     issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
@@ -44,7 +44,7 @@ export const account = pgTable(
       mode: "date",
     })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [

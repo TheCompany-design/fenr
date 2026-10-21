@@ -18,6 +18,6 @@ export const organization = pgTable("organization", {
     mode: "date",
   })
     .defaultNow()
-    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .$onUpdate(() => new Date())
     .notNull(),
 })

@@ -16,7 +16,7 @@ export const userActiveOrganization = pgTable(
       mode: "date",
     })
       .defaultNow()
-      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .$onUpdate(() => new Date())
       .notNull(),
   },
   (table) => [

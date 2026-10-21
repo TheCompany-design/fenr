@@ -10,17 +10,6 @@ import { organization } from "../organizations/organization"
 import { agentItems } from "./agent-items"
 import { agentTurns } from "./agent-turns"
 
-/**
- * A tool call that was dispatched but never confirmed.
- *
- * The runtime writes the intent before running a tool and removes the doubt by
- * writing a result. A row that survives a worker stopping is an effect nobody
- * observed, and it is never replayed automatically: an unobserved effect is a
- * question for a person, not a retry.
- *
- * Keyed by the tool-call item, with no surrogate identifier, for the same reason
- * approvals are: one call, one record.
- */
 export const agentToolIntents = pgTable(
   "agent_tool_intents",
   {

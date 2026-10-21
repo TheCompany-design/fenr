@@ -1,10 +1,3 @@
-/**
- * Fenr database schema barrel.
- *
- * Single source of truth for Drizzle ORM and Better Auth.
- * Exports all tables, relations, and ID generation helpers.
- */
-
 export * from "./agent/agent-approvals"
 export * from "./agent/agent-items"
 export * from "./agent/agent-threads"

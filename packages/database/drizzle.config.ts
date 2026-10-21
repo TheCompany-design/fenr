@@ -2,14 +2,6 @@ import fs from "node:fs"
 import path from "node:path"
 import { defineConfig } from "drizzle-kit"
 
-/**
- * Resolve DATABASE_URL for drizzle-kit.
- *
- * Runtime code reads DATABASE_URL straight from process.env (Bun auto-loads
- * apps/web/.env when the app runs from apps/web). drizzle-kit runs from
- * packages/database though, so we fall back to reading the app's .env file
- * explicitly. A real value already present in the environment always wins.
- */
 function resolveDatabaseUrl(): string {
   const isTest = process.env.NODE_ENV === "test"
   if (isTest && process.env.TEST_DATABASE_URL)

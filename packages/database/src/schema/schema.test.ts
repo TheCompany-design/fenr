@@ -44,7 +44,6 @@ describe("Schema & Database Architecture", () => {
 
   describe("Barrel exports", () => {
     it("exports all tables, relations, and helpers", () => {
-      // Tables
       expect(schema.user).toBeDefined()
       expect(schema.session).toBeDefined()
       expect(schema.account).toBeDefined()
@@ -57,7 +56,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.agentTurns).toBeDefined()
       expect(schema.agentItems).toBeDefined()
 
-      // Relations
       expect(schema.userRelations).toBeDefined()
       expect(schema.sessionRelations).toBeDefined()
       expect(schema.accountRelations).toBeDefined()
@@ -69,14 +67,12 @@ describe("Schema & Database Architecture", () => {
       expect(schema.agentTurnsRelations).toBeDefined()
       expect(schema.agentItemsRelations).toBeDefined()
 
-      // Helpers
       expect(schema.idColumn).toBeDefined()
     })
   })
 
   describe("Schema column definitions and contracts", () => {
     it("matches Better Auth and Fenr column requirements for all tables", () => {
-      // user
       expect(schema.user.id).toBeDefined()
       expect(schema.user.name).toBeDefined()
       expect(schema.user.email).toBeDefined()
@@ -85,7 +81,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.user.createdAt).toBeDefined()
       expect(schema.user.updatedAt).toBeDefined()
 
-      // session
       expect(schema.session.id).toBeDefined()
       expect(schema.session.expiresAt).toBeDefined()
       expect(schema.session.token).toBeDefined()
@@ -96,7 +91,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.session.userId).toBeDefined()
       expect(schema.session.activeOrganizationId).toBeDefined()
 
-      // account
       expect(schema.account.id).toBeDefined()
       expect(schema.account.issuer).toBeDefined()
       expect(schema.account.accountId).toBeDefined()
@@ -112,7 +106,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.account.createdAt).toBeDefined()
       expect(schema.account.updatedAt).toBeDefined()
 
-      // verification
       expect(schema.verification.id).toBeDefined()
       expect(schema.verification.identifier).toBeDefined()
       expect(schema.verification.value).toBeDefined()
@@ -120,7 +113,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.verification.createdAt).toBeDefined()
       expect(schema.verification.updatedAt).toBeDefined()
 
-      // organization
       expect(schema.organization.id).toBeDefined()
       expect(schema.organization.name).toBeDefined()
       expect(schema.organization.slug).toBeDefined()
@@ -129,14 +121,12 @@ describe("Schema & Database Architecture", () => {
       expect(schema.organization.createdAt).toBeDefined()
       expect(schema.organization.updatedAt).toBeDefined()
 
-      // member
       expect(schema.member.id).toBeDefined()
       expect(schema.member.organizationId).toBeDefined()
       expect(schema.member.userId).toBeDefined()
       expect(schema.member.role).toBeDefined()
       expect(schema.member.createdAt).toBeDefined()
 
-      // invitation
       expect(schema.invitation.id).toBeDefined()
       expect(schema.invitation.organizationId).toBeDefined()
       expect(schema.invitation.email).toBeDefined()
@@ -147,19 +137,16 @@ describe("Schema & Database Architecture", () => {
       expect(schema.invitation.expiresAt).toBeDefined()
       expect(schema.invitation.createdAt).toBeDefined()
 
-      // userActiveOrganization
       expect(schema.userActiveOrganization.userId).toBeDefined()
       expect(schema.userActiveOrganization.organizationId).toBeDefined()
       expect(schema.userActiveOrganization.updatedAt).toBeDefined()
 
-      // agentThreads
       expect(schema.agentThreads.id).toBeDefined()
       expect(schema.agentThreads.tenantId).toBeDefined()
       expect(schema.agentThreads.title).toBeDefined()
       expect(schema.agentThreads.createdAt).toBeDefined()
       expect(schema.agentThreads.updatedAt).toBeDefined()
 
-      // agentTurns
       expect(schema.agentTurns.id).toBeDefined()
       expect(schema.agentTurns.threadId).toBeDefined()
       expect(schema.agentTurns.turnIndex).toBeDefined()
@@ -167,7 +154,6 @@ describe("Schema & Database Architecture", () => {
       expect(schema.agentTurns.createdAt).toBeDefined()
       expect(schema.agentTurns.completedAt).toBeDefined()
 
-      // agentItems
       expect(schema.agentItems.id).toBeDefined()
       expect(schema.agentItems.threadId).toBeDefined()
       expect(schema.agentItems.turnId).toBeDefined()
@@ -179,7 +165,6 @@ describe("Schema & Database Architecture", () => {
 
   describe("Database CRUD & relational queries", () => {
     it("inserts and queries records with auto-generated Postgres UUIDv7 IDs", async () => {
-      // Insert user without providing explicit id
       const [insertedUser] = await db
         .insert(schema.user)
         .values({
@@ -195,7 +180,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedUser.name).toBe("Alice Tester")
       expect(insertedUser.emailVerified).toBe(false)
 
-      // Insert organization
       const [insertedOrg] = await db
         .insert(schema.organization)
         .values({
@@ -210,7 +194,6 @@ describe("Schema & Database Architecture", () => {
       )
       expect(insertedOrg.slug).toBe("acme-corp")
 
-      // Insert session with activeOrganizationId
       const [insertedSession] = await db
         .insert(schema.session)
         .values({
@@ -225,7 +208,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedSession.userId).toBe(insertedUser.id)
       expect(insertedSession.activeOrganizationId).toBe(insertedOrg.id)
 
-      // Insert member
       const [insertedMember] = await db
         .insert(schema.member)
         .values({
@@ -238,7 +220,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedMember.id).toBeDefined()
       expect(insertedMember.role).toBe("owner")
 
-      // Insert invitation
       const [insertedInvitation] = await db
         .insert(schema.invitation)
         .values({
@@ -254,7 +235,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedInvitation.status).toBe("pending")
       expect(insertedInvitation.inviterId).toBe(insertedUser.id)
 
-      // Insert userActiveOrganization preference
       const [insertedPref] = await db
         .insert(schema.userActiveOrganization)
         .values({
@@ -266,7 +246,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedPref.userId).toBe(insertedUser.id)
       expect(insertedPref.organizationId).toBe(insertedOrg.id)
 
-      // Insert account
       const [insertedAccount] = await db
         .insert(schema.account)
         .values({
@@ -281,7 +260,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedAccount.id).toBeDefined()
       expect(insertedAccount.issuer).toBe("local:credential")
 
-      // Insert verification
       const [insertedVerification] = await db
         .insert(schema.verification)
         .values({
@@ -294,7 +272,6 @@ describe("Schema & Database Architecture", () => {
       expect(insertedVerification.id).toBeDefined()
       expect(insertedVerification.identifier).toBe("alice@example.com")
 
-      // Relational queries
       const userWithRelations = await db.query.user.findFirst({
         where: eq(schema.user.id, insertedUser.id),
         with: {
