@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
-import type { ResolvedCaps } from "../catalog/capabilities"
+import type { ProviderSpec, ResolvedCaps } from "../catalog/capabilities"
 import {
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
@@ -9,19 +9,6 @@ import {
 } from "../catalog/providers"
 import { usePromptStore } from "../state/prompt-store"
 import { ModelPicker } from "./model-picker"
-
-/**
- * The collapsed trigger says what is about to answer: the model, and the effort
- * it will answer at.
- *
- * Effort is here because it qualifies the model rather than being separate from
- * it — the same model behaves differently at a different level, so a name alone
- * does not say what happens next. What is proven here is that the label shown is
- * the one the *provider declared*, that it is read off the resolved capabilities
- * (so a key that may not pick a level never sees its name), and that the button's
- * accessible name is built from its content instead of a static label that would
- * hide the model and the effort from anyone not looking at the screen.
- */
 
 describe("ModelPicker trigger", () => {
   let container: HTMLDivElement
@@ -37,12 +24,9 @@ describe("ModelPicker trigger", () => {
   afterEach(() => {
     try {
       act(() => root.unmount())
-    } catch {
-      // The tree is discarded either way.
-    }
+    } catch {}
     container.remove()
-    // Everything `seed` writes, or the next test in this file — and any test
-    // file after it — inherits a store that believes it is hydrated.
+
     usePromptStore.setState({
       providers: original.providers,
       runtime: original.runtime,
@@ -55,15 +39,10 @@ describe("ModelPicker trigger", () => {
     })
   })
 
-  /** Anthropic's resolved scale, as the resolver would hand it over. */
   function capsFor(
     levels: readonly { id: string; label: string }[],
     defaultId: string,
   ): ResolvedCaps {
-    // Only `reasoning` is under test, and `ResolvedCaps` is deliberately
-    // total — every capability is resolved or explicitly denied. Filling in the
-    // rest to satisfy the type would be noise, so the partial is asserted as the
-    // one field it stands for.
     return {
       reasoning: {
         access: { kind: "available" },
@@ -295,5 +274,189 @@ describe("ModelPicker trigger", () => {
     const text = trigger().textContent ?? ""
     expect(text).toContain("High")
     expect(text).not.toContain("Max")
+  })
+})
+
+/**
+ * A failed catalogue read must say so where the models would have been.
+ *
+ * The failure this guards against is a lie the picker once told: a catalog
+ * that could not be read rendered as "No matches" — a claim that a search ran
+ * and found nothing, when nothing was ever searched. A stall (a resolver
+ * hiccup, a vendor that timed out) is a finding with a retry, not an empty
+ * vendor.
+ */
+describe("ModelPicker failed slot", () => {
+  let container: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  const original = usePromptStore.getState()
+
+  beforeEach(() => {
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    try {
+      act(() => root.unmount())
+    } catch {
+      // The tree is discarded either way.
+    }
+    container.remove()
+    usePromptStore.setState({
+      providers: original.providers,
+      runtime: original.runtime,
+      selection: original.selection,
+      caps: original.caps,
+      effort: original.effort,
+      hydrated: original.hydrated,
+      providersError: original.providersError,
+      starredModels: original.starredModels,
+    })
+  })
+
+  async function render(): Promise<void> {
+    await act(async () => {
+      root.render(createElement(ModelPicker, {}))
+    })
+  }
+
+  function trigger(): HTMLElement {
+    const el = container.querySelector<HTMLElement>(
+      '[data-slot="model-picker-trigger"]',
+    )
+    if (!el) throw new Error("no model picker trigger rendered")
+    return el
+  }
+
+  function button(label: string): HTMLButtonElement | undefined {
+    return [
+      ...document.body.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => (button.textContent ?? "").includes(label))
+  }
+
+  /** A provider tab, found by its accessible name: the tab renders the
+   * vendor's mark, not its name, so text alone cannot find it. */
+  function tab(label: string): HTMLButtonElement | undefined {
+    return [
+      ...document.body.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.getAttribute("aria-label") === label)
+  }
+
+  it("names a failed read in the runtime's own words, and a retry reloads it", async () => {
+    const finding = "the provider could not be reached from the runtime"
+    // The failed state the slot is seeded with is itself the first attempt;
+    // the retry below is the second.
+    let attempts = 1
+    const provider: ProviderSpec = {
+      id: "nvidia",
+      label: "NVIDIA NIM",
+      plan: "workspace",
+      source: {
+        id: "nvidia",
+        label: "NVIDIA NIM",
+        vendor: "nvidia",
+        // The credential is the runtime's business; the picker only reads
+        // the catalogue.
+        requiresCredential: false,
+        load: async () => {
+          attempts += 1
+          if (attempts === 1) throw new Error(finding)
+          return OPENAI_MODELS
+        },
+      },
+    }
+
+    act(() => {
+      usePromptStore.setState({
+        providers: [provider],
+        hydrated: true,
+        providersError: null,
+        starredModels: [],
+        selection: null,
+        runtime: {
+          nvidia: {
+            availabilityEpoch: 0,
+            connection: { state: "ready", validatedAt: Date.now() },
+            catalog: {
+              state: "failed",
+              error: { kind: "unknown", message: finding },
+              retryable: true,
+            },
+            entitlements: {},
+          },
+        } as never,
+      })
+    })
+    await render()
+
+    // The picker's own opening event, so the test does not depend on the
+    // trigger's pointer plumbing.
+    await act(async () => {
+      trigger().click()
+    })
+    await act(async () => {
+      tab("NVIDIA NIM")?.click()
+    })
+
+    const failed = document.body.textContent ?? ""
+    expect(failed).toContain("Couldn't load this provider's models")
+    expect(failed).toContain(finding)
+    expect(failed).not.toContain("No matches")
+
+    await act(async () => {
+      button("Retry")?.click()
+    })
+
+    const reloaded = document.body.textContent ?? ""
+    expect(reloaded).toContain("GPT-6 Astra")
+    expect(reloaded).not.toContain("Couldn't load this provider's models")
+    expect(attempts).toBe(2)
+  })
+
+  it("says a slot that is still loading with skeletons, not with a claim", async () => {
+    const provider: ProviderSpec = {
+      id: "nvidia",
+      label: "NVIDIA NIM",
+      plan: "workspace",
+      source: {
+        id: "nvidia",
+        label: "NVIDIA NIM",
+        vendor: "nvidia",
+        requiresCredential: false,
+        load: () => new Promise<never>(() => {}),
+      },
+    }
+    act(() => {
+      usePromptStore.setState({
+        providers: [provider],
+        hydrated: true,
+        providersError: null,
+        starredModels: [],
+        selection: null,
+        runtime: {
+          nvidia: {
+            availabilityEpoch: 0,
+            connection: { state: "ready", validatedAt: Date.now() },
+            catalog: { state: "loading" },
+            entitlements: {},
+          },
+        } as never,
+      })
+    })
+    await render()
+    await act(async () => {
+      trigger().click()
+    })
+    await act(async () => {
+      tab("NVIDIA NIM")?.click()
+    })
+
+    const loading = document.body.textContent ?? ""
+    expect(loading).not.toContain("No matches")
+    expect(
+      document.body.querySelectorAll(".animate-pulse").length,
+    ).toBeGreaterThan(0)
   })
 })

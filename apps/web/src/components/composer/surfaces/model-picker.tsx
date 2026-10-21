@@ -20,6 +20,7 @@ import { ProviderLogo } from "@/components/providers/provider-logo"
 import {
   type Catalog,
   type Connection,
+  catalogModels,
   isUsable,
   type ProviderSpec,
 } from "../catalog/capabilities"
@@ -46,15 +47,6 @@ type Tab = {
   kind: "starred" | "provider"
 }
 
-/**
- * Provider and model are one surface, not two controls.
- *
- * Provider selection as a separate trigger makes the user think of them as
- * independent choices when they are in fact a single fact — "this model" always
- * implies its provider. A tab strip keeps that relationship visible and makes
- * the provider a filter over the catalog rather than a separate state the
- * user has to keep in sync.
- */
 export function ModelPicker() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -70,9 +62,6 @@ export function ModelPicker() {
   const providersError = usePromptStore((s) => s.providersError)
   const hasNoProviders = hydrated && !providersError && providers.length === 0
 
-  // The `/model` and `/effort` commands and the ⌘⇧P shortcut open this picker
-  // by event rather than by import, so the command table can stay free of
-  // component references.
   useComposerEvent("composer:open-model-picker", () => setOpen(true))
   useComposerEvent("composer:open-effort", () => setOpen(true))
 
@@ -98,9 +87,6 @@ export function ModelPicker() {
         const provider = providers.find((p) => p.id === providerId)
         const entry = runtime[providerId]
         if (!provider) {
-          // Unreachable in practice — the catalogs above are keyed by these
-          // same providers — but a view for a provider the list has dropped
-          // must not resolve against a fabricated spec.
           return null
         }
         return resolveCapabilities({
@@ -117,7 +103,6 @@ export function ModelPicker() {
       selected: selection,
       starred,
     })
-    // `providers` and `runtime` identities change exactly when a catalog does.
   }, [providers, runtime, selection, starred])
 
   const ranked = useMemo(() => rankModels(views), [views])
@@ -139,17 +124,16 @@ export function ModelPicker() {
     )
   }, [ranked, tab, query, starred])
 
+  const reloadCatalog = usePromptStore((s) => s.reloadCatalog)
+
+  const activeCatalog =
+    tab === "starred" ? null : (runtime[tab]?.catalog ?? null)
+
   const selectedView = ranked.find((view) => view.isSelected) ?? null
   const selectedProvider = providers.find((p) => p.id === selection?.providerId)
 
-  /**
-   * The chosen level's name, or nothing when reasoning is off or unavailable.
-   *
-   * Read off the model's own scale, so it is the label the provider declared
-   * rather than a prettified guess at the id — and off `caps`, which is already
-   * narrowed by the key's entitlement, so this cannot name a level the account
-   * is not allowed to pick.
-   */
+  const effortUsable = isUsable(caps.reasoning)
+
   const effortLevel = isUsable(caps.reasoning)
     ? levelAt(caps.reasoning.capability.levels, effort)
     : null
@@ -166,16 +150,12 @@ export function ModelPicker() {
 
   const select = (view: ModelView) => {
     usePromptStore.getState().select(view.providerId, view.model.id)
-    setOpen(false)
   }
 
   return (
     <Popover
       open={open}
       onOpenChange={(next, details) => {
-        // A press inside the popup closes it, which for the tab strip means
-        // every tab switch would dismiss the picker. Focus-driven closes are
-        // honoured, because those are the ones the user did not ask for.
         if (!next && details.reason === "close-press") {
           const inside = details.event?.target
           if (inside instanceof Node && details.trigger?.contains(inside))
@@ -194,31 +174,19 @@ export function ModelPicker() {
           />
         }
       >
-        {/* What the button does, said to anyone not looking at it.
-            The static `aria-label` this replaced overrode the content entirely,
-            so the model name was never announced at all; naming from content and
-            prefixing the action keeps both — a button that announced only its
-            current value gives no hint that pressing it changes anything. It
-            sits outside the branches below because it is true of all of them:
-            without a provider the button still opens the picker, and "No
-            provider configured" read as a command is the exact thing a bare
-            status string sounds like. */}
+        {}
         <span className="sr-only">Change model. </span>
         {selectedView ? (
           <>
             <span className="sr-only">Model:</span>
-            {/* The mark stands in for the vendor's name — the model's own
-                name is the text beside it — and which mark that is decided
-                in exactly one place, the vendor identity record. */}
+            {}
             <ProviderLogo
               provider={selectedProvider?.source.vendor ?? ""}
               label={selectedProvider?.label}
               size={14}
             />
             <span className="max-w-32 truncate">{selectedView.model.name}</span>
-            {/* The effort sits beside the model because it qualifies it: the
-                same model answers differently at a different level, so a name
-                without one does not say what is about to happen. */}
+            {}
             {effortLevel ? (
               <>
                 <span className="sr-only">, effort {effortLevel.label}</span>
@@ -262,9 +230,7 @@ export function ModelPicker() {
         sideOffset={10}
         className="w-[min(26rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0"
       >
-        {/* Provider tabs double as the connection indicator: a provider with
-            no key still gets a tab, because hiding it would make the missing
-            credential invisible until the user went looking for it. */}
+        {}
         <div className="flex items-center gap-0.5 overflow-x-auto border-b border-border px-2 py-1.5">
           {tabs.map((entry) => {
             const isActive = entry.id === tab
@@ -278,9 +244,6 @@ export function ModelPicker() {
               <button
                 key={entry.id}
                 type="button"
-                // The tab's own name. The mark beside it is decorative to a
-                // screen reader, and the "Starred" tab carries only an icon,
-                // so without this the first tab announces as an unnamed button.
                 aria-label={entry.label}
                 onClick={() => {
                   setTab(entry.id)
@@ -296,10 +259,7 @@ export function ModelPicker() {
                 {entry.kind === "starred" ? (
                   <HugeiconsIcon icon={StarIcon} className="size-3.5" />
                 ) : null}
-                {/* The mark stands in for the name; the tooltip names it on a
-                    delayed hover, so scanning a row of them stays quiet. Which
-                    mark a vendor carries is decided by the identity record —
-                    the tab passes the vendor and decides nothing. */}
+                {}
                 {entry.kind === "provider" ? (
                   <ProviderLogo
                     provider={entry.vendor ?? ""}
@@ -339,14 +299,21 @@ export function ModelPicker() {
           />
         ) : (
           <>
-            <div className="border-b border-border p-2">
+            <div className="flex items-center gap-2 border-b border-border p-2">
               <Input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search models…"
-                className="h-8 border-none bg-transparent shadow-none focus-visible:ring-0"
+                className="h-8 min-w-0 flex-1 border-none bg-transparent shadow-none focus-visible:ring-0"
                 autoFocus
               />
+              {}
+              {selectedView ? (
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
+                  {formatContextWindow(selectedView.model.limits.contextWindow)}{" "}
+                  ctx
+                </span>
+              ) : null}
             </div>
 
             <ScrollArea className="max-h-72">
@@ -354,6 +321,37 @@ export function ModelPicker() {
                 <EmptyState
                   title="No starred models"
                   body="Pick a provider tab and star a model to pin it here."
+                />
+              ) : activeCatalog !== null &&
+                (activeCatalog.state === "idle" ||
+                  activeCatalog.state === "loading") &&
+                catalogModels(activeCatalog).length === 0 ? (
+                <div className="flex flex-col gap-1 p-3">
+                  {SKELETON_ROWS.map((row) => (
+                    <div
+                      key={row}
+                      className="bg-accent/50 h-8 animate-pulse rounded-md"
+                    />
+                  ))}
+                </div>
+              ) : activeCatalog?.state === "failed" &&
+                catalogModels(activeCatalog).length === 0 ? (
+                <EmptyState
+                  title="Couldn't load this provider's models"
+                  body={
+                    activeCatalog.error.message ||
+                    "The runtime could not read the vendor's model list."
+                  }
+                  action={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void reloadCatalog(tab)}
+                    >
+                      <HugeiconsIcon icon={RefreshIcon} className="size-3.5" />
+                      Retry
+                    </Button>
+                  }
                 />
               ) : visible.length === 0 ? (
                 <EmptyState
@@ -382,16 +380,14 @@ export function ModelPicker() {
             </ScrollArea>
 
             {/* Effort lives in this popover's footer because it is meaningless
-            without a model: its levels are a property of the model above. */}
-            {selectedView ? (
-              <div className="flex items-center justify-between gap-3 border-t border-border p-2">
+            without a model: its levels are a property of the model above. The
+            control spans the row's whole width, so it is the footer — no
+            readout shares the row any more. */}
+            {selectedView && effortUsable ? (
+              <div className="border-t border-border p-2">
                 <EffortControl />
-                <span className="text-muted-foreground text-xs tabular-nums">
-                  {formatContextWindow(selectedView.model.limits.contextWindow)}{" "}
-                  ctx
-                </span>
               </div>
-            ) : selectedProvider ? (
+            ) : !selectedView && selectedProvider ? (
               <div className="border-t border-border p-2">
                 <EmptyState
                   title="No model selected"

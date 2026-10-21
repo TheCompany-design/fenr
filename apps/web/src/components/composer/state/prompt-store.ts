@@ -38,7 +38,6 @@ import {
 } from "../catalog/resolve"
 import type { ContextUsage } from "../catalog/usage"
 
-/** A tool the agent runtime manages itself; shown, not toggled. */
 export type RuntimeTool = {
   id: string
   label: string
@@ -59,11 +58,11 @@ export type ProviderRuntime = {
   connection: Connection
   catalog: Catalog
   entitlements: Entitlements
-  /** Invalidates observations and in-flight results when the key changes. */
+
   availabilityEpoch: number
-  /** Revision of the server-managed configuration used for these observations. */
+
   credentialRevision?: string
-  /** Revision whose authenticated catalogue supplied `keyAccessConfirmed`. */
+
   catalogCredentialRevision?: string
 }
 
@@ -72,35 +71,19 @@ export type PromptStore = ComposerState & {
   runtime: Record<ProviderId, ProviderRuntime>
   caps: ResolvedCaps
   blockers: Blocker[]
-  /** `ready` until a send is attempted; the transport owns the rest. */
+
   status: ComposerStatus
   notices: Notice[]
   usage: ContextUsage | null
   hydrated: boolean
-  /**
-   * Why the provider list could not be read, when it could not. Distinguishing
-   * "this workspace has none" from "we could not ask" is the difference
-   * between pointing at settings and pointing at a retry: a silent empty list
-   * hides the failure and, with it, the context meter and every control that
-   * needs a model.
-   */
+
   providersError: string | null
   transport: ComposerTransport | null
-  /**
-   * Starred models, keyed `"providerId/modelId"`. This is a durable
-   * preference rather than composer state, so it lives outside the reconciled
-   * slice — reconciling it would be meaningless and every keystroke would
-   * have to consider it.
-   */
+
   starredModels: string[]
-  /**
-   * Tools the agent runtime manages itself. Host-provided like `providers`,
-   * and rendered as informational rows: the runtime authorizes its own tools
-   * per turn, so a toggle here would promise something the wire never does.
-   */
+
   runtimeTools: RuntimeTool[]
 
-  /** Recomputes caps from the selection, then reconciles. The only exit. */
   apply: (patch: Partial<ComposerState>) => void
   select: (providerId: ProviderId, modelId: string) => void
   setEffort: (effort: EffortLevelId) => void
@@ -113,34 +96,26 @@ export type PromptStore = ComposerState & {
   removeAttachment: (id: string) => void
   clearAttachments: () => void
   setUsage: (usage: ContextUsage) => void
-  /** Drops the measurement, e.g. when the transcript is cleared. */
+
   clearUsage: () => void
   dismissNotice: () => void
   toggleStar: (key: string) => void
   submit: () => void
   stop: () => void
-  /**
-   * The transport opened the stream. Separated from `submit` so the status
-   * tracks what the connection is actually doing rather than what was hoped.
-   */
+
   markStreaming: () => void
-  /**
-   * Injected rather than imported so the store holds no reference to the
-   * server function — which is what makes this testable, and what keeps the
-   * playground's dummy backend swappable for a real one without touching the
-   * composer's state machine.
-   */
+
   setTransport: (bridge: ComposerTransport) => void
-  /** Called by the transport when a reply lands or fails. */
+
   settle: (status: ComposerStatus) => void
   connect: (providerId: ProviderId, credential: string) => Promise<void>
   disconnect: (providerId: ProviderId) => Promise<void>
   hydrate: () => Promise<void>
-  /** Host-provided context: the tools the runtime runs on its own. */
+
+  reloadCatalog: (providerId: ProviderId) => Promise<void>
+
   setRuntimeTools: (tools: RuntimeTool[]) => void
-  /** Records a successful call's evidence, scoped to its saved key. Failures
-   * are deliberately not recordable: a generic call error cannot prove a model
-   * is unavailable, so denial evidence never comes from a call result. */
+
   recordModelAvailability: (
     providerId: ProviderId,
     modelId: string,
@@ -169,12 +144,6 @@ function runtimeOf(
   return runtime[providerId] ?? IDLE
 }
 
-/**
- * Tool eligibility is a join over two sets — the model's supported kinds and
- * the key's allowance — so it lives here rather than in a component. Picking a
- * model is a statement about what you are about to run, and it must not leave
- * a tool enabled that the model cannot call.
- */
 function eligibleToolIds(
   caps: ResolvedCaps,
   available: readonly string[],
@@ -188,12 +157,6 @@ function eligibleToolIds(
   return eligible.slice(0, max)
 }
 
-/**
- * The credential store is a module-level singleton rather than a store
- * member: it is infrastructure, it never changes for the lifetime of the
- * page, and putting it in state would mean it participates in every
- * re-render and cannot be swapped per-test without a reset.
- */
 let credentialStore: CredentialStore = new LocalCredentialStore()
 const credentialOperationQueues = new Map<ProviderId, Promise<unknown>>()
 const availabilityExpiryTimers = new Map<
@@ -258,7 +221,6 @@ function scheduleAvailabilityExpiry(
         .getState()
         .expireAvailable(providerId, revision, modelId, checkedAt)
     } catch {
-      // The persisted store is best effort; runtime evidence still expires.
       expired = true
     }
     if (!expired) return
@@ -306,15 +268,6 @@ export function setCredentialStore(store: CredentialStore): void {
   credentialStore = store
 }
 
-/**
- * Where the provider list comes from.
- *
- * The playground ships the static catalog in `catalog/providers`; a host app
- * whose providers are server-side state — saved configurations, workspace
- * entitlements — injects its own source here, exactly as it injects a
- * credential store. `hydrate` awaits it before loading catalogs, because a
- * provider that is not in the list has no catalog to load.
- */
 type ProvidersSource = () => Promise<readonly ProviderSpec[]>
 
 let providersSource: ProvidersSource = () => Promise.resolve(PROVIDERS)
@@ -329,22 +282,6 @@ function loadProviders(): Promise<readonly ProviderSpec[]> {
 }
 
 export const usePromptStore = create<PromptStore>()((set, get) => {
-  /**
-   * Every mutation funnels through here. The order matters: capabilities are
-   * recomputed from the *patched* selection first, because whether a tool
-   * survives depends on what was just selected, and reconciling against stale
-   * caps would leave a tool enabled that the new model cannot call.
-   */
-  /**
-   * Text cannot change a capability, a blocker, or a notice. The only
-   * text-dependent rule is the context meter, and that arrives separately
-   * through `setUsage` with a fresh measurement.
-   *
-   * Routing edits through here instead of `apply` is what keeps a keystroke
-   * off the model picker, the effort control, and the tool menu: `apply`
-   * rebuilds `caps`, `blockers`, and `notices` as new references every call,
-   * so anything subscribed to them would re-render on every character.
-   */
   function applyLocal(patch: Partial<ComposerState>) {
     set(patch as Partial<PromptStore>)
   }
@@ -361,8 +298,7 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
       return {
         ...result.state,
         caps,
-        // Identity is preserved when the outcome is unchanged, so a reconcile
-        // that concludes "nothing to report" does not wake every subscriber.
+
         blockers: sameBlockers(result.blockers, state.blockers)
           ? state.blockers
           : result.blockers,
@@ -400,15 +336,9 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
       const runtime = runtimeOf(get().runtime, providerId)
       const available = catalogModels(runtime.catalog)
 
-      // Selecting a model from a provider that has not finished loading has
-      // to resolve against *something*, or the composer flashes every
-      // capability as denied while the network catches up.
       const model = available.find((candidate) => candidate.id === modelId)
       const next: Selection | null = model ? { providerId, modelId } : null
 
-      // Reusing the previous object when the selection is unchanged keeps
-      // `computeCaps`' identity memo valid, so a redundant reselect costs
-      // nothing downstream.
       const current = get().selection
       apply({ selection: sameSelection(current, next) ? current : next })
     },
@@ -418,9 +348,7 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
 
     setText: (text) => {
       const state = get()
-      // A mention whose span no longer matches what the user typed is dead.
-      // Validating on write keeps the list derived rather than reconciled
-      // later, so no reader can observe a stale mention.
+
       const mentions = state.mentions.filter(
         (mention) =>
           text.slice(mention.start, mention.end) === mention.insertText,
@@ -841,6 +769,30 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
       set({ hydrated: true })
 
       if (!sameSelection(previousSelection, selection)) apply({ selection })
+    },
+
+    reloadCatalog: async (providerId) => {
+      const provider = get().providers.find((p) => p.id === providerId)
+      if (!provider) return
+      const current = runtimeOf(get().runtime, providerId)
+      // A connection mid-validation owns the slot's next state; a retry from
+      // here would race whatever it is already doing.
+      if (current.connection.state === "validating") return
+      const credential = await serializeCredentialOperation(providerId, () =>
+        credentialStore.get(providerId),
+      )
+      if (
+        runtimeOf(get().runtime, providerId).availabilityEpoch !==
+        current.availabilityEpoch
+      )
+        return
+      await loadCatalog(
+        provider,
+        credential,
+        set,
+        get,
+        current.availabilityEpoch,
+      )
     },
   }
 })
