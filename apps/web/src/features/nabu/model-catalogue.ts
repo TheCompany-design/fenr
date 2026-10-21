@@ -1,51 +1,17 @@
-/**
- * How a listed model reads in the picker.
- *
- * The runtime answers with what each vendor published and nothing more, so
- * every field past the id is optional. That makes these formatters the place
- * where "the vendor did not say" becomes something a person can act on: an
- * absent context window reads as unknown rather than as zero, and an absent
- * price is left off entirely rather than shown as free.
- *
- * Pure and separate from the form so the rules can be tested without a
- * renderer, and so the same row reads identically wherever a model is listed.
- */
 import type { ListedModel } from "@/lib/schemas/nabu"
 
-/**
- * The name to show for a model.
- *
- * The vendor's own name when it published one, and the id otherwise. The id is
- * what a request carries, so it is never hidden — a name without its id would
- * leave someone unable to tell `claude-opus-4-8` from a preview of it.
- */
 export function modelName(model: ListedModel): string {
   const name = model.display_name?.trim()
   return name && name !== model.id ? name : model.id
 }
 
-/**
- * The id, shown beside the name only when the two differ.
- *
- * Returns an empty string when it would repeat the name, so a caller can render
- * it unconditionally rather than branching on the model's shape.
- */
 export function modelIdSuffix(model: ListedModel): string {
   return modelName(model) === model.id ? "" : model.id
 }
 
-/**
- * A token count at the precision a person reads it at: `1M`, `128k`, `4k`.
- *
- * Rounds rather than refusing. A window of 1048576 is a limit, not a verdict on
- * a request, and `1048576` in a dropdown helps nobody.
- */
 export function formatTokenCount(count: number): string {
   if (!Number.isFinite(count) || count <= 0) return ""
   if (count >= 1_000_000) {
-    // Rounded to a tenth first, then the trailing `.0` dropped: Google's
-    // 1,048,576-token window is the "1M" window, and printing `1.0M` for it
-    // spends the reader's attention on a decimal nobody wants.
     const millions = Math.round((count / 1_000_000) * 10) / 10
     return Number.isInteger(millions)
       ? `${millions}M`
@@ -101,4 +67,51 @@ export function modelFacts(model: ListedModel): string {
   }
 
   return parts.join(" · ")
+}
+
+/**
+ * What a row says about the model's life on the vendor's own storefront.
+ *
+ * `storefront` is the runtime's overlay of what the vendor's own published
+ * surfaces carry — the storefront catalog for NVIDIA, the retirement dates
+ * OpenRouter publishes beside its listing. Three independent facts, each
+ * with its own sentence, because each changes a choice differently: a
+ * delisted model is one the vendor stopped selling, an unserving one is
+ * listed but currently answers nothing, and a dated one is going away on a
+ * day a person can see coming. Published-and-quiet says nothing: presence
+ * is the unremarkable truth, and an unread surface must not read as a
+ * verdict.
+ */
+export function storefrontWarning(model: ListedModel): string {
+  const storefront = model.storefront
+  if (!storefront) return ""
+  if (!storefront.published) {
+    return "No longer on the vendor's storefront"
+  }
+  if (storefront.serving === false) {
+    return "Listed by the vendor, but not currently serving"
+  }
+  if (storefront.ends_on) {
+    const when = formatIsoDate(storefront.ends_on)
+    return when
+      ? `The vendor retires it on ${when}`
+      : "The vendor has announced its retirement"
+  }
+  return ""
+}
+
+/**
+ * An ISO date, said the way a person reads it. An unparseable date falls
+ * back to nothing rather than to a wrong day — the caller has its own
+ * sentence for that.
+ */
+function formatIsoDate(iso: string): string {
+  const date = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  })
 }

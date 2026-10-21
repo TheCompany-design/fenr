@@ -1,10 +1,3 @@
-/**
- * The picker renders exactly what a vendor published and nothing more, so these
- * formatters carry the whole burden of turning an absence into something a
- * person can read. The cases below are the ones that would be quietly wrong: a
- * missing fact rendered as a zero, a cheap model rounded to free, and a name
- * that hides the id someone would have to type.
- */
 import { describe, expect, it } from "bun:test"
 
 import type { ListedModel } from "@/lib/schemas/nabu"
@@ -14,9 +7,9 @@ import {
   modelFacts,
   modelIdSuffix,
   modelName,
+  storefrontWarning,
 } from "./model-catalogue"
 
-/** A model carrying only what the test says the vendor published. */
 function listed(model: ListedModel): ListedModel {
   return model
 }
@@ -89,7 +82,6 @@ describe("formatPrice", () => {
   })
 
   it("does not round a cheap model to zero", () => {
-    // A per-million price of $0.0004 displayed as "$0.00" would read as free.
     expect(formatPrice(0.0004)).toBe("$0.0004")
     expect(formatPrice(0.01)).toBe("$0.01")
   })
@@ -100,8 +92,6 @@ describe("formatPrice", () => {
   })
 
   it("does not render a price nobody could have meant in exponential", () => {
-    // The runtime accepts any finite price a vendor publishes, and `toFixed`
-    // switches to exponential at 1e21 — so "1e300" would read `$1e+306`.
     expect(formatPrice(1e300)).toBe("$1000+")
     expect(formatPrice(1e21)).toBe("$1000+")
     expect(formatPrice(999.99)).toBe("$999.99")
@@ -124,9 +114,6 @@ describe("modelFacts", () => {
   })
 
   it("leaves the output ceiling off the row on purpose", () => {
-    // It is carried on the type and deliberately not rendered: three numbers on
-    // one line stop being readable. Pinned so the omission stays a decision
-    // rather than drifting into an accident.
     expect(
       modelFacts(
         listed({
@@ -139,7 +126,6 @@ describe("modelFacts", () => {
   })
 
   it("renders a model the vendor described only by name with no detail line", () => {
-    // The absence is the signal: a row of dashes would imply facts nobody gave.
     expect(modelFacts(listed({ id: "gpt-4o" }))).toBe("")
     expect(
       modelFacts(
@@ -165,5 +151,55 @@ describe("modelFacts", () => {
         listed({ id: "a", accepts_images: false, context_window: 8_192 }),
       ),
     ).toBe("8k context")
+  })
+})
+
+describe("storefrontWarning", () => {
+  it("names a model the vendor's storefront no longer carries", () => {
+    expect(
+      storefrontWarning(
+        listed({
+          id: "nvidia/gpt-oss-120b",
+          storefront: { published: false },
+        }),
+      ),
+    ).toBe("No longer on the vendor's storefront")
+  })
+
+  it("names a model the vendor lists but is not currently serving", () => {
+    expect(
+      storefrontWarning(
+        listed({
+          id: "stepfun-ai/step-5-preview",
+          storefront: { published: true, serving: false },
+        }),
+      ),
+    ).toBe("Listed by the vendor, but not currently serving")
+  })
+
+  it("names the day the vendor says the model ends", () => {
+    expect(
+      storefrontWarning(
+        listed({
+          id: "nvidia/nemotron-3-super-120b-a12b",
+          storefront: { published: true, ends_on: "2026-10-19" },
+        }),
+      ),
+    ).toBe("The vendor retires it on Oct 19, 2026")
+  })
+
+  it("says nothing for a model the vendor published quietly", () => {
+    expect(
+      storefrontWarning(
+        listed({
+          id: "nvidia/gpt-oss-20b",
+          storefront: { published: true },
+        }),
+      ),
+    ).toBe("")
+  })
+
+  it("says nothing when the runtime could not answer", () => {
+    expect(storefrontWarning(listed({ id: "nvidia/gpt-oss-20b" }))).toBe("")
   })
 })

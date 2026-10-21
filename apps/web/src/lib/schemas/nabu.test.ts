@@ -1,16 +1,3 @@
-/**
- * The wire contract between this app and the agent runtime.
- *
- * Most of these schemas guard payloads this app requested from a runtime it
- * operates, so a refusal there is a normal validation failure. The model-listing
- * schemas are different: they are the first place vendor-originated data is
- * checked, and the response is validated as one — a single field on a single
- * model this schema refuses takes the entire catalogue with it and leaves the
- * picker holding an error that names neither the vendor nor the field.
- *
- * So the listing tests are about the edges: which absences are legal, which
- * numbers are legal, and what happens when one model in a good array is not.
- */
 import { describe, expect, it } from "bun:test"
 import {
   approvalDecisionInputSchema,
@@ -26,7 +13,6 @@ const TURN_ID = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
 const ITEM_ID = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
 const TENANT_ID = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e4"
 
-/** A response body the runtime would send for a healthy catalogue. */
 function catalogue(
   models: unknown[] = [{ id: "gpt-4o" }],
 ): Record<string, unknown> {
@@ -55,11 +41,32 @@ describe("listedModelSchema", () => {
     expect(listedModelSchema.parse(model)).toEqual(model)
   })
 
+  it("accepts the storefront lifecycle, both verdicts and an absence", () => {
+    expect(
+      listedModelSchema.parse({
+        id: "nvidia/gpt-oss-20b",
+        storefront: { published: true },
+      }),
+    ).toEqual({ id: "nvidia/gpt-oss-20b", storefront: { published: true } })
+    expect(
+      listedModelSchema.parse({
+        id: "nvidia/gpt-oss-120b",
+        storefront: {
+          published: false,
+          serving: false,
+          ends_on: "2026-10-27",
+        },
+      }),
+    ).toEqual({
+      id: "nvidia/gpt-oss-120b",
+      storefront: { published: false, serving: false, ends_on: "2026-10-27" },
+    })
+    expect(listedModelSchema.parse({ id: "nvidia/gpt-oss-20b" })).toEqual({
+      id: "nvidia/gpt-oss-20b",
+    })
+  })
+
   it("accepts a zero limit rather than failing the whole catalogue over it", () => {
-    // The runtime treats a published zero as an unknown limit and sends nothing,
-    // so this cannot arrive from it today. It is accepted anyway: a schema that
-    // guards its own output must not be the thing that discards a whole
-    // catalogue over one odd number on one of seven hundred models.
     expect(
       listedModelSchema.safeParse({ id: "m", context_window: 0 }).success,
     ).toBe(true)
@@ -95,9 +102,6 @@ describe("listedModelSchema", () => {
     ).toEqual({ input_usd: 0, output_usd: 0 })
   })
 
-  // The runtime declares the scale, lowest first, with the vendor's own
-  // default. Verbatim here so the picker shows the level the provider names,
-  // not one this service re-worded.
   const scale = {
     levels: [
       { id: "low", label: "Low" },
@@ -113,9 +117,6 @@ describe("listedModelSchema", () => {
   })
 
   it("rejects a scale whose default names no offered level", () => {
-    // A default off the list would leave the picker selecting a level whose
-    // turn request is clamped away again — the malformed shape fails here,
-    // where the schema can name the runtime's own broken declaration.
     expect(
       listedModelSchema.safeParse({
         id: "m",
@@ -157,11 +158,6 @@ describe("providerModelsResponseSchema", () => {
   })
 
   it("documents the blast radius of one bad model", () => {
-    // The whole body is parsed as one, so a single entry this schema refuses
-    // takes the entire catalogue with it — and the caller gets a validation
-    // error naming neither the vendor nor the field. This is why the schema is
-    // as permissive as it can honestly be: it guards its own output, and it
-    // refuses only what it cannot represent.
     const good = { id: "gpt-4o", context_window: 128_000 }
     const withoutAnId = { display_name: "a model that never sent one" }
 
@@ -171,8 +167,6 @@ describe("providerModelsResponseSchema", () => {
     expect(
       providerModelsResponseSchema.safeParse(catalogue([good, withoutAnId]))
         .success,
-      // One unidentifiable model costs the whole list — which is exactly why
-      // the runtime never sends one, and why this schema stays this permissive.
     ).toBe(false)
   })
 })
@@ -207,7 +201,6 @@ describe("nabuCapabilitiesSchema", () => {
   })
 
   it("rejects a deployment with no attempts", () => {
-    // An attempt budget of zero would mean no turn could ever run.
     expect(() =>
       nabuCapabilitiesSchema.parse({
         tools: [],
@@ -229,8 +222,6 @@ describe("approvalDecisionInputSchema", () => {
   })
 
   it("rejects an unrecognised decision", () => {
-    // The runtime only records two, and a third would be silently dropped by
-    // its database constraint.
     expect(() =>
       approvalDecisionInputSchema.parse({
         item_id: ITEM_ID,
@@ -298,8 +289,6 @@ describe("transcriptItemSchema", () => {
   })
 
   it("keeps an unknown tool outcome rather than defaulting it", () => {
-    // An unobserved effect is the case that matters most, and silently
-    // turning it into a success is the failure this guards against.
     const parsed = transcriptItemSchema.parse({
       ...base,
       kind: "tool_result",
