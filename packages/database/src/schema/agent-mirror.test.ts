@@ -1,23 +1,3 @@
-/**
- * The agent tables belong to the runtime.
- *
- * `thebookofnabu` owns `agent_threads`, `agent_turns`, `agent_items`,
- * `agent_approvals` and `agent_tool_intents`: it mints their identifiers, writes
- * their rows, and enforces isolation through explicit `tenant_id` predicates
- * and foreign keys to Fenr's `organization` table. Fenr therefore does not
- * migrate them and does not write them — its Drizzle tables exist only so the
- * transcript can be read.
- *
- * That leaves one obligation in this direction: a mirror drifts silently. When
- * the runtime added `tenant_id`, `attempt` and `completed_at`, fenr's mirror
- * kept declaring `turn_count`, and nothing failed until a query selected a
- * column that did not exist.
- *
- * So this file compares the mirror against the database the runtime actually
- * created. It reads `information_schema` rather than a fixture, which means it
- * fails for a real mismatch rather than for a stale copy of the truth.
- */
-
 import { describe, expect, it } from "bun:test"
 import { sql } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
@@ -30,19 +10,10 @@ import {
   agentTurns,
 } from "./agent"
 
-/** Drizzle's own representation of a column, which carries no name at runtime. */
 type AnyColumn = PgColumn & { name: string }
 
-/**
- * A table declaration.
- *
- * Drizzle's `PgTable` carries its columns in a branded generic rather than as
- * an index signature, so it is widened here on purpose: the point of this file
- * is to read whatever the table declares, including a column added by accident.
- */
 type MirrorTable = object
 
-/** The columns a table declares, as database column names. */
 function declaredColumns(table: MirrorTable): string[] {
   return Object.values(table as Record<string, unknown>)
     .filter(
@@ -90,6 +61,8 @@ describe("agent table mirror matches the runtime schema", () => {
     // never existed in the runtime's table, so any full select failed at
     // runtime rather than at build time.
     expect(declaredColumns(agentThreads)).not.toContain("turn_count")
+    expect(declaredColumns(agentThreads)).toContain("model")
+    expect(declaredColumns(agentThreads)).toContain("effort")
   })
 
   it("mirrors the tenancy columns isolation depends on", async () => {
