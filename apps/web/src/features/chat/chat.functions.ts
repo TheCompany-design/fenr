@@ -1,15 +1,8 @@
-/**
- * Server functions for conversational chat operations.
- *
- * Exposes type-safe createServerFn endpoints for client consumption.
- * Validated with Zod and wrapped in wide-event logging with session verification.
- */
-
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
-import { getThreadMessages, getThreadProvider } from "./server/chat.server"
+import { getThreadChoice, getThreadMessages } from "./server/chat.server"
 
 const getThreadMessagesInputSchema = z.object({
   threadId: z.string().uuid(),
@@ -40,21 +33,14 @@ export const getThreadMessagesFn = createServerFn({ method: "GET" })
     )
   })
 
-const getThreadProviderInputSchema = z.object({
+const getThreadChoiceInputSchema = z.object({
   threadId: z.string().uuid(),
 })
 
-/**
- * Which saved provider this conversation runs on.
- *
- * The picker in the chat header reads this so the checkmark shows what the
- * conversation is *actually* set to — including on another device, or after a
- * suspension — rather than what this tab last clicked.
- */
-export const getThreadProviderFn = createServerFn({ method: "GET" })
-  .validator((input: unknown) => getThreadProviderInputSchema.parse(input))
+export const getThreadChoiceFn = createServerFn({ method: "GET" })
+  .validator((input: unknown) => getThreadChoiceInputSchema.parse(input))
   .handler(async ({ data }) => {
-    return withWideEvent("chat", "getThreadProvider", async (setContext) => {
+    return withWideEvent("chat", "getThreadChoice", async (setContext) => {
       const session = await ensureSession()
       const tenantId = session.session.activeOrganizationId
 
@@ -68,6 +54,6 @@ export const getThreadProviderFn = createServerFn({ method: "GET" })
         threadId: data.threadId,
       })
 
-      return getThreadProvider(data.threadId, tenantId)
+      return getThreadChoice(data.threadId, tenantId)
     })
   })

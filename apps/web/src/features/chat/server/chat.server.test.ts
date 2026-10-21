@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { db, eq, schema } from "@workspace/database"
-import { getThreadMessages } from "./chat.server"
+import { getThreadChoice, getThreadMessages } from "./chat.server"
 
 async function seedOrganization(id: string) {
   await db.insert(schema.organization).values({
@@ -26,6 +26,34 @@ const NON_MESSAGE_KINDS = [
 ] as const
 
 describe("Chat Server Operations (Thread Messages)", () => {
+  it("returns the model choice remembered for a thread", async () => {
+    const tenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    await seedOrganization(tenantId)
+    await db.insert(schema.agentThreads).values({
+      id: threadId,
+      tenantId,
+      model: "openai/gpt-5.2",
+      effort: "high",
+    })
+
+    try {
+      expect(await getThreadChoice(threadId, tenantId)).toEqual({
+        providerConfigId: null,
+        model: "openai/gpt-5.2",
+        effort: "high",
+      })
+      expect(await getThreadChoice(threadId, crypto.randomUUID())).toBeNull()
+    } finally {
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.id, threadId))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantId))
+    }
+  })
+
   it("returns null when thread does not exist", async () => {
     const messages = await getThreadMessages(
       crypto.randomUUID(),

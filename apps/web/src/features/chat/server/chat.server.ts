@@ -8,10 +8,6 @@ export interface GetThreadMessagesOptions {
   readonly requestId?: string
 }
 
-/**
- * Retrieve chronological chat messages for a specific thread, scoped to the tenant.
- * Enforces organization boundary isolation.
- */
 export async function getThreadMessages(
   threadId: string,
   tenantId: string,
@@ -22,10 +18,6 @@ export async function getThreadMessages(
     "Fetching thread messages from database",
   )
 
-  // The runtime and this reader both name the tenant explicitly. The thread
-  // check protects the first lookup, and the item predicate protects the second
-  // lookup independently of any database session setting.
-  // 1. Verify thread exists and belongs to the active tenant
   const [thread] = await db
     .select({ id: schema.agentThreads.id })
     .from(schema.agentThreads)
@@ -41,7 +33,6 @@ export async function getThreadMessages(
     return null
   }
 
-  // 2. Fetch items for this thread ordered chronologically
   const items = await db
     .select({
       id: schema.agentItems.id,
@@ -57,24 +48,9 @@ export async function getThreadMessages(
         isNotNull(schema.agentItems.completedAt),
       ),
     )
-    // The id is the tiebreaker, and it is what makes this order correct rather
-    // than merely plausible. A turn's opening user message and its first
-    // assistant item are inserted in one transaction, and PostgreSQL's now()
-    // is the *transaction start time*, so both rows carry an identical
-    // timestamp. Ordering by that alone leaves the two in whatever order the
-    // planner happens to return, which put the reply above the question that
-    // prompted it.
-    //
-    // Identifiers are uuidv7, so they increase in issue order even inside one
-    // transaction, and a tie on time can be broken by the sequence the rows
-    // were actually written in.
+
     .orderBy(asc(schema.agentItems.createdAt), asc(schema.agentItems.id))
 
-  // Only message kinds are bubbles. A tool call, a tool result and the two
-  // halves of an approval are real transcript items with their own identity;
-  // mapping them to a message produced a row of empty agent bubbles on every
-  // reload, which is how a thread came to look like the agent had said nothing
-  // five times.
   return items
     .filter(
       (
@@ -105,23 +81,20 @@ export async function getThreadMessages(
     })
 }
 
-/**
- * Which saved provider a conversation runs on.
- *
- * Read from the thread mirror rather than from the runtime's API, for the same
- * reason the transcript is: the row is right there, and a second HTTP hop for
- * four bytes of state is a hop that can fail on its own.
- *
- * `null` means "the workspace's default" — a conversation started before the
- * picker existed, or one whose configuration was deleted. The picker renders
- * that as the default entry rather than as an empty selection.
- */
-export async function getThreadProvider(
+export async function getThreadChoice(
   threadId: string,
   tenantId: string,
-): Promise<string | null> {
+): Promise<{
+  providerConfigId: string | null
+  model: string | null
+  effort: string | null
+} | null> {
   const [thread] = await db
-    .select({ providerConfigId: schema.agentThreads.providerConfigId })
+    .select({
+      providerConfigId: schema.agentThreads.providerConfigId,
+      model: schema.agentThreads.model,
+      effort: schema.agentThreads.effort,
+    })
     .from(schema.agentThreads)
     .where(
       and(
@@ -131,5 +104,11 @@ export async function getThreadProvider(
     )
     .limit(1)
 
-  return thread?.providerConfigId ?? null
+  return thread
+    ? {
+        providerConfigId: thread.providerConfigId,
+        model: thread.model,
+        effort: thread.effort,
+      }
+    : null
 }

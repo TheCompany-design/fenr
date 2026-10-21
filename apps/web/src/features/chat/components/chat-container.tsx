@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { useCallback, useEffect, useRef } from "react"
 import { ComposerMount, useComposerEvent } from "@/components/composer"
 import { HeaderPortal } from "@/components/shell/header-portal"
-import { getThreadProviderFn } from "../chat.functions"
+import { getThreadChoiceFn } from "../chat.functions"
 import { useComposerBridge, useComposerHostData } from "../composer-host"
 import { useAgentStream } from "../hooks/use-agent-stream"
 import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
@@ -20,39 +20,11 @@ export interface ChatContainerProps {
   }) => void | Promise<void>
 }
 
-/**
- * Primary chat orchestrator component.
- * Sourced directly from TanStack Query's cache and route tree.
- * Coordinates smooth CSS transition from centered hero greeting to bottom-docked composer.
- *
- * The screen has no header of its own: the app shell's top bar owns that, and
- * the chat contributes its title to it through the header portal. What is left
- * here is the conversation itself.
- *
- * The composer is the conversation's only model control. Its picker writes the
- * choice that rides with the next message — there is no separate header
- * dropdown to keep in step, because two controls for one fact is how they
- * start disagreeing.
- */
 export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
   const { send, stop, isStreaming, turn } = useAgentStream()
   const { savedProviders } = useComposerHostData()
 
-  /*
-   * A chat with no thread is a clean chat.
-   *
-   * A failed or abandoned turn leaves its messages in the draft key, and the
-   * failure path deliberately keeps them so the person can read what went
-   * wrong. Without this, clicking Chat in the sidebar to start over reopened
-   * that dead conversation — and, now that the header names a chat from its
-   * first prompt, reopened its title in the top bar too.
-   *
-   * Once per mount, and never while a turn is streaming: this runs on entry, not
-   * on every change of the streaming flag. A failed send flips that flag back to
-   * false within milliseconds, so a re-run here would delete the failed
-   * conversation the moment it appeared.
-   */
   const clearedDraftRef = useRef(false)
   useEffect(() => {
     if (clearedDraftRef.current || threadId || isStreaming) {
@@ -76,23 +48,18 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
       }
       try {
         await routerNavigate(opts as never)
-      } catch {
-        // Fallback if router context is missing in testing
-      }
+      } catch {}
     },
     [onNavigate, routerNavigate],
   )
 
-  // Authoritative messages state sourced directly from TanStack Query cache
   const { data: messages } = useQuery(threadMessagesQueryOptions(threadId))
   const safeMessages = messages ?? []
 
-  // The conversation's persisted provider choice, so the composer opens on
-  // what this thread actually runs on — read from the record, not local state.
-  const { data: threadProviderId } = useQuery({
-    queryKey: ["chat", "thread-provider", threadId],
+  const { data: threadChoice } = useQuery({
+    queryKey: ["chat", "thread-choice", threadId],
     queryFn: () =>
-      getThreadProviderFn({ data: { threadId: threadId as string } }),
+      getThreadChoiceFn({ data: { threadId: threadId as string } }),
     enabled: Boolean(threadId),
     staleTime: 1000 * 30,
     retry: 1,
@@ -101,7 +68,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const bridge = useComposerBridge({
     threadId,
     messages: safeMessages,
-    threadProviderId: threadProviderId ?? null,
+    threadChoice: threadChoice ?? null,
     savedProviders,
     turnUsage: turn.usage,
     turnStatus: turn.status,
@@ -116,17 +83,11 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
       }),
   })
 
-  // `/provider` hands off to settings: keys are workspace state, and a picker
-  // that grew add-forms would be a settings page wearing a dropdown.
   useComposerEvent("composer:open-provider-picker", () => {
     void safeNavigate({ to: "/settings/provider" })
   })
 
   const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
-
-  // A suspended turn is waiting on a decision, not on the model. Offering the
-  // composer here would let a new turn start while this one is parked, and the
-  // approval request would then belong to a conversation nobody is looking at.
 
   const awaitingApproval =
     turn.status === "suspended" &&
@@ -137,17 +98,17 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
-      {/* This screen's contribution to the app shell's header. */}
+      {}
       <HeaderPortal region="start" className="min-w-0 flex-1">
         <ChatHeaderTitle threadId={threadId} />
       </HeaderPortal>
 
-      {/* Conversational Canvas Area */}
+      {}
       <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
-        {/* Messages Feed (Scrolls behind floating composer) */}
+        {}
         <ChatMessages messages={safeMessages} showEmptyState={false} />
 
-        {/* A parked turn needs a decision, not a spinner. */}
+        {}
         {awaitingApproval ? (
           <div className="pointer-events-auto absolute inset-x-0 bottom-28 z-20 px-4 sm:px-8">
             <ApprovalPrompt
@@ -158,7 +119,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
           </div>
         ) : null}
 
-        {/* Floating / Centered Composer Layer */}
+        {}
         <div
           data-slot="composer-container"
           className={`pointer-events-none absolute inset-x-0 z-10 flex flex-col transition-all duration-500 ease-out ${
