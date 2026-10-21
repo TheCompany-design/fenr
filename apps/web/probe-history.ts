@@ -1,4 +1,3 @@
-/** What the model was re-sent on each step of a looping turn. */
 import { db, eq, schema } from "@workspace/database"
 
 type Payload = {
@@ -21,7 +20,6 @@ const rows = await db
   .where(eq(schema.agentItems.tenantId, t))
   .orderBy(schema.agentItems.createdAt, schema.agentItems.id)
 
-// The turn with the most tool calls is the one that looped.
 const byTurn = new Map<string, number>()
 for (const r of rows) {
   if (r.kind === "tool_call")

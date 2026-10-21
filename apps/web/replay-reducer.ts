@@ -1,11 +1,3 @@
-/**
- * Replay a real turn's frames through the client reducer.
- *
- * The capture scripts show what the server sent. This shows what the interface
- * ends up holding, which is a different question: the two disagree when the
- * reducer's item matching is wrong.
- */
-
 import { chatMessagesReducer } from "@/features/chat/state/chat-messages-reducer"
 import type { ChatMessage } from "@/features/chat/types"
 import type { AgentStreamEvent } from "@/lib/schemas/agent-stream"

@@ -16,7 +16,6 @@ mock.module("@/lib/auth/session", () => ({
 
 import { invitationAcceptSearchSchema } from "@/lib/schemas/search"
 
-// Import Route after mock.module
 const { Route: AcceptRoute } = await import("./accept")
 
 type BeforeLoadCaller = (opts: {

@@ -1,12 +1,3 @@
-/**
- * /onboarding — Guarded 3-Step Organization Onboarding.
- *
- * 1. Naming & URL slug validation (OrganizationForm)
- * 2. Optional teammate invitations (InviteMembersForm)
- * 3. Welcome & workspace entry confirmation
- *
- * Step progression is URL-persisted and guarded against illegal jumps.
- */
 import {
   ArrowRight01Icon,
   Loading03Icon,
@@ -62,7 +53,6 @@ export const Route = createFileRoute("/onboarding")({
 
     const currentStep = search.step ?? "naming"
 
-    // Guard step progression: cannot enter 'invites' or 'welcome' without a valid orgId
     if (currentStep === "invites" || currentStep === "welcome") {
       if (!search.orgId) {
         throw redirect({
@@ -71,8 +61,6 @@ export const Route = createFileRoute("/onboarding")({
         })
       }
 
-      // Verify user actually belongs to this organization.
-      // If ensureQueryData returns stale cache, fallback to fresh network fetch before redirecting.
       let memberships = await context.queryClient.ensureQueryData(
         organizationListQueryOptions(),
       )
@@ -128,10 +116,8 @@ function OnboardingPage() {
   } | null>(null)
   const [invitedCount, setInvitedCount] = React.useState(0)
 
-  // Fetch memberships for resilient resume
   const { data: organizations = [] } = useQuery(organizationListQueryOptions())
 
-  // Find target organization if orgId is in search params
   const currentOrg = React.useMemo(() => {
     if (createdOrg && (!search.orgId || createdOrg.id === search.orgId)) {
       return createdOrg
@@ -149,7 +135,6 @@ function OnboardingPage() {
     return null
   }, [createdOrg, search.orgId, organizations])
 
-  // Fetch invitations for target organization to resiliently populate invitedCount even on reload
   const targetOrgId = search.orgId ?? currentOrg?.id ?? ""
   const { data: invitations = [] } = useQuery({
     ...organizationInvitationsQueryOptions(targetOrgId),
@@ -183,7 +168,6 @@ function OnboardingPage() {
     }
   }
 
-  // Step 1: Create Organization Submit
   const handleCreateOrganization = async (values: CreateOrganizationInput) => {
     if (isSigningOutRef.current || isCreatingRef.current) return
     if (createdOrg) {
@@ -191,9 +175,7 @@ function OnboardingPage() {
         await navigate({
           search: { step: "invites", orgId: createdOrg.id },
         })
-      } catch {
-        // Navigation failure
-      }
+      } catch {}
       return
     }
 

@@ -1,8 +1,3 @@
-/**
- * /auth/ — Root auth index route.
- *
- * Redirects visitors to /auth/sign-in while preserving query parameters.
- */
 import { createFileRoute, redirect } from "@tanstack/react-router"
 import { z } from "zod"
 

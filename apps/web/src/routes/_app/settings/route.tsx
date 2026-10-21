@@ -1,7 +1,3 @@
-/**
- * Settings shell. The chrome stays mounted while each settings section is
- * rendered through the outlet below it.
- */
 import {
   Alert02Icon,
   Building01Icon,

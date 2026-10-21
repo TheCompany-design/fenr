@@ -9,8 +9,6 @@ import {
 import { act, createElement } from "react"
 import { createRoot } from "react-dom/client"
 
-// DOM globals persist across test suite for DOM-dependent component tests
-
 let currentSession: {
   session: { id: string; activeOrganizationId?: string | null }
   user: { id: string; email: string }
@@ -58,7 +56,6 @@ mock.module("@/features/organizations", () => ({
 
 import { AppErrorComponent } from "@/components/shell/app-error"
 
-// Import routes after mock.module so they use the mocked session and server functions
 const { Route: AppRoute } = await import("./route")
 const { Route: ChooseOrgRoute } = await import("@/routes/choose-organization")
 const { Route: OnboardingRoute } = await import("@/routes/onboarding")
@@ -303,7 +300,6 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
       const button = container.querySelector("button")
       expect(button).not.toBeNull()
 
-      // First click: initiates retry
       await act(async () => {
         button?.click()
       })
@@ -311,13 +307,11 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
       expect(button?.textContent).toContain("Retrying...")
       expect(button?.hasAttribute("disabled")).toBe(true)
 
-      // Concurrent second click should be ignored while isRetrying is true
       await act(async () => {
         button?.click()
       })
       expect(invalidateCalls).toBe(1)
 
-      // Complete in-flight invalidation
       await act(async () => {
         resolveInvalidate()
       })
@@ -363,7 +357,6 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
         button?.click()
       })
 
-      // Button is re-enabled after failure
       expect(button?.hasAttribute("disabled")).toBe(false)
       expect(button?.textContent).toContain("Try again")
 
@@ -518,7 +511,7 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
 
       router.navigate = (async (opts: unknown) => {
         navigateCalledWith = opts
-        // Crucial invariant: navigation must NOT block on router.invalidate() completing
+
         expect(invalidateStarted).toBe(true)
         expect(invalidateFinished).toBe(false)
       }) as typeof router.navigate
@@ -556,23 +549,18 @@ describe("App & Organization Route Guards Invariants (Atom 6)", () => {
         resolveSelect = resolve
       })
 
-      // Click the org selection button
       await act(async () => {
         orgButton?.click()
       })
 
-      // The create button is disabled while selection is active in-flight
       expect(createButton?.getAttribute("aria-disabled")).toBe("true")
 
-      // Now resolve the active org selection
       await act(async () => {
         resolveSelect()
       })
 
-      // Navigation was called without awaiting invalidate
       expect(navigateCalledWith).toEqual({ href: "/" })
 
-      // Clean up in-flight invalidation promise
       await act(async () => {
         resolveInvalidate()
       })

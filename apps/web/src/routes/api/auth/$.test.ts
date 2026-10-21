@@ -5,9 +5,7 @@ import { logger } from "@/lib/logger"
 import { handleAuthRequest } from "./$"
 
 describe("handleAuthRequest (API Auth Wide Event)", () => {
-  afterEach(() => {
-    // Restore any active spies
-  })
+  afterEach(() => {})
 
   it("handles GET request and logs wide event to logger.info with success outcome", async () => {
     const handlerSpy = spyOn(auth, "handler").mockImplementation(async () => {

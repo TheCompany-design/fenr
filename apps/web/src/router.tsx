@@ -14,8 +14,6 @@ export function getRouter() {
     defaultPreloadStaleTime: 0,
   })
 
-  // TanStack Start <-> TanStack Query SSR integration: handles dehydration,
-  // hydration and query streaming without manual HydrationBoundary wrappers.
   setupRouterSsrQueryIntegration({ router, queryClient })
 
   return router

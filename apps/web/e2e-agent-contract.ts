@@ -1,14 +1,3 @@
-/**
- * End-to-end proof that fenr and the agent runtime agree.
- *
- * Mints a real session, signs the same token the BFF issues, starts a real turn
- * against the running runtime, and parses every SSE frame with fenr's own
- * schema. A frame this client cannot model is reported as such — which is the
- * failure this whole exercise exists to rule out.
- *
- * Run with the runtime listening and `bun run apps/web/e2e-agent-contract.ts`.
- */
-
 import { db, schema } from "@workspace/database"
 import { auth } from "@/lib/auth"
 import { parseAgentStreamEvent } from "@/lib/schemas/agent-stream"

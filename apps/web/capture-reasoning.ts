@@ -1,12 +1,3 @@
-/**
- * Capture the reasoning a turn actually streams, verbatim.
- *
- * This exists to answer one question: is the same reasoning being emitted more
- * than once, or is the model genuinely reasoning in more than one block? Those
- * look identical in the interface and have nothing in common as defects, so the
- * frames are recorded exactly as they arrive — no reassembly, no normalisation.
- */
-
 import { parseAgentStreamEvent } from "@/lib/schemas/agent-stream"
 
 const runtimeUrl = (

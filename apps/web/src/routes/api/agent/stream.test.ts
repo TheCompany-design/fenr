@@ -82,7 +82,6 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
       session: { id: "sess-123", activeOrganizationId: "org-123" },
     })) as unknown as typeof auth.api.getSession
 
-    // Empty prompt
     const request1 = new Request("http://localhost:3000/api/agent/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -92,7 +91,6 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     const response1 = await handleAgentStreamRequest(request1)
     expect(response1.status).toBe(400)
 
-    // Malformed JSON
     const request2 = new Request("http://localhost:3000/api/agent/stream", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -153,8 +151,6 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
 
     globalThis.fetch = mock(
       async (url: string | URL | Request, init?: RequestInit) => {
-        // Pinned literally: the constant is the thing that drifted once, so a
-        // test that only compares it to itself cannot catch the next drift.
         expect(url.toString()).toContain("/api/v1/threads/turns")
         expect(url.toString()).not.toContain("/api/v1/agent/run")
         expect(NABU_START_TURN_PATH).toBe("/api/v1/threads/turns")
@@ -197,7 +193,6 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
       "x-request-id",
     )
 
-    // Check wide event logging
     expect(infoCalls.length).toBe(1)
     const [event, msg] = infoCalls[0]
     expect(msg).toBe("[api.agent.stream] /api/agent/stream completed")
@@ -206,7 +201,6 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     expect(event.outcome).toBe("success")
     expect(event.status_code).toBe(200)
 
-    // Ensure token is NOT leaked in wide event log
     const eventStr = JSON.stringify(event)
     expect(eventStr).not.toContain("mock-jwt-token")
     expect(eventStr).not.toContain("Authorization")

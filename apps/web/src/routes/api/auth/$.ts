@@ -1,10 +1,3 @@
-/**
- * Better Auth HTTP handler mounted at /api/auth/*.
- *
- * All auth traffic (sign-in, sign-up, sign-out, get-session, error paths)
- * flows through the single Better Auth handler. Cookies are attached via
- * the tanstackStartCookies plugin (see src/lib/auth.ts).
- */
 import { createFileRoute } from "@tanstack/react-router"
 
 import { auth } from "@/lib/auth"
