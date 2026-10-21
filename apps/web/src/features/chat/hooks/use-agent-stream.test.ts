@@ -39,9 +39,7 @@ describe("useAgentStream Hook", () => {
     if (root) {
       try {
         act(() => root?.unmount())
-      } catch {
-        // Ignore unmount error if already unmounted
-      }
+      } catch {}
       root = null
     }
     if (container?.parentNode) {
@@ -80,11 +78,6 @@ describe("useAgentStream Hook", () => {
   }
 
   it("lets a chat that did not start the stream stop it anyway", async () => {
-    // Navigating away mid-stream remounts the chat, but the run belongs to the
-    // tab: the streaming flag is a global atom, so the new chat renders as
-    // active and offers a Stop button. With the connection held on the unmounted
-    // component, that button used to abort nothing at all and the fetch ran on
-    // with no way left to cancel it.
     let streamController: ReadableStreamDefaultController | null = null
     let abortSignal: AbortSignal | null = null
     globalThis.fetch = mock(async (_url, init) => {
@@ -111,13 +104,11 @@ describe("useAgentStream Hook", () => {
     })
     expect(first.current.isStreaming).toBe(true)
 
-    // The chat that started the stream goes away mid-turn.
     act(() => {
       root?.unmount()
     })
     root = createRoot(container as HTMLDivElement)
 
-    // A different chat mounts and sees the stream still running.
     const second = renderStreamHook()
     expect(second.current.isStreaming).toBe(true)
 
@@ -125,11 +116,8 @@ describe("useAgentStream Hook", () => {
       second.current.stop()
     })
 
-    // The connection the *previous* chat opened is now aborted: that is the
-    // whole point — one run, one place to cancel it from.
     expect(streamController).not.toBeNull()
-    // Cast: the assignment happens inside the fetch mock, which control-flow
-    // analysis cannot see, so the binding still narrows to its initializer.
+
     expect((abortSignal as AbortSignal | null)?.aborted).toBe(true)
     await act(async () => {
       await Promise.resolve()
@@ -184,7 +172,6 @@ describe("useAgentStream Hook", () => {
     expect(hook.current.isStreaming).toBe(false)
     expect(invalidateSpy).toHaveBeenCalled()
 
-    // Assert query cache contains user message and finalized agent message
     const cachedMessages = queryClient.getQueryData<ChatMessage[]>(
       chatKeys.messages(threadId),
     )
@@ -220,9 +207,7 @@ describe("useAgentStream Hook", () => {
           streamController?.error(
             new DOMException("The operation was aborted", "AbortError"),
           )
-        } catch {
-          // Already closed/aborted
-        }
+        } catch {}
       })
       return new Response(stream, {
         status: 200,
@@ -331,9 +316,7 @@ describe("useAgentStream Hook", () => {
     expect(hook.current.lastRequestId).toBe("trace-sse-err-123")
     expect(toastCalls.length).toBe(1)
     expect(toastCalls[0]?.[0]).toBe("Agent error")
-    // The code is shown beside the message. Without it the toast said only
-    // "Model timed out", which is a sentence rather than something you can look
-    // up in the server's logs.
+
     expect(toastCalls[0]?.[1]).toEqual({
       description: "Model timed out (MODEL_TIMEOUT, Ref: trace-sse-err-123)",
     })
@@ -368,7 +351,6 @@ describe("useAgentStream Hook", () => {
 
     const hook = renderStreamHook()
 
-    // Turn 1: Initial prompt passed with threadId
     await act(async () => {
       await hook.current.send("First prompt", serverThreadId)
     })
@@ -380,7 +362,6 @@ describe("useAgentStream Hook", () => {
     expect(firstBody.prompt).toBe("First prompt")
     expect(firstBody.thread_id).toBe(serverThreadId)
 
-    // Turn 2: Subsequent message sent using threadId
     const stream2 = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode(ssePayload))
@@ -445,9 +426,6 @@ describe("useAgentStream Hook", () => {
   })
 
   it("leaves every picker choice absent from the body that had none, rather than sending nulls", async () => {
-    // Absence has meaning on both sides — "carry on with what this thread was
-    // running" — and `undefined` keeps that meaning intact in the JSON body
-    // exactly as the runtime's serde defaults read it.
     const ssePayload = `data: {"type":"turn_started","data":{"thread_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c399","turn_id":"0191eb5d-7a6c-7e6d-9290-349c2a61c39a"}}\n\n`
 
     const stream = new ReadableStream({
@@ -482,9 +460,6 @@ describe("what a failure tells the reader", () => {
   const REF = "01a10c08-4039-7555-8ad0-2d2f62e36043"
 
   it("says what happened, why, and which request", () => {
-    // All three: the message for the reader, the code for the log, and the
-    // reference that ties them together. A reference on its own sends you
-    // hunting; a message on its own cannot be acted on.
     const description = describeStreamError(
       "the model provider could not be reached",
       "model_provider_unreachable",
@@ -508,8 +483,6 @@ describe("what a failure tells the reader", () => {
   })
 
   it("keeps the code out of the sentence it is not part of", () => {
-    // A stray pair of empty parentheses reads like a rendering bug and tells the
-    // reader nothing.
     expect(describeStreamError("it failed", "", null)).toBe("it failed")
   })
 })

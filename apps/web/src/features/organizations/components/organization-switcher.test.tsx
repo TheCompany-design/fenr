@@ -1,15 +1,3 @@
-/**
- * Workspace switcher — behaviour of the sidebar trigger and the popup.
- *
- * The switcher now lives inside the sidebar, so every render is wrapped in a
- * real SidebarProvider/Sidebar: the trigger reads the sidebar's collapsed
- * state, and the popup picks its opening side from it.
- *
- * `getBoundingClientRect` is stubbed with a non-zero rect so the dropdown's
- * portal positioning can be asserted — that is what proves the dropdown's ref
- * actually reached the sidebar button instead of silently falling back to the
- * origin.
- */
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -30,17 +18,12 @@ import { OrganizationSwitcher } from "./organization-switcher"
 const mockSetActiveOrganization = mock(async () => ({ success: true }))
 
 mock.module("../server", () => ({
-  // `queries.ts` imports the list function at module scope; the switcher only
-  // ever reads it through an already-seeded cache, so a rejecting stub is
-  // enough to keep a stray refetch from reaching the network.
   listOrganizationsFn: mock(async () => {
     throw new Error("listOrganizationsFn should not run in this test")
   }),
   setActiveOrganizationFn: mockSetActiveOrganization,
 }))
 
-// The sidebar asks the viewport whether it is on mobile; the popup's opening
-// side depends on the answer, so it must be deterministic.
 window.matchMedia = ((query: string) => ({
   matches: false,
   media: query,
@@ -157,8 +140,7 @@ async function render(
   await act(async () => {
     root.render(createElement(RouterProvider, { router }))
   })
-  // Two frames: one for the effects to mount the portal, one for the
-  // dropdown to measure itself and commit a position.
+
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 60))
   })
@@ -172,11 +154,6 @@ async function renderStatic(node: ReactNode) {
   return renderToStaticMarkup(createElement(RouterProvider, { router }))
 }
 
-/**
- * happy-dom's event classes do not structurally satisfy the DOM lib's
- * `Event`, so the dispatched object is cast at the boundary. `pointerType`
- * is what the glider reads to tell a hover from a tap.
- */
 function pointerMove(pointerType: "mouse" | "touch") {
   const event = new window.Event("pointermove", { bubbles: true })
   return Object.assign(event, { pointerType }) as unknown as Event
@@ -194,8 +171,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false } },
   })
   mockSetActiveOrganization.mockClear()
-  // Every element reports the same box; only the trigger's matters, and the
-  // dropdown reads exactly one trigger rect plus one content rect.
+
   Element.prototype.getBoundingClientRect = () => ({ ...TRIGGER_RECT })
 })
 
@@ -221,7 +197,7 @@ describe("OrganizationSwitcher trigger", () => {
       'aria-label="Current workspace: Osh Studio. Click to switch workspace."',
     )
     expect(html).toContain(">O<")
-    // Circular avatars: the shape class survives alongside the size.
+
     expect(html).toContain("rounded-full")
   })
 
@@ -240,8 +216,6 @@ describe("OrganizationSwitcher trigger", () => {
       }),
     )
 
-    // The collapsed rail hides the label visually; the tooltip content is
-    // what carries the name there.
     expect(html).toContain("Osh Studio")
   })
 })
@@ -265,14 +239,12 @@ describe("OrganizationSwitcher popup", () => {
     expect(document.body.innerHTML).toContain("Workspaces")
     expect(document.body.innerHTML).toContain("Personal")
 
-    // The active marker rides inside the checked row, never a sibling row.
     const activeMarker = document.querySelector(
       "[data-testid='workspace-active-marker']",
     )
     expect(activeMarker).not.toBeNull()
     expect(activeMarker?.closest("[role='menuitemradio']")).toBe(options[0])
 
-    // Slug URLs and role badges were dropped from the redesigned rows.
     expect(document.body.innerHTML).not.toContain("fenr.app/")
     expect(document.body.innerHTML).not.toContain(">owner<")
   })
@@ -304,7 +276,7 @@ describe("OrganizationSwitcher popup", () => {
     const focusable = document.querySelectorAll(
       '[data-menu-item="true"]:not([disabled])',
     )
-    expect(focusable.length).toBe(3) // two workspaces + add
+    expect(focusable.length).toBe(3)
   })
 
   it("moves one glide pill onto whichever row the pointer is over", async () => {
@@ -315,8 +287,6 @@ describe("OrganizationSwitcher popup", () => {
       }),
     )
 
-    // No row carries a hover background of its own — the pill replaces it,
-    // so a second highlight underneath would stop reading as hover.
     const row = document.querySelector<HTMLElement>('[role="menuitemradio"]')
     expect(row?.className).not.toContain("hover:bg-accent")
 
@@ -324,12 +294,10 @@ describe("OrganizationSwitcher popup", () => {
       '[role="menuitemradio"]',
     )[1]
 
-    // Nothing holds the pill until the pointer or focus arrives.
     expect(
       Array.from(document.querySelectorAll<HTMLElement>("[data-glide-pill]")),
     ).toEqual([])
 
-    // Pointer move claims the pill; `pointerType: mouse` stands in for hover.
     await act(async () => {
       second?.dispatchEvent(pointerMove("mouse"))
     })
@@ -338,7 +306,6 @@ describe("OrganizationSwitcher popup", () => {
       document.querySelectorAll<HTMLElement>("[data-glide-pill]"),
     ).map((el) => el.closest("[data-menu-item]")?.getAttribute("role"))
 
-    // Exactly one pill, and it sits on the row under the pointer.
     expect(after).toEqual(["menuitemradio"])
     expect(second?.querySelector("[data-glide-pill]")).not.toBeNull()
     expect(row?.querySelector("[data-glide-pill]")).toBeNull()
@@ -406,7 +373,6 @@ describe("OrganizationSwitcher popup", () => {
   })
 
   it("surfaces a retry affordance when the workspace list fails", async () => {
-    // No seed → the list query runs, hits the throwing stub and fails.
     await render(
       createElement(OrganizationSwitcher, {
         defaultOpen: true,
@@ -421,8 +387,6 @@ describe("OrganizationSwitcher popup", () => {
     ).find((button) => button.textContent === "Retry")
     expect(retry).toBeDefined()
 
-    // The add-workspace path stays reachable: a failed read must not lock the
-    // user out of creating the workspace they were trying to reach.
     const add = document.querySelector<HTMLElement>(
       '[data-testid="workspace-add"]',
     )
@@ -452,8 +416,6 @@ describe("OrganizationSwitcher popup", () => {
       }),
     )
 
-    // side="bottom", align="start", sideOffset 6 → anchored to the trigger's
-    // left edge, just under its bottom. A dropped ref would leave this at 0.
     expect(portal()?.style.left).toBe(`${TRIGGER_RECT.left}px`)
     expect(portal()?.style.top).toBe(`${TRIGGER_RECT.bottom + 6}px`)
   })

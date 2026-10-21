@@ -28,6 +28,6 @@ describe("fetchDashboardPosts", () => {
     expect(result).toHaveLength(2)
     expect(result[0].title).toBe("First Sample Post")
     expect(String(capturedUrl)).toContain("jsonplaceholder.typicode.com/posts")
-    expect(capturedAuth).toBeNull() // Strictly public: NO Authorization header
+    expect(capturedAuth).toBeNull()
   })
 })

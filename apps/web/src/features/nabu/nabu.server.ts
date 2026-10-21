@@ -1,11 +1,3 @@
-/**
- * Nabu Server HTTP Client Adapter.
- *
- * SERVER-ONLY: Communicates from Fenr server runtime (TanStack Start BFF)
- * to thebookofnabu agent runtime using the central typed HTTP transport.
- * All requests automatically carry a Better Auth-signed JWT with audience "nabu".
- */
-
 import {
   HttpClientError,
   type HttpClientErrorCode,
@@ -105,9 +97,6 @@ export async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/**
- * Retrieves the current system and engine status from thebookofnabu.
- */
 export async function getNabuSystemStatus(
   options?: ExecuteRequestOptions<void>,
 ): Promise<NabuSystemStatus> {
@@ -116,9 +105,6 @@ export async function getNabuSystemStatus(
   )
 }
 
-/**
- * Retrieves what a turn may do in this deployment.
- */
 export async function getNabuCapabilities(
   options?: ExecuteRequestOptions<void>,
 ): Promise<NabuCapabilities> {
@@ -127,9 +113,6 @@ export async function getNabuCapabilities(
   )
 }
 
-/**
- * Reads a turn's completed transcript items, oldest first.
- */
 export async function getTurnItems(
   input: { turnId: string; after?: string; limit?: number },
   options?: Omit<
@@ -142,14 +125,6 @@ export async function getTurnItems(
   )
 }
 
-/**
- * Records a human decision on an approval request.
- *
- * A decision is what resumes a suspended turn, so this is the call that ends the
- * wait — not a local state change. The runtime refuses a second decision, so a
- * retry after an ambiguous failure must carry the same answer rather than a new
- * one.
- */
 export async function decideApproval(
   input: { turnId: string; itemId: string; decision: ApprovalDecision },
   options?: Omit<
@@ -173,9 +148,6 @@ export async function decideApproval(
   )
 }
 
-/**
- * Cancels a running or suspended turn.
- */
 export async function cancelTurn(
   input: { turnId: string },
   options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,
@@ -185,9 +157,6 @@ export async function cancelTurn(
   )
 }
 
-/**
- * Resumes a suspended turn once a decision has been recorded.
- */
 export async function resumeTurn(
   input: { turnId: string },
   options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,

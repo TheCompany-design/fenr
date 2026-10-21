@@ -19,10 +19,10 @@ const EarningReportChart = lazy(() =>
 export function DashboardOverview() {
   return (
     <div className="flex flex-col gap-6">
-      {/* 1. Metric Cards */}
+      {}
       <StatisticsCards />
 
-      {/* 2. Charts Section */}
+      {}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Suspense
@@ -40,7 +40,7 @@ export function DashboardOverview() {
         </div>
       </div>
 
-      {/* 3. Table & Geographic Breakdown */}
+      {}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <TopProductsTable />

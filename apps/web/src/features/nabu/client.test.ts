@@ -128,7 +128,7 @@ describe("Nabu HTTP Client", () => {
         const headers = new Headers(init?.headers)
         capturedAuth = headers.get("Authorization")
         capturedBody = JSON.parse(init?.body as string)
-        // The runtime answers with 202 and no body.
+
         return new Response(null, { status: 202 })
       }) as unknown as typeof fetch
 
@@ -141,14 +141,11 @@ describe("Nabu HTTP Client", () => {
         { token: "approval-jwt" },
       )
 
-      // Pinned literally: this path is what was wrong once, when the client
-      // still pointed at an endpoint the runtime had replaced.
       expect(capturedUrl).toContain(
         "/api/v1/threads/0191eb5d-7a6c-7e6d-9290-349c2a61c3e2/approvals",
       )
       expect(String(capturedAuth)).toBe("Bearer approval-jwt")
-      // Exactly what the runtime declares, and nothing else: turn_id is a path
-      // segment, not a field it reads from the body.
+
       expect(capturedBody).toEqual({
         item_id: "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3",
         decision: "approved",

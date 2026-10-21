@@ -12,10 +12,6 @@ import { Label } from "@workspace/ui/components/label"
 import { toast } from "sonner"
 import { demoFormSchema } from "@/lib/schemas/demo"
 
-/**
- * Fenr convention: ALL forms use TanStack Form + Zod (Standard Schema).
- * Schemas live in apps/web/src/lib/schemas/ and are passed directly as validators.
- */
 export function DemoForm() {
   const form = useForm({
     defaultValues: {

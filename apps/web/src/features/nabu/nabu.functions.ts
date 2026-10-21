@@ -1,11 +1,3 @@
-/**
- * Server functions for Nabu engine operations.
- *
- * Exposes type-safe createServerFn endpoints for client consumption.
- * Validated with Zod and wrapped in wide-event logging with session verification.
- * Delegates transport and business execution to server-only modules.
- */
-
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { ensureSession } from "@/lib/auth/session"
@@ -41,12 +33,6 @@ export const getNabuSystemStatusFn = createServerFn({ method: "GET" }).handler(
 
 const turnScopedSchema = z.object({ turnId: z.string().uuid() })
 
-/**
- * What this deployment lets a turn do.
- *
- * Read before a conversation rather than during one: the interface should be
- * able to say what the agent may reach, not discover it as a tool failure.
- */
 export const getNabuCapabilitiesFn = createServerFn({ method: "GET" }).handler(
   async () => {
     return withWideEvent(
@@ -67,13 +53,6 @@ export const getNabuCapabilitiesFn = createServerFn({ method: "GET" }).handler(
   },
 )
 
-/**
- * A turn's transcript.
- *
- * This is how a reconnecting or reloading reader rebuilds the timeline: the
- * runtime holds the durable record, so the client does not have to have kept
- * it.
- */
 export const getTurnItemsFn = createServerFn({ method: "GET" })
   .validator((input: unknown) =>
     z
@@ -103,12 +82,6 @@ export const getTurnItemsFn = createServerFn({ method: "GET" })
     )
   })
 
-/**
- * Answer a pending approval.
- *
- * This is the action that unblocks a suspended turn, so it is a mutation with a
- * real effect: the runtime refuses a second decision for the same request.
- */
 export const decideApprovalFn = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
@@ -146,7 +119,6 @@ export const decideApprovalFn = createServerFn({ method: "POST" })
     )
   })
 
-/** Stop a running or suspended turn. */
 export const cancelTurnFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => turnScopedSchema.parse(input))
   .handler(async ({ data }) => {
@@ -169,7 +141,6 @@ export const cancelTurnFn = createServerFn({ method: "POST" })
     )
   })
 
-/** Resume a suspended turn once a decision has been recorded. */
 export const resumeTurnFn = createServerFn({ method: "POST" })
   .validator((input: unknown) => turnScopedSchema.parse(input))
   .handler(async ({ data }) => {

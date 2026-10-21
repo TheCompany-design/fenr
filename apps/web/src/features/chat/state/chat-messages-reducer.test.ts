@@ -232,8 +232,6 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
     }
 
     it("does not rename the streaming bubble to a tool item", () => {
-      // Adopting a tool item's id here would send every later text delta to a
-      // message that does not exist, splitting one answer into two bubbles.
       const next = apply(streaming(), {
         type: "item_started",
         data: {
@@ -322,8 +320,6 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
     }
 
     it("settles the bubble when a turn suspends for approval", () => {
-      // Not an error: the turn is parked on a decision, and a bubble left in
-      // "streaming" reads as a request that never came back.
       const next = chatMessagesReducer(streaming(), {
         type: "agent_event",
         event: {
@@ -357,8 +353,6 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
     })
 
     it("keeps a cancelled turn's partial answer as completed", () => {
-      // A cancelled turn is one the reader stopped; dressing it as a failure
-      // would blame them for the model's failure.
       const next = chatMessagesReducer(streaming(), {
         type: "agent_event",
         event: {
@@ -450,9 +444,6 @@ describe("a turn that calls a tool", () => {
   }
 
   it("gives every step its own bubble instead of reusing one", () => {
-    // A tool-using turn emits one assistant item per step. Handing them all to
-    // the same bubble made one message's thought process get rewritten once per
-    // step — the "rendered multiple times, differently worded" report.
     let messages = start()
     messages = apply(messages, itemStarted(step1, "agent_message"))
     messages = apply(messages, thinking(step1, "first step reasoning"))
@@ -467,7 +458,6 @@ describe("a turn that calls a tool", () => {
   })
 
   it("settles the step that a new bubble follows", () => {
-    // Two bubbles cannot both look live.
     let messages = start()
     messages = apply(messages, itemStarted(step1, "agent_message"))
     expect(messages.at(-1)?.status).toBe("streaming")
@@ -480,8 +470,6 @@ describe("a turn that calls a tool", () => {
   })
 
   it("still adopts the empty optimistic placeholder rather than duplicating it", () => {
-    // The placeholder exists so the composer has something to stream into. If
-    // every step made a new bubble, the first one would leave an orphan.
     let messages = start()
     messages = apply(messages, itemStarted(step1, "agent_message"))
     expect(messages).toHaveLength(2)

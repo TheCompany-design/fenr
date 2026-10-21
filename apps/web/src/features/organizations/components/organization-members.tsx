@@ -96,7 +96,6 @@ export function OrganizationMembers({
     currentUserRole === "owner" || currentUserRole === "admin"
   const isOwner = currentUserRole === "owner"
 
-  // Queries
   const {
     data: membersData,
     isLoading: isLoadingMembers,
@@ -117,7 +116,6 @@ export function OrganizationMembers({
     enabled: isOwnerOrAdmin,
   })
 
-  // Track pending actions per member/invitation id for spinners independently
   const [loadingActionIds, setLoadingActionIds] = React.useState<Set<string>>(
     () => new Set(),
   )
@@ -153,7 +151,6 @@ export function OrganizationMembers({
     [removeLoadingId],
   )
 
-  // Count active owners
   const ownerCount = React.useMemo(
     () => members.filter((m) => m.role === "owner").length,
     [members],

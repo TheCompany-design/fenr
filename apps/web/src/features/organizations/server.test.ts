@@ -74,13 +74,12 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
   beforeAll(async () => {
     assertTestDatabase()
-    // Configure mock mail transport to avoid outbound network timeouts
+
     setMailTransport({
       sendMail: async () => ({ messageId: "mock-message-id" }),
       close: () => {},
     } as unknown as Parameters<typeof setMailTransport>[0])
 
-    // Clean up test data
     await db.delete(schema.invitation)
     await db.delete(schema.member)
     await db.delete(schema.userActiveOrganization)
@@ -88,7 +87,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
     await db.delete(schema.session)
     await db.delete(schema.user)
 
-    // Create test users
     const [userA] = await db
       .insert(schema.user)
       .values({
@@ -185,7 +183,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       expect(org.name).toBe("Acme Laboratories")
       createdOrgId = org.id
 
-      // Verify membership
       const [member] = await db
         .select()
         .from(schema.member)
@@ -199,7 +196,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       expect(member).toBeDefined()
       expect(member.role).toBe("owner")
 
-      // Verify active organization preference
       const [pref] = await db
         .select()
         .from(schema.userActiveOrganization)
@@ -207,7 +203,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(pref.organizationId).toBe(org.id)
 
-      // Verify session update
       const [session] = await db
         .select()
         .from(schema.session)
@@ -271,7 +266,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
     })
 
     it("falls back to another organization when session has stale activeOrgId", async () => {
-      // Create second organization with User B as owner
       const [orgTwo] = await db
         .insert(schema.organization)
         .values({
@@ -286,7 +280,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         role: "owner",
       })
 
-      // Create a session for User B with a stale activeOrgId pointing to createdOrgId (which User B is not a member of)
       const staleOrgId = createdOrgId
       const [sessionB] = await db
         .insert(schema.session)
@@ -298,7 +291,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
         })
         .returning()
 
-      // Also set a stale active preference for User B
       await db
         .insert(schema.userActiveOrganization)
         .values({
@@ -311,15 +303,12 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
           set: { organizationId: staleOrgId, updatedAt: new Date() },
         })
 
-      // Call getActiveOrganization with the stale activeOrgId
       const active = await getActiveOrganization(testUserB.id, staleOrgId)
 
-      // Fallback resolves orgTwo
       expect(active).not.toBeNull()
       expect(active?.organization.id).toBe(orgTwo.id)
       expect(active?.role).toBe("owner")
 
-      // Verify the stale session activeOrganizationId was cleared
       const [updatedSession] = await db
         .select()
         .from(schema.session)
@@ -327,7 +316,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(updatedSession.activeOrganizationId).toBeNull()
 
-      // Clean up orgTwo member
       await db
         .delete(schema.member)
         .where(eq(schema.member.organizationId, orgTwo.id))
@@ -343,7 +331,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
   describe("setActiveOrganization", () => {
     it("rejects setting an organization the caller is not a member of", async () => {
-      // Create a foreign organization without Alice
       const [foreignOrg] = await db
         .insert(schema.organization)
         .values({
@@ -571,7 +558,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       const bId = await ensureMemberB("member")
       const dId = await ensureMemberD("admin")
 
-      // Set Bob's active preference to this org
       await db
         .insert(schema.userActiveOrganization)
         .values({
@@ -584,7 +570,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
           set: { organizationId: orgId, updatedAt: new Date() },
         })
 
-      // Create a session for Bob with activeOrganizationId set to orgId
       const [sessionB] = await db
         .insert(schema.session)
         .values({
@@ -602,7 +587,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(removeResult.success).toBe(true)
 
-      // Verify Bob was removed from member table
       const [deletedMember] = await db
         .select()
         .from(schema.member)
@@ -610,7 +594,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(deletedMember).toBeUndefined()
 
-      // Verify Bob's active preference was cleared
       const [clearedPref] = await db
         .select()
         .from(schema.userActiveOrganization)
@@ -618,7 +601,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(clearedPref).toBeUndefined()
 
-      // Verify Bob's session activeOrganizationId was cleared
       const [clearedSession] = await db
         .select()
         .from(schema.session)
@@ -626,7 +608,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       expect(clearedSession.activeOrganizationId).toBeNull()
 
-      // Also clean up User D
       await removeMember(testUserA.id, {
         organizationId: orgId,
         memberId: dId,
@@ -659,7 +640,7 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       await expect(
         inviteMember(testUserA.id, testUserA.name, {
           organizationId: orgId,
-          email: "alice@example.com", // Alice is already owner
+          email: "alice@example.com",
           role: "member",
         }),
       ).rejects.toThrow(ConflictError)
@@ -724,7 +705,7 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
     beforeAll(async () => {
       const orgId = await ensureCreatedOrg()
-      // 1. Create a fresh pending invitation for testUserB
+
       const result = await inviteMember(testUserA.id, testUserA.name, {
         organizationId: orgId,
         email: testUserB.email,
@@ -732,7 +713,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       })
       acceptInviteId = result.invitation.id
 
-      // 2. Insert directly an expired invitation
       const [expiredRecord] = await db
         .insert(schema.invitation)
         .values({
@@ -741,12 +721,11 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
           role: "member",
           inviterId: testUserA.id,
           status: "pending",
-          expiresAt: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
+          expiresAt: new Date(Date.now() - 1000 * 60 * 60),
         })
         .returning()
       expiredInviteId = expiredRecord.id
 
-      // 3. Insert a canceled invitation
       const [canceledRecord] = await db
         .insert(schema.invitation)
         .values({
@@ -814,7 +793,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
       })
 
       it("rejects email mismatch with ForbiddenError", async () => {
-        // testUserC tries to accept an invitation meant for testUserB
         await expect(
           acceptInvitation(testUserC.id, null, testUserC.email, {
             invitationId: acceptInviteId,
@@ -840,7 +818,7 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
 
       it("successfully accepts a valid pending invitation", async () => {
         const orgId = await ensureCreatedOrg()
-        // Ensure testUserB is not currently a member of this org
+
         await db
           .delete(schema.member)
           .where(
@@ -850,7 +828,6 @@ describe("Organization Server Functions & Domain Logic (Atom 5)", () => {
             ),
           )
 
-        // Create a test session for testUserB
         const [testSessionB] = await db
           .insert(schema.session)
           .values({

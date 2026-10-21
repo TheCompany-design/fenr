@@ -1,10 +1,3 @@
-/**
- * Auth error message mappings.
- *
- * Translates error codes from query parameters or auth providers into
- * user-friendly, actionable titles and descriptions.
- */
-
 export interface AuthErrorMessage {
   title: string
   description: string

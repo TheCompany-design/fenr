@@ -26,7 +26,6 @@ function userMessage(content: string) {
   }
 }
 
-/** A shell top bar with one region, plus the page beneath it. */
 function Shell({ children }: { readonly children?: React.ReactNode }) {
   return createElement(
     "div",
@@ -43,8 +42,7 @@ function Shell({ children }: { readonly children?: React.ReactNode }) {
 
 function headerText(): string {
   const header = document.querySelector('[data-testid="header"]')
-  // Excludes screen-reader-only text: what a person can actually see in the bar
-  // is the question these assertions are asking.
+
   return Array.from(header?.querySelectorAll("*:not(.sr-only)") ?? [])
     .filter((node) => node.children.length === 0)
     .map((node) => node.textContent ?? "")
@@ -59,9 +57,7 @@ describe("chat header title", () => {
 
   beforeEach(() => {
     useHeaderPortalStore.getState().retractAll()
-    // The composer is module state that outlives any mount — one composer per
-    // tab is the design — so a suite that renders ChatContainer must start it
-    // from a clean slate or the previous test's draft text leaks into the DOM.
+
     usePromptStore.setState({
       text: "",
       mentions: [],
@@ -110,13 +106,8 @@ describe("chat header title", () => {
   it("shows no title in the bar on a clean chat, but still names the page", () => {
     render(createElement(ChatContainer, {}))
 
-    // Nothing a person can read as a title in the bar. The bar also carries the
-    // conversation's provider picker now, so the region is not empty — the
-    // title is what must be absent.
     expect(headerText()).not.toContain("New conversation")
 
-    // ...and exactly one heading on the page, so the document outline is not
-    // the unnamed empty heading a screen reader has to announce as blank.
     const heading = document.querySelector("h1") as HTMLElement | null
     expect(heading?.className).toContain("sr-only")
     expect(heading?.textContent).toBe("New conversation")
@@ -130,7 +121,7 @@ describe("chat header title", () => {
     expect(container?.textContent).not.toContain("Nabu Agent Chat")
     expect(container?.textContent).not.toContain("Clear conversation")
     expect(page?.querySelector("header")).toBeNull()
-    // The conversation itself is untouched.
+
     expect(page?.querySelector("textarea")).not.toBeNull()
   })
 
@@ -149,10 +140,6 @@ describe("chat header title", () => {
     render(createElement(ChatContainer, {}))
     expect(headerText()).not.toContain("New conversation")
 
-    // The transport's first act on send is to land the optimistic user
-    // message in the draft cache. The title must fill in at that moment —
-    // before the stream answers — which is exactly what writing the draft
-    // does here.
     act(() => {
       queryClient.setQueryData(chatKeys.messages(null), [
         userMessage("Reconcile the Q3 ledger"),
@@ -165,9 +152,6 @@ describe("chat header title", () => {
   it("survives the hop from a draft chat to its persisted thread", () => {
     render(createElement(ChatContainer, {}))
 
-    // What the stream does when the runtime mints the thread id: move the
-    // optimistic messages onto the thread's key, then navigate. The title must
-    // read the same before and after, or it blinks on every first prompt.
     act(() => {
       queryClient.setQueryData(chatKeys.messages(null), [
         userMessage("Reconcile the Q3 ledger"),
@@ -193,9 +177,6 @@ describe("chat header title", () => {
   })
 
   it("starts a fresh chat clean, dropping a draft a failed turn left behind", () => {
-    // A failed turn keeps its messages so the person can read what went wrong.
-    // Clicking Chat to start over must not reopen that conversation — and with
-    // it, the title the header now draws from the draft.
     queryClient.setQueryData(chatKeys.messages(null), [
       userMessage("Reconcile the Q3 ledger"),
     ])
@@ -209,9 +190,6 @@ describe("chat header title", () => {
   it("keeps a failed conversation readable instead of wiping it as it fails", () => {
     render(createElement(ChatContainer, {}))
 
-    // The optimistic messages land, then the streaming flag drops back when the
-    // request fails. Nothing may clear the conversation in that gap: this is the
-    // one moment the person is reading the error.
     act(() => {
       queryClient.setQueryData(chatKeys.messages(null), [
         userMessage("Reconcile the Q3 ledger"),
@@ -236,7 +214,7 @@ describe("chat header title", () => {
     const heading = document.querySelector("h1") as HTMLElement | null
     expect(heading?.className).toContain("truncate")
     expect(heading?.textContent?.endsWith("…")).toBe(true)
-    // The full prompt stays reachable for anyone who wants it.
+
     expect(heading?.getAttribute("title")).toBe(heading?.textContent)
   })
 })

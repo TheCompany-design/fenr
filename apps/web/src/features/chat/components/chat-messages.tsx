@@ -11,11 +11,6 @@ export interface ChatMessagesProps {
   readonly showEmptyState?: boolean
 }
 
-/**
- * Message feed using @workspace/ui/components/scroll-area.
- * Renders the authoritative message list in a single render loop with
- * intelligent stick-to-bottom auto-scrolling and floating scroll button.
- */
 export function ChatMessages({
   messages,
   showEmptyState = true,
@@ -51,9 +46,6 @@ export function ChatMessages({
     }
   }, [])
 
-  // Auto-scroll mechanics:
-  // - If user sent a message, smoothly snap to bottom
-  // - If agent is streaming or appended and user is at bottom, stick to bottom
   const lastMessage = messages[messages.length - 1]
   const lastContentLength =
     (lastMessage?.content.length ?? 0) + (lastMessage?.thinking?.length ?? 0)
@@ -106,16 +98,14 @@ export function ChatMessages({
         className="min-h-0 flex-1 w-full"
       >
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
-          {/* One block per reply. A turn that calls a tool produces one message
-              per model step, and rendering those as separate bubbles made a
-              single answer look like several. */}
+          {}
           {groupIntoTurns(messages).map((turn, index) => (
             <ChatTurnBlock key={turn.messages[0]?.id ?? index} turn={turn} />
           ))}
         </div>
       </ScrollArea>
 
-      {/* Floating scroll to bottom button when scrolled up */}
+      {}
       {showScrollBottom && (
         <button
           type="button"

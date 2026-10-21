@@ -1,7 +1,3 @@
-/**
- * TanStack Query key factories, query options, and cache invalidation helpers
- * for organization domain data.
- */
 import type { QueryClient } from "@tanstack/react-query"
 import { queryOptions } from "@tanstack/react-query"
 
@@ -30,28 +26,18 @@ export const organizationKeys = {
     [...organizationKeys.all, "slug-check", slug] as const,
 }
 
-/**
- * Query options for fetching all organizations the user belongs to.
- */
 export function organizationListQueryOptions() {
   return queryOptions({
     queryKey: organizationKeys.lists(),
     queryFn: () => listOrganizationsFn(),
-    staleTime: 1000 * 60, // 1 minute
+    staleTime: 1000 * 60,
   })
 }
 
-/**
- * One row of the workspace picker. Derived from the server function so the
- * switcher can never drift from what the list query actually resolves to.
- */
 export type OrganizationListItem = Awaited<
   ReturnType<typeof listOrganizationsFn>
 >[number]
 
-/**
- * Query options for fetching the current active organization.
- */
 export function activeOrganizationQueryOptions() {
   return queryOptions({
     queryKey: organizationKeys.active(),
@@ -60,9 +46,6 @@ export function activeOrganizationQueryOptions() {
   })
 }
 
-/**
- * Query options for fetching members of an organization.
- */
 export function organizationMembersQueryOptions(organizationId: string) {
   return queryOptions({
     queryKey: organizationKeys.members(organizationId),
@@ -72,9 +55,6 @@ export function organizationMembersQueryOptions(organizationId: string) {
   })
 }
 
-/**
- * Query options for fetching pending invitations of an organization.
- */
 export function organizationInvitationsQueryOptions(organizationId: string) {
   return queryOptions({
     queryKey: organizationKeys.invitations(organizationId),
@@ -84,9 +64,6 @@ export function organizationInvitationsQueryOptions(organizationId: string) {
   })
 }
 
-/**
- * Query options for fetching invitation details by token/ID.
- */
 export function invitationDetailsQueryOptions(invitationId?: string | null) {
   const trimmed = (invitationId ?? "").trim()
   return queryOptions({
@@ -97,23 +74,16 @@ export function invitationDetailsQueryOptions(invitationId?: string | null) {
   })
 }
 
-/**
- * Query options for checking slug availability (debounced).
- */
 export function slugAvailabilityQueryOptions(slug?: string | null) {
   const trimmed = (slug ?? "").trim()
   return queryOptions({
     queryKey: organizationKeys.slugCheck(trimmed),
     queryFn: () => checkSlugAvailabilityFn({ data: { slug: trimmed } }),
     enabled: trimmed.length >= 3,
-    staleTime: 1000 * 10, // 10 seconds
+    staleTime: 1000 * 10,
   })
 }
 
-/**
- * Invalidate organization queries across the client cache.
- * When switching or mutating active organization, clears stale cache.
- */
 export async function invalidateOrganizationQueries(
   queryClient: QueryClient,
   _organizationId?: string,

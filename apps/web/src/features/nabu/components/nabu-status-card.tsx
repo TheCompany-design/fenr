@@ -1,12 +1,3 @@
-/**
- * What the agent runtime can currently do.
- *
- * Shown on the dashboard so the deployment's real limits are visible before a
- * conversation starts. It used to drive two endpoints the runtime never served —
- * a reconciliation match and an agent task dispatch — so both buttons failed;
- * the runtime replaced them with turns, capabilities and approvals.
- */
-
 import {
   Activity01Icon,
   CheckmarkCircle02Icon,
@@ -34,8 +25,6 @@ export function NabuStatusCard() {
     isError,
   } = useQuery(nabuSystemStatusQueryOptions())
 
-  // Capabilities are fetched separately so an unavailable capability report does
-  // not also hide whether the engine is reachable at all.
   const { data: capabilities } = useQuery(nabuCapabilitiesQueryOptions())
 
   return (

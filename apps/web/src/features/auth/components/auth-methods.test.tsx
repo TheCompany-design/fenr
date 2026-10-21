@@ -34,14 +34,11 @@ describe("Auth Composition Components", () => {
         createElement(AuthMethods, { redirectTo: "/dashboard" }),
       )
 
-      // Magic link form elements
       expect(html).toContain("Continue with email")
       expect(html).toContain('type="email"')
 
-      // Divider
       expect(html).toContain("Or continue with")
 
-      // Social OAuth buttons
       expect(html).toContain("Google")
       expect(html).toContain("Apple")
       expect(html).toContain("GitHub")

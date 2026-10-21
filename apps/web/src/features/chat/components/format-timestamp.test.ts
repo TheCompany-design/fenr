@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { formatTimestamp } from "./format-timestamp"
 
-/** A local wall-clock time `days` before `from`. */
 function before(from: Date, days: number, hours = 9, minutes = 5): Date {
   const when = new Date(from)
   when.setDate(when.getDate() - days)
@@ -10,7 +9,6 @@ function before(from: Date, days: number, hours = 9, minutes = 5): Date {
 }
 
 describe("formatTimestamp", () => {
-  // Tuesday 6 October 2026.
   const now = new Date(2026, 9, 6, 12, 0, 0)
 
   it("names today's reply", () => {
@@ -26,7 +24,6 @@ describe("formatTimestamp", () => {
   })
 
   it("names anything older by its weekday", () => {
-    // Four days back from Tuesday is Friday.
     expect(formatTimestamp(before(now, 4, 8, 30).toISOString(), now)).toBe(
       "Friday, 2 Oct 0830 hrs",
     )
@@ -51,7 +48,6 @@ describe("formatTimestamp", () => {
   })
 
   it("never renders an unparseable timestamp", () => {
-    // The alternative is the words "Invalid Date" in the middle of a reply.
     expect(formatTimestamp("not a date")).toBe("")
     expect(formatTimestamp("")).toBe("")
   })

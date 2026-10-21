@@ -8,10 +8,6 @@ export interface ThinkingTraceProps {
   readonly defaultExpanded?: boolean
 }
 
-/**
- * Expandable agent thinking/reasoning trace adapted from Beautiful UI.
- * Features a hairline connector, stateful disclosure, and responsive typography.
- */
 export function ThinkingTrace({
   thinking,
   isStreaming = false,

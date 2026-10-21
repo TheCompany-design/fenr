@@ -17,27 +17,13 @@ import type { ChatMessage } from "../types"
 
 export interface SendOptions {
   readonly onTurnStarted?: (threadId: string) => void | Promise<void>
-  /**
-   * The conversation's provider choice, from the chat header's picker. Absent
-   * means "carry on with whatever this thread runs on" — and for a new thread,
-   * "the workspace's default".
-   */
+
   readonly providerConfigId?: string | null
-  /**
-   * The conversation's model choice, from the chat's model picker. Absent
-   * means "carry on with what this thread was running, or the saved
-   * configuration's default".
-   */
+
   readonly modelId?: string | null
-  /**
-   * The conversation's reasoning-effort choice: an id from the chosen model's
-   * own declared scale, exactly as the listing served it. Absent means "carry
-   * on with what this thread was running, or the model's declared default" —
-   * the runtime settles the level, so sending only the id keeps the composer
-   * out of the per-vendor wire-form business.
-   */
+
   readonly effort?: string | null
-  /** Reports runtime evidence for one saved provider/model call. */
+
   readonly onModelCallRecorded?: (call: {
     savedConfigId: string | null
     modelId: string
@@ -47,12 +33,7 @@ export interface SendOptions {
 
 export interface UseAgentStreamReturn {
   readonly lastRequestId: string | null
-  /**
-   * The turn as the server describes it.
-   *
-   * `status: "suspended"` is the state that matters: the turn is parked on a
-   * decision, so the interface has to offer one rather than wait.
-   */
+
   readonly turn: ActiveTurnProjection
   readonly send: (
     prompt: string,
@@ -63,20 +44,8 @@ export interface UseAgentStreamReturn {
   readonly isStreaming: boolean
 }
 
-/**
- * Custom React hook managing real-time SSE streaming connection to the BFF proxy.
- * Directly drives in-place updates into TanStack Query's cache via chatMessagesReducer,
- * guaranteeing a single authoritative message timeline with zero duplicate bubbles.
- */
 const log = moduleLogger("chat:agent-stream")
 
-/**
- * The reason a frame was not applied.
- *
- * `type` is taken from the raw frame rather than from a schema so that an event
- * this client has never heard of can still be *named* in the log. A frame with
- * no usable type is reported as such instead of vanishing.
- */
 function describeUnmodelledFrame(raw: unknown): {
   event_type: string | null
   reason: string
@@ -94,14 +63,6 @@ function describeUnmodelledFrame(raw: unknown): {
   }
 }
 
-/**
- * What the toast says when a turn fails.
- *
- * The runtime sends a message written for a person and a code written for a
- * machine, and both are shown: the message says what happened, the code is what
- * makes the report findable in the server's logs, and the reference ties the two
- * together. The message alone once left every failure reading identically.
- */
 export function describeStreamError(
   message: string,
   code: string,

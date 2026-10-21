@@ -15,8 +15,6 @@ function agent(id: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 describe("grouping a timeline into turns", () => {
   it("presents one reply as one turn, however many steps it took", () => {
-    // The reported problem: one question, one answer, and a bubble per model
-    // step, so it read as several turns.
     const turns = groupIntoTurns([
       { id: "u1", role: "user", content: "hello", status: "completed" },
       agent("a1", { thinking: "thinking about it" }),
@@ -43,8 +41,6 @@ describe("grouping a timeline into turns", () => {
   })
 
   it("keeps a step that produced no text", () => {
-    // A step that only called a tool has no words but real reasoning; dropping it
-    // would lose part of how the answer was reached.
     const turns = groupIntoTurns([
       agent("a1", { thinking: "I should call a tool" }),
       agent("a2", { content: "the answer", thinking: "now I know" }),
@@ -55,8 +51,6 @@ describe("grouping a timeline into turns", () => {
   })
 
   it("shows one reasoning trace, with the steps kept apart", () => {
-    // Run together, the steps read as one thought that went nowhere — which is
-    // how it looked when each step carried its own trace.
     const turns = groupIntoTurns([
       agent("a1", { thinking: "first thought" }),
       agent("a2", { thinking: "second thought" }),
@@ -80,8 +74,7 @@ describe("grouping a timeline into turns", () => {
       agent("a1", { status: "streaming" }),
       agent("a2", { status: "completed" }),
     ])
-    // A finished step does not retract the turn being live: it is still being
-    // written while a later step streams.
+
     expect(turns[0]?.isStreaming).toBe(false)
   })
 

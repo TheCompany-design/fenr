@@ -23,15 +23,6 @@ export type ChatMessageAction =
       readonly event: AgentStreamEvent
     }
 
-/**
- * Apply one agent event to the message timeline.
- *
- * Tool and approval items are transcript records with their own identity: they
- * never own a bubble, so they are ignored here rather than folded into a
- * message. That distinction is the difference between a tool call appearing in
- * the transcript and the assistant bubble being renamed out from under the
- * deltas still arriving for it.
- */
 function reduceAgentEvent(
   messages: readonly ChatMessage[],
   event: AgentStreamEvent,
@@ -43,10 +34,7 @@ function reduceAgentEvent(
 
     case "item_started": {
       const { item_id, kind } = event.data
-      // Only a message item owns a bubble. Tool calls and approval records
-      // are transcript entries with their own identity, and adopting their
-      // id here would rename the assistant bubble that is mid-stream — so
-      // every later delta for that bubble would land on the wrong message.
+
       if (!isMessageItemKind(kind)) {
         return [...messages]
       }
@@ -54,14 +42,6 @@ function reduceAgentEvent(
       const lastIdx = messages.length - 1
       const current = messages[lastIdx]
 
-      // Only the optimistic placeholder may be adopted, and only while it is
-      // still empty. A turn that calls a tool produces one assistant item per
-      // step, and every step after the first arrives while the previous bubble
-      // is *still* marked streaming — so adopting on "is streaming" alone handed
-      // every later step the same bubble, renaming it and overwriting its
-      // thinking each time. The reader watched one message's thought process
-      // being rewritten once per step, which is what "rendered multiple times,
-      // differently worded" turned out to be.
       const claimable =
         lastIdx >= 0 &&
         current?.role === "agent" &&
@@ -75,8 +55,6 @@ function reduceAgentEvent(
         return updated
       }
 
-      // A later step in the same turn gets its own bubble, and the step it
-      // follows is settled: two bubbles cannot both be live.
       const settled = messages.map((message) =>
         message.status === "streaming"
           ? { ...message, status: "completed" as const }
@@ -99,7 +77,6 @@ function reduceAgentEvent(
       const lastIdx = messages.length - 1
       if (lastIdx < 0) return [...messages]
 
-      // Locate message by item_id or fallback to last streaming message
       const targetIdx = messages.findIndex((m) => m.id === item_id)
       const idxToUpdate =
         targetIdx !== -1
@@ -108,7 +85,6 @@ function reduceAgentEvent(
             ? lastIdx
             : -1
 
-      // Tool arguments stream against a tool item, which has no bubble.
       if (delta.kind === "tool_arguments_delta") {
         return [...messages]
       }
@@ -134,8 +110,7 @@ function reduceAgentEvent(
 
     case "item_completed": {
       const { item_id, payload } = event.data
-      // Tool and approval completions are transcript records. They carry no
-      // bubble, so there is nothing here to update.
+
       if (payload.kind !== "agent_message" && payload.kind !== "user_message") {
         return [...messages]
       }
@@ -157,10 +132,6 @@ function reduceAgentEvent(
     }
 
     case "turn_completed": {
-      // Finalize any streaming messages. A failed turn is surfaced as an
-      // error on the message it stopped on; a cancelled one keeps what it
-      // produced, because the user asked for it to stop rather than for it
-      // to have gone wrong.
       const failed = event.data.status === "failed"
       return messages.map((msg) => {
         if (msg.status !== "streaming") {
@@ -171,28 +142,20 @@ function reduceAgentEvent(
     }
 
     case "model_call_recorded": {
-      // One provider call's own facts, not a message. The transcript is
-      // unchanged; the meter reads the turn aggregate elsewhere.
       return [...messages]
     }
 
     case "turn_suspended": {
-      // The turn is parked on a decision. Settle the bubble so the timeline
-      // stops presenting it as live, and leave the wording to the approval
-      // affordance rather than dressing it as a failure.
       return messages.map((msg) =>
         msg.status === "streaming" ? { ...msg, status: "completed" } : msg,
       )
     }
 
     case "turn_resumed": {
-      // The next assistant item starts its own bubble; nothing to change on
-      // the messages that were already settled.
       return [...messages]
     }
 
     case "stream_error": {
-      // Mark active streaming message with error status
       return messages.map((msg, index) => {
         if (index === messages.length - 1 && msg.status === "streaming") {
           return { ...msg, status: "error" }
@@ -203,12 +166,6 @@ function reduceAgentEvent(
   }
 }
 
-/**
- * Pure reducer function that updates an array of ChatMessages based on
- * optimistic client dispatches and incoming SSE agent events.
- * Guarantees a single, authoritative message list where streaming tokens
- * update the active assistant message in-place with zero duplicate bubbles.
- */
 export function chatMessagesReducer(
   messages: readonly ChatMessage[],
   action: ChatMessageAction,
@@ -223,7 +180,6 @@ export function chatMessagesReducer(
     }
 
     case "stream_stopped": {
-      // Find the last streaming message and mark it completed
       return messages.map((msg, index) => {
         if (index === messages.length - 1 && msg.status === "streaming") {
           return { ...msg, status: "completed" }

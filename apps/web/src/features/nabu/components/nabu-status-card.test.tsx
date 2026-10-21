@@ -24,9 +24,7 @@ describe("NabuStatusCard Component", () => {
     )
 
     expect(html).toContain("thebookofnabu Engine")
-    // The buttons this card used to offer drove endpoints the runtime does not
-    // serve: a reconciliation match and an agent task dispatch. It is worth
-    // asserting they are gone, because they only ever failed at click time.
+
     expect(html).not.toContain("Test Reconciliation")
     expect(html).not.toContain("Dispatch Task")
   })

@@ -39,7 +39,7 @@ describe("streamReducer (Pure Event Reducer)", () => {
       ...initialTurnProjection,
       threadId,
       turnId,
-      // A new turn does not inherit the previous turn's active item.
+
       activeItemId: null,
       status: "streaming",
     })
@@ -248,7 +248,7 @@ describe("streamReducer (Pure Event Reducer)", () => {
       },
     })
     expect(next.status).toBe("streaming")
-    // A stale decision prompt is worse than none.
+
     expect(next.awaitingApprovalItemId).toBeNull()
   })
 
@@ -311,8 +311,6 @@ describe("streamReducer (Pure Event Reducer)", () => {
   })
 
   it("ignores a frame it cannot model instead of ending the turn", () => {
-    // The server adds capability as new event types so older clients keep
-    // working. Throwing here would defeat that on the first unknown frame.
     const reported: { error: string; received: unknown }[] = []
     const streaming: ActiveTurnProjection = {
       ...initialTurnProjection,
@@ -346,9 +344,6 @@ describe("a failure keeps its code", () => {
   const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
 
   it("carries both what happened and why", () => {
-    // The code is the discriminating half. It used to be validated and then
-    // thrown away, which is why a gateway that was not running and a provider
-    // that refused looked the same on screen.
     const next = streamReducer(initialTurnProjection, {
       type: "stream_error",
       data: {
@@ -416,9 +411,6 @@ describe("reasoning blocks", () => {
   })
 
   it("starts a new thought when the provider starts a new block", () => {
-    // The provider can think, call a tool, and think again. Without the block id
-    // the two run together and read as one continuous train of thought that never
-    // went anywhere.
     const first = streamReducer(
       initialTurnProjection,
       thinking("a", "about the question"),
@@ -448,8 +440,6 @@ describe("reasoning blocks", () => {
 
 describe("naming a turn that could not run", () => {
   it("names the workspace setup problem rather than the subsystem", () => {
-    // The code the runtime sends when nothing is configured yet. Calling this an
-    // "Agent error" sends the reader looking at the agent instead of at settings.
     expect(streamErrorTitle("tenant_provider_unconfigured")).toBe(
       "This workspace has no model provider",
     )
@@ -494,9 +484,6 @@ describe("naming a turn that could not run", () => {
   })
 
   it("keeps the generic title for everything it does not recognise", () => {
-    // Including a code it has never heard of, which is what makes the mapping
-    // forward-compatible: an older client talking to a newer runtime still says
-    // something true.
     expect(streamErrorTitle("TURN_STEP_FAILED")).toBe("Agent error")
     expect(streamErrorTitle("model_provider_unreachable")).toBe("Agent error")
     expect(streamErrorTitle("something_invented_later")).toBe("Agent error")

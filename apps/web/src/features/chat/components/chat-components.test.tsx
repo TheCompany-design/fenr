@@ -28,9 +28,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    // The composer is module state that outlives any mount — one composer per
-    // tab is the design — so a suite that renders ChatContainer must start it
-    // from a clean slate or the previous test's draft text leaks into the DOM.
     usePromptStore.setState({
       text: "",
       mentions: [],
@@ -59,9 +56,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
     if (root) {
       try {
         act(() => root?.unmount())
-      } catch {
-        // Ignored
-      }
+      } catch {}
       root = null
     }
     if (container?.parentNode) {
@@ -161,9 +156,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // Nothing marks the reply as the agent's: it sits on the left, opposite
-      // the reader's messages. A badge and a label both said what position
-      // already says.
       expect(container?.textContent).toContain("no badge here")
       expect(container?.textContent).not.toContain("Nabu Agent")
       expect(container?.querySelector(".size-7")).toBeNull()
@@ -185,7 +177,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // The stored value is a full ISO timestamp; it must not reach the reader.
       expect(container?.textContent).not.toContain(at.toISOString())
       expect(container?.textContent).toMatch(
         /^(Today|Yesterday|\w+day), \d{1,2} [A-Za-z]{3} \d{4} hrs$/,
@@ -306,8 +297,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ) as HTMLDivElement
       expect(viewport).toBeDefined()
 
-      // Mock scroll dimensions where user is scrolled up far from bottom:
-      // distanceFromBottom = 1000 - 100 - 300 = 600 > 80 threshold
       Object.defineProperty(viewport, "scrollHeight", {
         value: 1000,
         configurable: true,
@@ -329,7 +318,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         }
       }) as unknown as typeof viewport.scrollTo
 
-      // Trigger scroll event
       act(() => {
         viewport.dispatchEvent(new window.Event("scroll"))
       })
@@ -340,7 +328,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(scrollBottomBtn).toBeDefined()
       expect(scrollBottomBtn?.textContent).toContain("Scroll to bottom")
 
-      // Clicking scroll to bottom
       act(() => {
         scrollBottomBtn.click()
       })
@@ -377,7 +364,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ) as HTMLDivElement
       expect(viewport).toBeDefined()
 
-      // User scrolls up
       Object.defineProperty(viewport, "scrollHeight", {
         value: 1200,
         configurable: true,
@@ -396,7 +382,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         viewport.dispatchEvent(new window.Event("scroll"))
       })
 
-      // Simulate next streaming token arriving in-place
       const updatedMessages: ChatMessage[] = [
         { id: "1", role: "user", content: "Message 1" },
         {
@@ -415,7 +400,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // Viewport scrollTop should remain untouched at 200 (not pushed to bottom)
       expect(viewport.scrollTop).toBe(200)
     })
 
@@ -446,14 +430,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
   describe("ChatContainer", () => {
     it("keeps the composer the only full-width layer over the conversation", () => {
-      // A regression guard for a bug that made the chat unusable: a strip laid
-      // at `bottom-[4.75rem] z-20` with pointer events on lands inside the
-      // composer's own height — so it swallowed every click and keystroke aimed
-      // at the textarea, and nobody could send a message at all.
-      //
-      // Asserted structurally rather than visually, because the failure is a
-      // layering mistake and a screenshot would not have shown which of two
-      // full-width strips was on top.
       act(() => {
         root?.render(
           createElement(
@@ -472,11 +448,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(composer).not.toBeNull()
       expect(textarea).not.toBeNull()
 
-      // The real assertion: the composer is the only full-width absolutely
-      // positioned layer in the conversation area. A second one is what steals
-      // its input, and it need not come after the composer in the DOM — an
-      // earlier version of this test only looked at following siblings and
-      // therefore passed with the bug still in place.
       const fullWidthAbsolute = Array.from(
         container?.querySelectorAll("*") ?? [],
       ).filter((element) => {
@@ -505,10 +476,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // The screen's title and status moved to the app shell's header, which
-      // this suite does not mount — nothing of the old header may remain, and
-      // the conversation must still render (see chat-header-title.test.tsx for
-      // the portal side of this).
       expect(container?.textContent).not.toContain("Nabu Agent Chat")
       expect(container?.textContent).not.toContain("Clear conversation")
       expect(container?.querySelector("header")).toBeNull()
@@ -530,8 +497,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(hero?.textContent).toContain("Hi, I’m Nabu")
       expect(hero?.textContent).toContain("What are we working on today?")
 
-      // The greeting is two lines of type, nothing else: a decorative mark above
-      // the composer reads as an affordance and is not one.
       expect(hero?.querySelector("svg")).toBeNull()
       expect(hero?.querySelector("[data-slot]")).toBeNull()
     })
@@ -547,14 +512,10 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // The composer's affordances are labelled, not positioned: assertions
-      // against slot names broke every time the layout moved, and a control
-      // that cannot be named cannot be operated by a screen reader either.
       expect(
         container?.querySelector('button[aria-label="Send message"]'),
       ).not.toBeNull()
-      // One selector now answers "what can this message reach" — files and
-      // tools together — so there is a single labelled entry point, not two.
+
       expect(
         container?.querySelector('button[aria-label="Add files and tools"]'),
       ).not.toBeNull()
@@ -576,7 +537,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
       const send = container?.querySelector('button[aria-label="Send message"]')
       expect(send?.className).toContain("rounded-full")
-      // Disabled on an empty prompt: the button is a target, not a decoration.
+
       expect(send?.hasAttribute("disabled")).toBe(true)
     })
 
@@ -591,11 +552,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
         )
       })
 
-      // The transition is a function of what exists, not of a send having
-      // happened this session. The transport's first act on send is landing
-      // the optimistic message in the draft cache; writing it here is that
-      // moment exactly (the draft is seeded after mount, because a clean chat
-      // deliberately clears any draft it finds on entry).
       act(() => {
         queryClient.setQueryData(chatKeys.messages(null), [
           {
@@ -614,9 +570,6 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       expect(composerLayer?.className).toContain("bottom-0")
       expect(composerLayer?.className).toContain("translate-y-0")
 
-      // The prompts were a way in; once the conversation exists they are only
-      // noise sitting under a live transcript. The composer has no suggestion
-      // row at all — its `/` commands fill that role inside the editor.
       const heroGreeting = container?.querySelector(
         '[data-slot="hero-greeting"]',
       )

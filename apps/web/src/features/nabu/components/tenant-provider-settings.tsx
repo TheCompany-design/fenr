@@ -1,29 +1,3 @@
-/**
- * The workspace's saved model providers.
- *
- * The one screen in the product that stores secrets on the tenant's behalf, so
- * two rules run through every line of it:
- *
- * - **The credential is write-only.** It goes out in a `POST` and never comes
- *   back. What renders in its place is the fingerprint — enough to confirm
- *   "the key ending a1b2c3 is the one you pasted", which is the only way to
- *   verify a save without displaying the key.
- * - **The runtime decides, this screen reports.** Whether the vendor is one the
- *   runtime speaks and whether the key is accepted are answered by the process
- *   that actually holds the credential — saving dials the vendor's own model
- *   listing as the key test, so a refusal here is the vendor's own sentence.
- *   This component never guesses and never explains a refusal the runtime did
- *   not word.
- * - **No model is chosen here.** The model is the conversation's choice,
- *   picked in the chat's model picker over the saved configuration's whole
- *   catalogue. What is saved is a credential and a vendor — nothing more.
- *
- * A workspace may hold several configurations — two OpenAI keys, or one per
- * vendor. One is the default: the one a new conversation starts on, and the one
- * the chat picker preselects. Conversations switch between saved entries from
- * the chat header; this screen is where the list itself is managed.
- */
-
 import {
   Add01Icon,
   Alert02Icon,
@@ -71,14 +45,6 @@ import {
   verifyTenantProviderFn,
 } from "../tenant-provider.functions"
 
-/**
- * What the add form validates before anything is sent.
- *
- * Deliberately permissive about the model id's *shape* and strict about
- * emptiness. The runtime owns the rules that matter — which vendor a model id
- * belongs to, whether a key can work — and duplicating them here would be a
- * second implementation that disagrees with the first on some vendor's oddity.
- */
 const createProviderFormSchema = z.object({
   provider: z.string().min(1, "Choose a provider"),
   apiKey: z
@@ -89,13 +55,6 @@ const createProviderFormSchema = z.object({
   label: z.string().trim().max(64, "That name is too long"),
 })
 
-/**
- * The one example model each vendor's catalogue is expected to carry.
- *
- * Typed as a total record over the identity record's vendor union, so adding a
- * vendor there and forgetting its hint here is a compile error rather than a
- * tile that silently renders an empty line.
- */
 const PROVIDER_HINTS: Record<VendorId, string> = {
   openai: "gpt-4o-mini",
   openrouter: "vendor/model",
@@ -104,17 +63,6 @@ const PROVIDER_HINTS: Record<VendorId, string> = {
   nvidia: "nvidia/llama-3.1-nemotron-70b-instruct",
 }
 
-/**
- * The vendors a workspace can choose between.
- *
- * The menu, not the law: the runtime owns the closed set and answers an
- * unknown name with a `400` naming it. Rendering them by name is how a
- * workspace picks one without ever seeing an address.
- *
- * Built from the identity record, so the vendors this screen offers are the
- * vendors the app can name and draw — a mark cannot exist for a vendor the
- * menu refuses to offer. Only the hint is local to this screen.
- */
 const PROVIDER_OPTIONS = VENDORS.map((vendor) => ({
   value: vendor.id,
   label: vendor.displayName,
@@ -122,27 +70,12 @@ const PROVIDER_OPTIONS = VENDORS.map((vendor) => ({
 }))
 
 export interface TenantProviderSettingsProps {
-  /** Whether the viewer may change any of this. */
   canAdminister: boolean
 }
 
-/**
- * Reads the workspace's saved providers, then renders the list.
- *
- * Split from the form on purpose. `useForm` reads `defaultValues` only when it
- * first mounts, so the component that creates the form must only mount once the
- * data exists — one component doing both either suspends (and a suspended subtree
- * never gets its submit handler attached, so the button did a native GET and
- * saved nothing) or has to re-seed imperatively, which empties the fields the
- * moment a save succeeds.
- */
 export function TenantProviderSettings({
   canAdminister,
 }: TenantProviderSettingsProps) {
-  // `useQuery`, never `useSuspenseQuery`. Suspending here is what broke the whole
-  // screen: the server ships this form's HTML, but the client subtree stays
-  // suspended waiting for data it does not have, so React never attaches the
-  // form's submit handler and the button performs a native GET instead.
   const { data, isPending } = useQuery(tenantProvidersQueryOptions())
 
   if (!data) {
@@ -179,7 +112,6 @@ export function TenantProviderSettings({
   )
 }
 
-/** One saved configuration, as the list renders it. */
 function ProviderRow({
   provider,
   canAdminister,
@@ -258,8 +190,6 @@ function ProviderRow({
     try {
       await remove.mutateAsync()
     } catch {
-      // `remove`'s own `onError` has already told the user. Swallowing here keeps
-      // a rejected confirm-dialog path from producing a second, identical toast.
     } finally {
       setBusy(false)
     }
@@ -272,10 +202,7 @@ function ProviderRow({
     <li className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          {/* The vendor's mark carries the identity; the tooltip names it on a
-              delayed hover. The entry's own name stays spelled out — it is the
-              workspace's word, not the vendor's. No model is shown: the model
-              is the conversation's choice now, not the configuration's. */}
+          {}
           <ProviderLogo provider={provider.provider} size={16} />
           <span>{provider.label ?? provider.provider}</span>
           {provider.is_default && (
@@ -355,7 +282,6 @@ function ProviderRow({
   )
 }
 
-/** The list itself, plus the form that adds to it. */
 function ProviderList({
   providers,
   canAdminister,
@@ -456,27 +382,16 @@ function ProviderList({
   )
 }
 
-/** Where the model pick list stands. */
-/**
- * The outcome of the save-time key test.
- *
- * The test is the vendor's own model listing: it both proves the credential
- * and counts what the chat's picker will offer from it. A refusal carries the
- * vendor's own sentence, because "your key is wrong" is the vendor's finding
- * to report, not this screen's to reword.
- */
 type KeyTest = {
   status: "idle" | "accepted" | "refused" | "error"
-  /** How many models the credential can reach. */
+
   models: number
   message: string | null
 }
 
-/** The form that adds one configuration. */
 function AddProviderForm({
   onDone,
 }: {
-  /** Whether anything was saved — `false` means the form was dismissed. */
   onDone: (saved: boolean) => Promise<void>
 }) {
   const form = useForm({
@@ -490,10 +405,6 @@ function AddProviderForm({
       onSubmit: createProviderFormSchema,
     },
     onSubmit: async ({ value }) => {
-      // The key test runs first, and a refusal ends the save: a credential the
-      // vendor already declined must not be stored as a success. The test is
-      // the vendor's own model listing — the same dial the chat's picker uses —
-      // so its answer is the finding, not a proxy for one.
       setKeyTest({ status: "idle", models: 0, message: null })
       let catalogue: ProviderModelsResponse
       try {
@@ -514,9 +425,6 @@ function AddProviderForm({
         return
       }
 
-      // Through the mutation, not around it: the mutation owns the invalidation
-      // and the dismissal, and a direct call here would save the entry while
-      // the screen went on showing a list without it.
       await save.mutateAsync({
         provider: value.provider,
         model: "",
@@ -546,10 +454,6 @@ function AddProviderForm({
     },
   })
 
-  // The outcome of the save-time key test, shown under the submit row. A
-  // refusal blocks the save and names the vendor's finding; an acceptance
-  // states what the credential reached, because a number is more legible than
-  // a green tick.
   const [keyTest, setKeyTest] = useState<KeyTest>({
     status: "idle",
     models: 0,
@@ -634,14 +538,7 @@ function AddProviderForm({
         )}
       </form.Field>
 
-      {/*
-        The model is picked from the vendor's own catalogue, not typed from
-        memory — a hand-spelled id was one typo away from a saved configuration
-        no turn could use. The list is loaded with the credential already in
-        the form; a vendor that refuses it, or cannot be reached, leaves the
-        field in a stated state with a retry, and the manual entry stays as the
-        escape hatch for a catalogue this flow could not read.
-      */}
+      {}
       <form.Field name="apiKey">
         {(field) => (
           <div className="grid gap-2 sm:grid-cols-[180px_minmax(0,1fr)] sm:items-start sm:gap-10">
@@ -670,10 +567,7 @@ function AddProviderForm({
         )}
       </form.Field>
 
-      {/* The key test's verdict, under the fields it is about. A refusal
-          blocks the save, and its sentence is the vendor's own; an acceptance
-          counts what the credential reached, because a number is more legible
-          than a green tick. */}
+      {}
       {keyTest.status !== "idle" ? (
         <p
           className={
@@ -734,14 +628,6 @@ function AddProviderForm({
   )
 }
 
-/**
- * A sentence to show, preferring the runtime's own wording.
- *
- * The runtime words its refusals for a person reading them, and a wrapper that
- * replaced those with its own generic text would throw away the only useful part
- * — *which* field was wrong. Anything unrecognised falls back to something honest
- * rather than something confident.
- */
 function describe(error: unknown): string {
   const message =
     typeof error === "object" && error !== null && "message" in error

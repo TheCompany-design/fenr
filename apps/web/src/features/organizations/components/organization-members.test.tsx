@@ -126,7 +126,6 @@ describe("OrganizationMembers Component (Block 4)", () => {
         ),
       )
 
-      // Active members
       expect(html).toContain("Ada Lovelace")
       expect(html).toContain("ada@calculus.dev")
       expect(html).toContain("Alan Turing")
@@ -135,7 +134,6 @@ describe("OrganizationMembers Component (Block 4)", () => {
       expect(html).toContain("AT")
       expect(html).toContain("You")
 
-      // Pending invitations
       expect(html).toContain("grace@cobol.io")
       expect(html).toContain("admin")
       expect(html).toContain("pending")
@@ -300,19 +298,16 @@ describe("OrganizationMembers Component (Block 4)", () => {
       ) as HTMLButtonElement | null
       expect(revokeBtn).not.toBeNull()
 
-      // First click initiates
       await act(async () => {
         revokeBtn?.click()
       })
       expect(mockCancelInvitation).toHaveBeenCalledTimes(1)
 
-      // Second click while in-flight is rejected by loadingActionIds guard
       await act(async () => {
         revokeBtn?.click()
       })
       expect(mockCancelInvitation).toHaveBeenCalledTimes(1)
 
-      // Finish pending action
       await act(async () => {
         resolveCancel()
       })

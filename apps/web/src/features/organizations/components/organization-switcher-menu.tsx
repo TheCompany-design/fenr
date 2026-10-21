@@ -1,16 +1,3 @@
-/**
- * Body of the workspace switcher popup.
- *
- * Presentation only: the parent owns the query, the switching state and the
- * create dialog. Every row is a `menuitemradio` tagged `data-menu-item` so the
- * dropdown's arrow-key navigation can reach it.
- *
- * Rows are deliberately single-line — avatar, name, active marker. The role
- * and slug that used to sit under each name moved out of this list; the popup
- * is a picker, not a directory. The active workspace is marked by the ringed
- * tick alone, never a filled row: the shared glide pill owns that surface, and
- * a second persistent highlight underneath it stops reading as hover.
- */
 import {
   Add01Icon,
   Loading03Icon,
@@ -31,7 +18,7 @@ import { OrganizationAvatar } from "./organization-avatar"
 export interface OrganizationSwitcherMenuProps {
   organizations: readonly OrganizationListItem[]
   activeOrganizationId?: string
-  /** Id of the organization whose switch is in flight, if any. */
+
   switchingId: string | null
   isLoading: boolean
   isError: boolean
@@ -40,7 +27,6 @@ export interface OrganizationSwitcherMenuProps {
   onCreate: () => void
 }
 
-/** The ringed tick that marks the workspace currently in use. */
 function ActiveMarker() {
   return (
     <span
@@ -73,8 +59,6 @@ function MenuItem({
       data-testid={testId}
       disabled={disabled}
       onClick={onClick}
-      // `isolate` keeps the pill behind this row's content without letting it
-      // drop behind the popup surface or the page.
       className={cn(
         "relative isolate flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition-colors",
         "text-popover-foreground hover:text-accent-foreground",
@@ -122,8 +106,6 @@ export function OrganizationSwitcherMenu({
   onSelect,
   onCreate,
 }: OrganizationSwitcherMenuProps) {
-  // A switch in flight freezes the whole list: a second switch would race the
-  // first and leave the session pointing at whichever request landed last.
   const switching = Boolean(switchingId)
   const glide = useDropdownGlider()
 

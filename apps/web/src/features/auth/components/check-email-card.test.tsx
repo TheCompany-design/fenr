@@ -45,8 +45,6 @@ const { MagicLinkForm } = await import("./magic-link-form")
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
-// DOM globals persist across test suite for DOM-dependent component tests
-
 async function renderWithRouter(component: () => React.ReactNode) {
   const rootRoute = createRootRoute({ component })
   const router = createRouter({
@@ -136,9 +134,9 @@ describe("Auth UI Components", () => {
       expect(html).toContain(
         "The sign-in link you clicked has expired or was already used.",
       )
-      // When error is present, cooldown is 0 so button is immediately "Resend link"
+
       expect(html).toContain("Resend link")
-      // Recovery copy rather than "Magic link sent" / "Check your inbox."
+
       expect(html).toContain("Link expired or invalid")
       expect(html).toContain("Request a new link.")
       expect(html).toContain("Your previous sign-in link is no longer valid")
@@ -219,7 +217,6 @@ describe("Auth UI Components", () => {
       const button = getResendButton(mounted.container)
       expect(button).toBeDefined()
 
-      // First click begins resend
       await act(async () => {
         button?.click()
       })
@@ -227,13 +224,11 @@ describe("Auth UI Components", () => {
       expect(button?.textContent).toContain("Sending…")
       expect(button?.hasAttribute("disabled")).toBe(true)
 
-      // Second rapid click while still in flight should be locked out
       await act(async () => {
         button?.click()
       })
       expect(mockMagicLink).toHaveBeenCalledTimes(1)
 
-      // Resolve the in-flight promise
       await act(async () => {
         resolveMagicLink({ data: { status: true }, error: null })
       })
@@ -249,7 +244,6 @@ describe("Auth UI Components", () => {
         }),
       )
 
-      // Initially error banner is present and copy is for recovery
       expect(mounted.container.querySelector('[role="alert"]')).not.toBeNull()
       expect(mounted.container.textContent).toContain(
         "Sign-in link expired or invalid",
@@ -262,15 +256,14 @@ describe("Auth UI Components", () => {
         button?.click()
       })
 
-      // Error banner is dismissed
       expect(mounted.container.querySelector('[role="alert"]')).toBeNull()
       expect(mounted.container.textContent).not.toContain(
         "Sign-in link expired or invalid",
       )
-      // Heading updates
+
       expect(mounted.container.textContent).toContain("Check your inbox.")
       expect(mounted.container.textContent).toContain("Magic link sent")
-      // Badge with role="status" and aria-live="polite" is present
+
       const badge = mounted.container.querySelector('[role="status"]')
       expect(badge).not.toBeNull()
       expect(badge?.getAttribute("aria-live")).toBe("polite")
@@ -280,7 +273,6 @@ describe("Auth UI Components", () => {
     })
 
     it("keeps button disabled while in cooldown", async () => {
-      // Initially without errorReason, cooldown is active (60s)
       const mounted = await mountWithRouter(() =>
         createElement(CheckEmailCard, {
           email: "cooldown@example.com",
@@ -292,7 +284,6 @@ describe("Auth UI Components", () => {
       expect(button?.hasAttribute("disabled")).toBe(true)
       expect(button?.textContent).toContain("Resend in 60s")
 
-      // Attempted click while in cooldown is blocked
       await act(async () => {
         button?.click()
       })

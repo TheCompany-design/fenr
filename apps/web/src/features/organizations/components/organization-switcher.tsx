@@ -1,14 +1,3 @@
-/**
- * Workspace switcher — the sidebar's top control.
- *
- * Sits at the head of the sidebar: the active workspace's avatar opens a popup
- * listing every workspace the user belongs to, with "Add new workspace" below.
- * The popup body and the trigger are separate components; this file owns the
- * query, the switch transaction and the create dialog.
- *
- * Requires a `SidebarProvider`/`Sidebar` ancestor — the popup opens sideways
- * when the rail is collapsed to icons, and downwards when it is expanded.
- */
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "@tanstack/react-router"
 import { AnimatedDropdown } from "@workspace/ui/components/animated-dropdown"
@@ -64,8 +53,6 @@ export function OrganizationSwitcher({
     }
   }, [isError])
 
-  // Mobile renders the sidebar as a full-width sheet, so it never collapses —
-  // matching the nav items' rule keeps the popup below the row either way.
   const collapsed = state === "collapsed" && !isMobile
 
   const handleSwitch = async (organization: OrganizationListItem) => {

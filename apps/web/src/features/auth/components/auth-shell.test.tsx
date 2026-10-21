@@ -16,22 +16,18 @@ describe("AuthShell Component", () => {
       ),
     )
 
-    // Brand header
     expect(html).toContain("Fenr")
     expect(html).toContain("tracking-[0.2em]")
     expect(html).toContain("size-2 rounded-full bg-foreground")
 
-    // Atmospheric lighting & grid
     expect(html).toContain("auth-radial-glow")
     expect(html).toContain("auth-grid-pattern")
     expect(html).toContain("blur-3xl")
 
-    // Bottom quote and default eyebrow
     expect(html).toContain("Workspace")
     expect(html).toContain("tracking-[0.3em]")
     expect(html).toContain("A quiet workspace for focused work.")
 
-    // Right container padding and child
     expect(html).toContain("lg:w-[620px]")
     expect(html).toContain('id="test-child"')
     expect(html).toContain("Child Content")

@@ -6,7 +6,7 @@ export interface OrganizationAvatarProps {
   slug?: string | null
   logo?: string | null
   size?: "xs" | "sm" | "md" | "lg" | "xl"
-  /** `circle` is the workspace-picker look; the default keeps the softer squircle. */
+
   shape?: "rounded" | "circle"
   className?: string
 }

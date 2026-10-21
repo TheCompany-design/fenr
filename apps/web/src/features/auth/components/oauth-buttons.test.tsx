@@ -244,7 +244,6 @@ describe("OAuthButtons Component", () => {
       const { getButton } = mount()
       const googleBtn = getButton("Google")
 
-      // First click: triggers in-flight request
       await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
@@ -253,14 +252,12 @@ describe("OAuthButtons Component", () => {
       expect(googleBtn?.textContent).toContain("Connecting…")
       expect(googleBtn?.hasAttribute("disabled")).toBe(true)
 
-      // Second click while in-flight: must be ignored
       await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
 
       expect(mockSocial).toHaveBeenCalledTimes(1)
 
-      // Resolve the in-flight promise
       await act(async () => {
         resolvePromise({
           data: { url: "https://accounts.google.com", redirect: true },
@@ -301,7 +298,6 @@ describe("OAuthButtons Component", () => {
         description: "Access denied by user",
       })
 
-      // Button should be re-enabled after error
       expect(googleBtn?.hasAttribute("disabled")).toBe(false)
       expect(googleBtn?.textContent).toContain("Google")
     })

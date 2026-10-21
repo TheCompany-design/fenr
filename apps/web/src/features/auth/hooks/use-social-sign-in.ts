@@ -1,9 +1,3 @@
-/**
- * TanStack Query mutation hook for outbound social sign-in requests.
- *
- * Wraps Better Auth authClient.signIn.social in a declarative mutation,
- * managing pending state and user-facing error toasts via Sonner.
- */
 import {
   type UseMutationOptions,
   type UseMutationResult,

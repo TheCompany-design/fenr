@@ -11,24 +11,11 @@ export interface ChatTurnBlockProps {
   readonly turn: ChatTurn
 }
 
-/**
- * One reply, however many model steps it took to produce.
- *
- * A turn that calls a tool yields one message per step. Rendering those as
- * separate bubbles gave a single answer a separate avatar, name and timestamp
- * each, so one reply read as several — the reader was shown the plumbing
- * between the model's steps and nothing said what was actually one turn.
- *
- * The steps are kept here rather than collapsed: the reasoning is one trace
- * with its steps apart, and the answer is the steps that produced text.
- */
 export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
   const [copiedId, setCopiedId] = useAtom(copiedMessageIdAtom)
   const isUser = turn.isUser
 
   if (isUser) {
-    // A person's messages are their own: the grouping only ever joins agent
-    // steps, so a user turn is a single message in practice.
     const message = turn.messages[0]
     if (!message) return null
 
@@ -45,7 +32,7 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
 
   const thinking = turnThinking(turn.messages)
   const text = turnText(turn.messages)
-  // The turn started when its first step did.
+
   const startedAt = turn.messages.find(
     (message) => message.createdAt,
   )?.createdAt
@@ -89,9 +76,7 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
             </div>
           )}
 
-          {/* Footer: actions on the left, when it finished, on the right.
-              The time belongs after what it times — a timestamp above the
-              answer describes the moment it arrived rather than the reply. */}
+          {}
           {(text || startedAt) && (
             <div className="mt-1.5 flex min-h-5 items-center justify-between gap-2">
               <div className="flex items-center gap-1">

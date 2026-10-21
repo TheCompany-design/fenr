@@ -9,25 +9,12 @@ export const nabuKeys = {
   capabilities: () => [...nabuKeys.all, "capabilities"] as const,
 }
 
-/**
- * Keys for the workspace's own model provider.
- *
- * Separate from `nabuKeys` because this one is invalidated by a settings write,
- * and lumping it in with the deployment's static capabilities would mean saving a
- * provider also refetching the engine's version.
- */
 export const tenantProviderKeys = {
   all: ["tenant-provider"] as const,
-  /** The saved list: what settings renders and the chat picker offers. */
+
   list: () => [...tenantProviderKeys.all, "list"] as const,
 }
 
-/**
- * Whether the runtime is reachable.
- *
- * Retried once: a dashboard that renders "unavailable" because the engine was
- * restarting is worse than one that waits a moment.
- */
 export const nabuSystemStatusQueryOptions = () =>
   queryOptions({
     queryKey: nabuKeys.systemStatus(),
@@ -36,13 +23,6 @@ export const nabuSystemStatusQueryOptions = () =>
     retry: 1,
   })
 
-/**
- * What a turn may do here: its tools, its attempt budget, and whether a
- * disconnected client ends the turn or only loses the stream.
- *
- * Kept for longer than the status because it describes the deployment rather
- * than its current health.
- */
 export const nabuCapabilitiesQueryOptions = () =>
   queryOptions({
     queryKey: nabuKeys.capabilities(),
@@ -51,13 +31,6 @@ export const nabuCapabilitiesQueryOptions = () =>
     retry: 1,
   })
 
-/**
- * The workspace's saved model providers.
- *
- * Cached because the chat header reads it on every conversation view, and it
- * changes only when someone edits settings. A read that is slightly stale for a
- * minute is a better trade than one Nabu call per render.
- */
 export const tenantProvidersQueryOptions = () =>
   queryOptions({
     queryKey: tenantProviderKeys.list(),

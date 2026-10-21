@@ -1,10 +1,3 @@
-/**
- * Social OAuth provider buttons.
- *
- * Provides a shared, type-safe horizontal composition for Google, Apple, and GitHub.
- * Enabled providers initiate Better Auth social sign-in via TanStack Query mutation.
- * Inactive providers remain visibly disabled with descriptive tooltips.
- */
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 

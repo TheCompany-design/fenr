@@ -1,8 +1,3 @@
-/**
- * Semantic divider with label between authentication methods.
- *
- * Uses design tokens only (border-border, bg-background, text-muted-foreground).
- */
 import { cn } from "@workspace/ui/lib/utils"
 
 export interface AuthDividerProps {

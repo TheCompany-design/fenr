@@ -1,8 +1,3 @@
-/**
- * Magic link sign-in/sign-up form — TanStack Form + Zod wired to Better Auth magicLinkClient.
- *
- * Emits email-only authentication links. Raw errors are caught and surfaced via Sonner.
- */
 import { Mail01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useForm } from "@tanstack/react-form"

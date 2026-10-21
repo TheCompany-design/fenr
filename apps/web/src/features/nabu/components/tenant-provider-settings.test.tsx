@@ -1,17 +1,3 @@
-/**
- * The saved-providers settings screen, rendered.
- *
- * The presentational assertions are what a screenshot would show, written down
- * so they are checked on every run instead of once by eye: an empty workspace
- * says so and offers to add; a workspace with two entries shows which one new
- * conversations start on, names every stored key by its fingerprint, and never
- * shows a key; a member sees the list and cannot touch it.
- *
- * Rendered server-side with a seeded query client, because that is the closest
- * thing to "what a browser gets" available without a session — and because the
- * assertions worth making are about what is *absent* as much as what is present.
- */
-
 import { beforeEach, describe, expect, it } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -64,8 +50,7 @@ async function render(
     ...tenantProvidersQueryOptions(),
     queryFn: async () => list,
   })
-  // Seeded under the real key, so the component reads exactly what it reads in
-  // production rather than a parallel fixture.
+
   queryClient.setQueryData(tenantProviderKeys.list(), list)
 
   const rootRoute = createRootRoute({
@@ -116,9 +101,6 @@ describe("a workspace with providers saved", () => {
   })
 
   it("renders every entry, naming the workspace's label or the vendor", () => {
-    // The model is deliberately absent from the row: it is the conversation's
-    // choice now, picked in the chat's model picker, and a configuration's
-    // stored model is only a default most configurations no longer have.
     expect(html).toContain("Work key")
     expect(html).toContain("anthropic")
     expect(html).not.toContain("gpt-4o-mini")
@@ -150,8 +132,6 @@ describe("the vendor's mark", () => {
       can_administer: true,
     })
 
-    // The marks are the identity; each names itself for a screen reader, and
-    // the same names the tooltip shows on a hover.
     expect(html).toContain('alt="OpenAI"')
     expect(html).toContain('alt="Anthropic"')
     expect(html).toContain("logos/openai.svg")
@@ -169,9 +149,6 @@ describe("the vendor's mark", () => {
   })
 
   it("draws Google with the Antigravity mark here, as the composer picker does", async () => {
-    // This is the surface that disagreed with the picker. The identity record
-    // is now the only decision, so the credential row carries the same
-    // pinwheel — and not the corporate "G" the picker no longer shows.
     const html = await render({
       providers: [{ ...DEFAULT_ENTRY, provider: "google" }],
       can_administer: true,
@@ -190,8 +167,6 @@ describe("the model pick list", () => {
       can_administer: true,
     })
 
-    // The form starts closed; opening it is a click the static render does not
-    // perform, so the assertion here is about the affordance being reachable.
     expect(html).toContain("Add a provider")
   })
 })

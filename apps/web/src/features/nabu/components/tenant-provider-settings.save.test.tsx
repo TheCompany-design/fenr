@@ -1,16 +1,3 @@
-/**
- * Does clicking "Save provider" actually reach the server function?
- *
- * Written because a workspace administrator clicked save and the fields came back
- * empty, with nothing written. The Nabu side was proven correct against the real
- * database, so the question moved to this side: is the submit handler reaching
- * the mutation at all, and with the payload the schema expects?
- *
- * The list refetch is the second half of that question: a save that does not
- * invalidate the saved list leaves the screen showing a state that never
- * happened.
- */
-
 import { beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import {
@@ -27,7 +14,6 @@ import type {
   TenantProviderSummary,
 } from "@/lib/schemas/nabu"
 
-/** What the server functions were asked to do, in order. */
 const calls: {
   create: unknown[]
   removed: string[]
@@ -35,7 +21,6 @@ const calls: {
   verified: string[]
 } = { create: [], removed: [], defaults: [], verified: [] }
 
-/** The entry a successful create returns. */
 function savedEntry(index: number): TenantProviderSummary {
   return {
     id: `018f0000-0000-7000-8000-${String(index).padStart(12, "0")}`,

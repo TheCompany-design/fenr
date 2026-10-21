@@ -1,10 +1,3 @@
-/**
- * Unified auth methods composition.
- *
- * Composes email magic-link sign-in/sign-up and social OAuth buttons
- * separated by an accessible semantic divider. Eliminates duplication
- * between sign-in and sign-up flows.
- */
 import { AuthDivider } from "./auth-divider"
 import { MagicLinkForm } from "./magic-link-form"
 import { OAuthButtons, type SocialProviderConfig } from "./oauth-buttons"

@@ -12,17 +12,11 @@ export interface ActiveTurnProjection {
   readonly activeItemId: string | null
   readonly streamingText: string
   readonly streamingThinking: string
-  /** The reasoning block `streamingThinking` belongs to. */
+
   readonly streamingThinkingBlockId: string | null
-  /** Tool-call arguments seen so far, before they parse as JSON. */
+
   readonly streamingToolArguments: string
-  /**
-   * Mirrors the server's `TurnStatus` rather than collapsing it.
-   *
-   * `suspended` is the reason this matters: it is not terminal, and folding it
-   * into "error" or "completed" would tell the UI a turn had settled while it is
-   * in fact waiting on a person.
-   */
+
   readonly status:
     | "idle"
     | "in_progress"
@@ -32,30 +26,14 @@ export interface ActiveTurnProjection {
     | "failed"
     | "cancelled"
     | "error"
-  /** The approval item a suspended turn is waiting on, when it is waiting. */
+
   readonly awaitingApprovalItemId: string | null
   readonly approvalAttempt: number | null
-  /** What a reader is told, in words. */
+
   readonly error: string | null
-  /**
-   * Why the turn failed, as the runtime's own token.
-   *
-   * Kept beside the message rather than merged into it: the message is for the
-   * person reading, the code is what makes the report actionable, and either one
-   * alone leaves the reader guessing. Discarding the code is how a stopped
-   * gateway and a rejected request looked identical in the UI.
-   */
+
   readonly errorCode: string | null
-  /**
-   * What the turn's model calls actually cost, as the runtime reported it —
-   * prompt, completion, and total tokens for the whole turn.
-   *
-   * Parsed since the frame existed and dropped until now: the context meter
-   * seeds from the prompt figure (the last request's real size) instead of
-   * estimating a transcript the provider already counted. Null until a turn
-   * completes in this tab; usage is not persisted server-side yet, so a
-   * reloaded conversation has nothing to seed from and estimates carry it.
-   */
+
   readonly usage: UsageReport | null
 }
 
@@ -75,7 +53,6 @@ export const initialTurnProjection: ActiveTurnProjection = {
   usage: null,
 }
 
-/** Whether the turn has settled, one way or another. */
 export function isSettled(status: ActiveTurnProjection["status"]): boolean {
   return (
     status === "completed" ||
@@ -85,12 +62,6 @@ export function isSettled(status: ActiveTurnProjection["status"]): boolean {
   )
 }
 
-/**
- * The stream status a server turn status implies.
- *
- * `in_progress` maps to `streaming` because that is what the client is doing
- * with it; the server's name describes the turn, not the connection.
- */
 function projectionStatus(status: TurnStatus): ActiveTurnProjection["status"] {
   switch (status) {
     case "in_progress":
@@ -106,14 +77,6 @@ function projectionStatus(status: TurnStatus): ActiveTurnProjection["status"] {
   }
 }
 
-/**
- * Fold a delta into the projection.
- *
- * The three deltas accumulate into different fields on purpose: reasoning is
- * shown apart from the answer, and tool arguments are not part of either — they
- * are a fragment of JSON that only means something once the runtime has
- * buffered the whole call.
- */
 function applyDelta(
   state: ActiveTurnProjection,
   delta: ItemDeltaPayload,
@@ -122,9 +85,6 @@ function applyDelta(
     case "text_delta":
       return { ...state, streamingText: state.streamingText + delta.text }
     case "thinking_delta":
-      // A new block starts a new thought rather than continuing the last one.
-      // Without this the projection cannot tell "still going" from "started
-      // again", which is the difference between one trace and several.
       if (state.streamingThinkingBlockId !== delta.block_id) {
         return {
           ...state,
@@ -144,10 +104,6 @@ function applyDelta(
   }
 }
 
-/**
- * Pure stream reducer that accumulates in-flight SSE events into a reactive
- * turn projection without React batching hazards or tearing.
- */
 export function streamReducer(
   state: ActiveTurnProjection,
   event: AgentStreamEvent,
@@ -162,9 +118,7 @@ export function streamReducer(
         streamingThinking: "",
         streamingThinkingBlockId: null,
         streamingToolArguments: "",
-        // Cleared rather than carried over: an active item belongs to the turn
-        // that created it, and keeping the old id would make the next delta
-        // land on the previous turn's message.
+
         activeItemId: null,
         status: "streaming",
         awaitingApprovalItemId: null,
@@ -175,8 +129,6 @@ export function streamReducer(
       }
 
     case "turn_suspended":
-      // Not an error and not a finish: the turn is parked on a decision, and
-      // the item it is waiting on is what the UI has to offer the user.
       return {
         ...state,
         status: "suspended",
@@ -186,9 +138,6 @@ export function streamReducer(
       }
 
     case "model_call_recorded": {
-      // One provider call's own facts. The turn aggregate on `turn_completed`
-      // is what the meter seeds from; this event changes no state — it is
-      // modelled so the stream does not report a known frame as unknown.
       return state
     }
 
@@ -218,8 +167,7 @@ export function streamReducer(
       return {
         ...state,
         status: projectionStatus(event.data.status),
-        // A completed turn cannot still be waiting for approval; keeping the id
-        // would leave a dead decision prompt on screen.
+
         awaitingApprovalItemId: null,
         approvalAttempt: null,
         activeItemId: null,
@@ -238,14 +186,6 @@ export function streamReducer(
   }
 }
 
-/**
- * Apply a raw frame from the wire.
- *
- * A frame this client cannot model is reported and ignored rather than thrown:
- * the server adds capability as new event types precisely so an older client
- * keeps working, and dropping the stream would turn a forward-compatible design
- * into a hard failure.
- */
 export function applyStreamFrame(
   state: ActiveTurnProjection,
   raw: unknown,

@@ -1,16 +1,3 @@
-/**
- * A turn that is waiting on a person.
- *
- * The runtime suspends a turn when the model asks for a tool call that policy
- * or a person has to approve. `suspended` is not an error and not a finish: the
- * turn is parked, and it resumes when a decision is recorded. Until this card
- * exists, a suspended turn looked like a request that never came back.
- *
- * The decision itself is recorded server-side. A turn that is waiting on a human
- * must be resolvable after a reload — the runtime holds the request — so this
- * component never treats the decision as local state it can invent.
- */
-
 import {
   AiSecurityIcon,
   CheckmarkCircle02Icon,
@@ -26,9 +13,9 @@ import { chatKeys } from "../queries/chat-queries"
 
 export interface ApprovalPromptProps {
   readonly turnId: string
-  /** The approval-request item the runtime is waiting on. */
+
   readonly itemId: string
-  /** Which attempt suspended. Attempts are counted from one. */
+
   readonly attempt: number
 }
 
@@ -45,8 +32,6 @@ export function ApprovalPrompt({
         data: { turnId, itemId, decision },
       }),
     onSuccess: () => {
-      // The turn resumes server-side; the transcript is the source of truth, so
-      // it is re-read rather than patched locally.
       void queryClient.invalidateQueries({ queryKey: chatKeys.thread(turnId) })
       toast.success("Decision recorded. The turn is resuming.", {
         description: `Attempt ${attempt} continues.`,
