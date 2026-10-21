@@ -32,7 +32,6 @@ function config(overrides: Partial<TenantProviderList["providers"][number]>) {
   }
 }
 
-/** A catalogue fetch that always answers with this fixture. */
 function catalogueWith(models: ListedModel[]) {
   return { ok: true as const, models }
 }
@@ -87,13 +86,21 @@ describe("saved providers as the composer's catalog", () => {
     expect(providerDisplayName("mistral")).toBe("mistral")
   })
 
-  it("exposes the vendor's whole catalogue for a saved configuration", async () => {
+  it("exposes the vendor's whole eligible catalogue for a saved configuration", async () => {
     const provider = toComposerProvider(config({}), async () =>
-      catalogueWith([GPT, { id: "gpt-5.2-mini" }]),
+      catalogueWith([
+        GPT,
+        { id: "gpt-5.2-mini" },
+        { id: "retired/model", storefront: { published: false } },
+        {
+          id: "offline/model",
+          storefront: { published: true, serving: false },
+        },
+      ]),
     )
     const models = await provider.source.load(null)
     expect(models.map((model) => model.id)).toEqual(["gpt-5.2", "gpt-5.2-mini"])
-    // The vendor's name where it published one, the id where it did not.
+
     expect(models[0]?.name).toBe("GPT-5.2")
     expect(models[1]?.name).toBe("gpt-5.2-mini")
   })
@@ -104,8 +111,7 @@ describe("saved providers as the composer's catalog", () => {
     expect(spec.limits.maxOutput).toBe(128_000)
     expect(spec.cost).toEqual({ inputPerMTok: 1.25, outputPerMTok: 10 })
     expect(spec.caps.vision.supported).toBe(true)
-    // What the vendor did not say reads as the runtime's honest fallback, not
-    // as zero and not as an invented window.
+
     const sparse = toCatalogModel({ id: "m" }, "config-1")
     expect(sparse.limits.contextWindow).toBe(32_000)
     expect(sparse.limits.maxOutput).toBe(4_096)
@@ -129,10 +135,59 @@ describe("saved providers as the composer's catalog", () => {
   })
 
   it("reads absence of a declared scale as no effort control", () => {
-    // Absent, not empty: a model the runtime declares nothing for runs without
-    // a level, and the composer must not invent a picker for it.
     const spec = toCatalogModel({ id: "m" }, "config-1")
     expect(spec.caps.reasoning).toEqual({ supported: false })
+  })
+
+  it("leads a delisted model's tagline with the storefront finding", () => {
+    const spec = toCatalogModel(
+      {
+        id: "nvidia/gpt-oss-120b",
+        context_window: 131_072,
+        storefront: { published: false },
+      },
+      "config-1",
+    )
+    expect(spec.tagline).toBe(
+      "No longer on the vendor's storefront · 131k context",
+    )
+    expect(
+      spec.badges,
+      "the finding rides the row itself, not only the muted line",
+    ).toEqual(["Deprecated"])
+  })
+
+  it("badges a retiring model with the vendor's own date and an unavailable one with the vendor's own finding", () => {
+    expect(
+      toCatalogModel(
+        {
+          id: "poolside/laguna-s-2.1",
+          storefront: { published: true, ends_on: "2026-10-31" },
+        },
+        "config-1",
+      ).badges,
+    ).toEqual(["Retiring"])
+    expect(
+      toCatalogModel(
+        {
+          id: "stepfun-ai/step-5-preview",
+          storefront: { published: true, serving: false },
+        },
+        "config-1",
+      ).badges,
+    ).toEqual(["Unavailable"])
+  })
+
+  it("keeps a published or unanswered model's tagline untouched", () => {
+    expect(
+      toCatalogModel(
+        { id: "nvidia/gpt-oss-20b", storefront: { published: true } },
+        "config-1",
+      ).tagline,
+    ).toBe("config-1")
+    expect(
+      toCatalogModel({ id: "nvidia/gpt-oss-20b" }, "config-1").tagline,
+    ).toBe("config-1")
   })
 
   it("lands a declined credential in the catalog's failed state, in the vendor's words", async () => {
@@ -219,7 +274,7 @@ describe("the context meter seeds from real usage", () => {
 
   it("counts a seed in place of the covered messages", () => {
     const caps = resolved()
-    // 1,000 tokens the provider reported for the last request.
+
     const seeded = measureContext({
       caps,
       systemPrompt: "",
@@ -227,8 +282,7 @@ describe("the context meter seeds from real usage", () => {
       draft: "",
       historySeed: 1_000,
     })
-    // The fallback system prompt is estimated out of the seed, not added on
-    // top of it: the provider already counted the real system prompt.
+
     const fallback = measureContext({
       caps,
       systemPrompt: "",
@@ -244,7 +298,7 @@ describe("the context meter seeds from real usage", () => {
     const usage = measureContext({
       caps,
       systemPrompt: "",
-      messages: [{ content: "x".repeat(400) }], // ~100 tokens + 4 framing
+      messages: [{ content: "x".repeat(400) }],
       draft: "",
       historySeed: 1_000,
     })
