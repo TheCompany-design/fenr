@@ -11,6 +11,6 @@ export function createMagicLinkPlugin() {
         expiresInMinutes: 10,
       })
     },
-    expiresIn: 600, // 10 minutes
+    expiresIn: 600,
   })
 }

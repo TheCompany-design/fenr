@@ -208,7 +208,6 @@ describe("Outbound JWT Token Provider (acquireOutboundJwt)", () => {
   })
 
   it("mints signed JWT with active user claims, tenant activeOrganizationId, and target audience", async () => {
-    // Mock active session
     auth.api.getSession = mock(async () => ({
       user: {
         id: "user_tenant_999",
@@ -247,7 +246,6 @@ describe("Outbound JWT Token Provider (acquireOutboundJwt)", () => {
     expect(token).toBeDefined()
     expect(typeof token).toBe("string")
 
-    // Verify token claims and signature using Better Auth verifyJWT
     const verified = await auth.api.verifyJWT({
       body: {
         token,

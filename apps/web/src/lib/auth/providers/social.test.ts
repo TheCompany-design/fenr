@@ -12,8 +12,6 @@ describe("Social Providers Registry", () => {
   it("defines standard social providers with secure logo CDN URLs", () => {
     expect(SOCIAL_PROVIDERS.length).toBe(3)
 
-    // Spelled out without naming the service: a mark is an absolute https URL
-    // ending in `.svg`. The address itself is the builder's business.
     for (const provider of SOCIAL_PROVIDERS) {
       const url = new URL(provider.logoUrl)
       expect(url.protocol).toBe("https:")
@@ -22,9 +20,6 @@ describe("Social Providers Registry", () => {
   })
 
   it("takes every mark from the shared logo service", () => {
-    // The auth screens must not carry their own copy of the service address —
-    // the sign-in button and a model vendor's mark are the same lookup, so
-    // moving the service is one edit in `lib/brand/logos`.
     for (const provider of SOCIAL_PROVIDERS) {
       expect(provider.logoUrl).toBe(logoUrl(provider.id))
     }

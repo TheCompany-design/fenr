@@ -1,19 +1,3 @@
-/**
- * The tenant model-provider contract, on this side of the boundary.
- *
- * The interesting failures here are all about *what can travel*, so the tests are
- * about refusals rather than about happy paths:
- *
- * - The list schema has no field that could carry a credential, so a runtime that
- *   grew one would fail validation here rather than putting it in a payload the
- *   browser receives.
- * - The create schema is strict about emptiness: a blank key or a blank vendor
- *   would save "successfully" and then fail every turn.
- * - A `422` from the runtime means "the provider cannot be reached", not "the
- *   request was malformed", and the two are grouped so a form cannot confuse
- *   them with a provider that answered and refused.
- */
-
 import { describe, expect, it } from "bun:test"
 import {
   isConfigurationRefused,
@@ -57,15 +41,12 @@ describe("the saved provider read shape", () => {
   })
 
   it("cannot represent a credential at all", () => {
-    // The strongest form of the guarantee: adding a key field to the runtime's
-    // response would be a *type* failure here, not a review comment.
     const withCredential = {
       ...configured,
       api_key: "sk-live-abc123",
     }
     const parsed = tenantProviderSummarySchema.safeParse(withCredential)
-    // Zod strips unknown keys by default rather than rejecting, so what matters is
-    // that the stripped field cannot reach the component.
+
     if (parsed.success) {
       expect(JSON.stringify(parsed.data)).not.toContain("sk-live-abc123")
     } else {
@@ -106,8 +87,6 @@ describe("the provider create shape", () => {
   })
 
   it("refuses a blank key rather than storing an empty credential", () => {
-    // A blank credential would save successfully and then fail every turn, which
-    // is the worst place to find out.
     for (const blank of ["", "   ", "\t\n"]) {
       expect(
         createTenantProviderInputSchema.safeParse({
@@ -120,8 +99,6 @@ describe("the provider create shape", () => {
   })
 
   it("refuses a blank vendor rather than saving one nobody chose", () => {
-    // The closed picker makes this unreachable through the form; the schema is
-    // the second half of the same guarantee, for a caller that is not the form.
     for (const blank of ["", "   "]) {
       expect(
         createTenantProviderInputSchema.safeParse({
@@ -181,8 +158,7 @@ describe("the verification result", () => {
         "the provider answered, but did not accept the stored credential",
     })
     expect(refused.ok).toBe(false)
-    // The distinction is load-bearing: a wrong key is a result, and reporting it
-    // as a malfunction would tell a user their provider is down.
+
     expect(refused.message).toContain("did not accept")
   })
 })
@@ -198,9 +174,6 @@ describe("classifying a runtime refusal", () => {
   })
 
   it("recognises a reachability refusal", () => {
-    // `422` means the provider cannot be reached from the runtime — a
-    // deployment-level refusal to dial, distinct from a wrong key, which comes
-    // back as `ok: false`.
     expect(
       isConfigurationRefused(
         new HttpClientError("the provider cannot be reached from the runtime", {

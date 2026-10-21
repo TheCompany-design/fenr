@@ -1,11 +1,3 @@
-/**
- * Server-side session helpers.
- *
- * - `getSession`: null-safe session lookup for guards and UI context.
- * - `ensureSession`: throws when unauthenticated — use INSIDE server
- *   functions that must be authorized; a route guard alone is never
- *   sufficient (review-framework invariant #7).
- */
 import { createMiddleware, createServerFn } from "@tanstack/react-start"
 import { getRequestHeaders } from "@tanstack/react-start/server"
 import { moduleLogger } from "@/lib/logger"
@@ -18,8 +10,6 @@ export const getSession = createServerFn({ method: "GET" }).handler(
     try {
       return await auth.api.getSession({ headers: getRequestHeaders() })
     } catch (error) {
-      // A broken auth backend should degrade to "no session" for guards, but
-      // stay loud in logs so it is diagnosable.
       sessionLogger.error(
         {
           err:
@@ -41,7 +31,6 @@ export class UnauthorizedError extends Error {
   }
 }
 
-// react-doctor-disable-next-line deslop/unused-export -- Public server auth primitive for server functions
 export const ensureSession = createServerFn({ method: "GET" }).handler(
   async (): Promise<Session> => {
     const session = await getSession()
@@ -52,7 +41,6 @@ export const ensureSession = createServerFn({ method: "GET" }).handler(
   },
 )
 
-// react-doctor-disable-next-line deslop/unused-export -- Public server auth middleware for server functions
 export const authMiddleware = createMiddleware().server(async ({ next }) => {
   const session = await getSession()
   if (!session) {

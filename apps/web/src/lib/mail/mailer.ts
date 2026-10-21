@@ -1,10 +1,3 @@
-/**
- * High-level mailer service for Fenr.
- *
- * SERVER-ONLY: handles rendering React Email templates and delivering messages
- * via Nodemailer with structured logging (Pino), masked recipient information,
- * multipart HTML + plain-text fallback, and strict input validation.
- */
 import { render } from "@react-email/render"
 import { createElement } from "react"
 
@@ -26,10 +19,6 @@ export class MailDeliveryError extends Error {
   }
 }
 
-/**
- * Mask an email address for safe operational logging without leaking PII.
- * Example: 'alice@example.com' -> 'a***e@example.com'
- */
 export function maskEmail(email: string): string {
   if (!email || typeof email !== "string") {
     return ""
@@ -64,10 +53,6 @@ export function maskEmail(email: string): string {
 const EMAIL_REGEX =
   /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
 
-/**
- * Strictly validate a single recipient email address.
- * Rejects multi-recipient strings (commas/semicolons), CRLF injection, and malformed addresses.
- */
 export function validateRecipientEmail(email: string): string {
   if (!email || typeof email !== "string") {
     throw new MailDeliveryError("Recipient email address is required")

@@ -29,8 +29,6 @@ describe("agent-stream schemas", () => {
   })
 
   it("treats only completed, failed and cancelled as terminal", () => {
-    // `suspended` is excluded on purpose: it is waiting on a human, and a client
-    // that treated it as settled would strand the turn.
     expect([...TERMINAL_TURN_STATUSES]).toEqual([
       "completed",
       "failed",
@@ -54,8 +52,6 @@ describe("agent-stream schemas", () => {
   })
 
   it("separates message kinds from the rest", () => {
-    // The chat timeline renders these; tool and approval items are transcript
-    // records, not bubbles, so they must not be lumped together.
     expect([...MESSAGE_ITEM_KINDS]).toEqual(["user_message", "agent_message"])
   })
 
@@ -135,14 +131,12 @@ describe("agent-stream schemas", () => {
     const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
     const itemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
 
-    // turn_started
     const turnStarted = agentStreamEventSchema.parse({
       type: "turn_started",
       data: { thread_id: threadId, turn_id: turnId },
     })
     expect(turnStarted.type).toBe("turn_started")
 
-    // item_started
     const itemStarted = agentStreamEventSchema.parse({
       type: "item_started",
       data: {
@@ -154,7 +148,6 @@ describe("agent-stream schemas", () => {
     })
     expect(itemStarted.type).toBe("item_started")
 
-    // item_delta
     const itemDelta = agentStreamEventSchema.parse({
       type: "item_delta",
       data: {
@@ -164,7 +157,6 @@ describe("agent-stream schemas", () => {
     })
     expect(itemDelta.type).toBe("item_delta")
 
-    // item_completed
     const itemCompleted = agentStreamEventSchema.parse({
       type: "item_completed",
       data: {
@@ -177,7 +169,6 @@ describe("agent-stream schemas", () => {
     })
     expect(itemCompleted.type).toBe("item_completed")
 
-    // turn_completed
     const turnCompleted = agentStreamEventSchema.parse({
       type: "turn_completed",
       data: {
@@ -189,7 +180,6 @@ describe("agent-stream schemas", () => {
     })
     expect(turnCompleted.type).toBe("turn_completed")
 
-    // stream_error
     const streamError = agentStreamEventSchema.parse({
       type: "stream_error",
       data: {
@@ -201,8 +191,6 @@ describe("agent-stream schemas", () => {
   })
 
   it("parses every event captured from the server", () => {
-    // These fixtures were serialised by the Rust implementation. If the server
-    // changes shape, this is where it is caught.
     for (const fixture of ALL_AGENT_STREAM_FIXTURES) {
       const parsed = agentStreamEventSchema.safeParse(fixture)
       if (!parsed.success) {

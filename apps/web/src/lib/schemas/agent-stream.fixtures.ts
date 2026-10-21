@@ -1,17 +1,3 @@
-/**
- * Wire fixtures captured from the Rust implementation.
- *
- * Every entry below was produced by serialising `AgentStreamEvent` with serde in
- * `thebookofnabu` — not written by hand from the documentation. That matters
- * because this file is the contract's regression test: if the server renames a
- * type, adds a variant, or changes a field's presence, these fixtures stop
- * parsing and the failure names the exact drift.
- *
- * To regenerate, construct every variant in `crates/nabu-agent-core` and print
- * `serde_json::to_string(&event)`; do not hand-edit a value to make a test pass.
- */
-
-/** Identifiers from a real serialisation; UUIDv7, as the server mints them. */
 export const FIXTURE_THREAD_ID = "01a10a57-2b99-7288-93d8-ac57689e6597"
 export const FIXTURE_TURN_ID = "01a10a57-2b99-7288-93d8-ac586344b10b"
 export const FIXTURE_ITEM_ID = "01a10a57-2b99-7288-93d8-ac592f02648a"
@@ -62,13 +48,6 @@ export const ITEM_STARTED_APPROVAL_REQUEST_FIXTURE = {
   },
 }
 
-/**
- * Captured from a live turn after the block id reached the wire.
- *
- * `block_id` is the provider's correlator, rendered by rig rather than issued
- * verbatim, so the fixture asserts the field is present and non-empty rather than
- * pinning an opaque value.
- */
 export const ITEM_DELTA_THINKING_FIXTURE = {
   type: "item_delta",
   data: {
@@ -120,7 +99,6 @@ export const ITEM_COMPLETED_TOOL_RESULT_FIXTURE = {
   },
 }
 
-/** The ambiguous case: nobody observed whether the call took effect. */
 export const ITEM_COMPLETED_TOOL_RESULT_UNKNOWN_FIXTURE = {
   type: "item_completed",
   data: {
@@ -162,7 +140,6 @@ export const ITEM_COMPLETED_APPROVAL_DECISION_FIXTURE = {
   },
 }
 
-/** `thinking` is omitted when the model produced none. */
 export const ITEM_COMPLETED_AGENT_MESSAGE_FIXTURE = {
   type: "item_completed",
   data: {
@@ -181,11 +158,6 @@ export const TURN_COMPLETED_CANCELLED_FIXTURE = {
   },
 }
 
-/**
- * Captured from the runtime's own serialization test
- * (`test_model_call_recorded_serialization`), the same way the other frames
- * were: the JSON the Rust side pins is the JSON asserted here.
- */
 export const MODEL_CALL_RECORDED_FIXTURE = {
   type: "model_call_recorded",
   data: {
@@ -213,7 +185,6 @@ export const STREAM_ERROR_FIXTURE = {
   data: { code: "INTERNAL_ERROR", message: "boom" },
 }
 
-/** Every fixture, for exhaustive round-trip coverage. */
 export const ALL_AGENT_STREAM_FIXTURES = [
   TURN_STARTED_FIXTURE,
   MODEL_CALL_RECORDED_FIXTURE,

@@ -41,8 +41,8 @@ describe("organization domain schemas", () => {
     it("validates slug format constraints", () => {
       expect(isValidSlugFormat("acme")).toBe(true)
       expect(isValidSlugFormat("acme-team")).toBe(true)
-      expect(isValidSlugFormat("ab")).toBe(false) // too short
-      expect(isValidSlugFormat("a".repeat(49))).toBe(false) // too long
+      expect(isValidSlugFormat("ab")).toBe(false)
+      expect(isValidSlugFormat("a".repeat(49))).toBe(false)
       expect(isValidSlugFormat("-leading-hyphen")).toBe(false)
       expect(isValidSlugFormat("trailing-hyphen-")).toBe(false)
       expect(isValidSlugFormat("double--hyphen")).toBe(false)

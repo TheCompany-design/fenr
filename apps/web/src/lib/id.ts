@@ -1,21 +1,6 @@
-/**
- * RFC 9562 Monotonic UUIDv7 Generator.
- *
- * Generates time-ordered 128-bit UUIDv7 identifiers using standard Web Crypto.
- * Layout:
- * - unix_ts_ms (48 bits): Epoch timestamp in milliseconds
- * - ver (4 bits): 0b0111 (version 7)
- * - rand_a (12 bits): Monotonic sequence counter to guarantee strict ordering within the same millisecond
- * - var (2 bits): 0b10 (RFC 4122 / RFC 9562 variant)
- * - rand_b (62 bits): Cryptographically secure random bits
- */
-
 let lastTimestamp = -1
 let sequenceCounter = 0
 
-/**
- * Resets the internal monotonic sequence state (primarily for isolated test fixtures).
- */
 export function resetUuidV7State(): void {
   lastTimestamp = -1
   sequenceCounter = 0
@@ -35,13 +20,11 @@ export function generateUuidV7(timestampMs?: number): string {
     sequenceCounter = ((byte6 & 0x0f) << 8) | byte7
   } else if (now > lastTimestamp) {
     lastTimestamp = now
-    // Initialize sequence counter with 12 random bits to avoid predictability
+
     sequenceCounter = ((byte6 & 0x0f) << 8) | byte7
   } else {
-    // Same millisecond (or clock skew backwards): monotonically increment 12-bit counter
     sequenceCounter = (sequenceCounter + 1) & 0x0fff
     if (sequenceCounter === 0) {
-      // Counter overflowed within same ms: simulate advancing by 1ms to preserve monotonicity
       lastTimestamp += 1
     }
   }
@@ -51,7 +34,6 @@ export function generateUuidV7(timestampMs?: number): string {
     : Math.max(now, lastTimestamp)
   const ts = BigInt(effectiveTimestamp)
 
-  // 1. unix_ts_ms (48 bits / 6 bytes)
   bytes[0] = Number((ts >> 40n) & 0xffn)
   bytes[1] = Number((ts >> 32n) & 0xffn)
   bytes[2] = Number((ts >> 24n) & 0xffn)
@@ -59,16 +41,11 @@ export function generateUuidV7(timestampMs?: number): string {
   bytes[4] = Number((ts >> 8n) & 0xffn)
   bytes[5] = Number(ts & 0xffn)
 
-  // 2. ver (4 bits) + rand_a (12 bits)
-  // Set version to 7: 0b0111_xxxx
   bytes[6] = 0x70 | ((sequenceCounter >>> 8) & 0x0f)
   bytes[7] = sequenceCounter & 0xff
 
-  // 3. var (2 bits) + rand_b (62 bits)
-  // Set variant to RFC 9562: 0b10xx_xxxx
   bytes[8] = (byte8 & 0x3f) | 0x80
 
-  // Convert bytes to hex string in 8-4-4-4-12 format
   let hex = ""
   for (let i = 0; i < 16; i++) {
     const b = bytes[i] ?? 0

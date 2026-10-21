@@ -1,13 +1,3 @@
-/**
- * Compile-time typecheck fixture for Outbound HTTP architecture.
- *
- * Verifies that:
- * 1. Missing or invalid auth policy is rejected at compile time.
- * 2. Authenticated endpoints require audience and service.
- * 3. Caller headers cannot specify Authorization (type-level protection).
- * 4. Fully specified authenticated and public endpoints typecheck cleanly.
- */
-
 import { z } from "zod"
 import {
   defineAuthenticatedEndpoint,
@@ -18,7 +8,6 @@ import {
 
 const testSchema = z.object({ ok: z.boolean() })
 
-// 1. Valid authenticated endpoint: Compiles cleanly
 export const validAuthenticated = defineAuthenticatedEndpoint<
   void,
   { ok: boolean }
@@ -31,7 +20,6 @@ export const validAuthenticated = defineAuthenticatedEndpoint<
   responseSchema: testSchema,
 })
 
-// 2. Valid public endpoint: Compiles cleanly
 export const validPublic = definePublicEndpoint<void, { ok: boolean }>({
   id: "valid.public",
   service: "demo",
@@ -40,7 +28,6 @@ export const validPublic = definePublicEndpoint<void, { ok: boolean }>({
   responseSchema: testSchema,
 })
 
-// 3. Negative check: missing audience in defineAuthenticatedEndpoint
 export const missingAudience = defineAuthenticatedEndpoint<
   void,
   { ok: boolean }
@@ -55,7 +42,6 @@ export const missingAudience = defineAuthenticatedEndpoint<
   },
 )
 
-// 4. Negative check: missing service in defineAuthenticatedEndpoint
 export const missingService = defineAuthenticatedEndpoint<
   void,
   { ok: boolean }
@@ -70,7 +56,6 @@ export const missingService = defineAuthenticatedEndpoint<
   },
 )
 
-// 5. Negative check: missing auth policy in raw EndpointDefinition
 // @ts-expect-error - Property 'auth' is missing in type
 export const missingAuth: EndpointDefinition<void, { ok: boolean }> = {
   id: "missing.auth",
@@ -80,7 +65,6 @@ export const missingAuth: EndpointDefinition<void, { ok: boolean }> = {
   responseSchema: testSchema,
 }
 
-// 6. Negative check: invalid auth type
 export const invalidAuthType: EndpointDefinition<void, { ok: boolean }> = {
   id: "invalid.auth",
   service: "nabu",
@@ -91,13 +75,11 @@ export const invalidAuthType: EndpointDefinition<void, { ok: boolean }> = {
   auth: { type: "none" },
 }
 
-// 7. Negative check: SafeCallerHeaders prohibits Authorization
 export const illegalHeaders: SafeCallerHeaders = {
   // @ts-expect-error - Type 'string' is not assignable to type 'undefined'
   Authorization: "Bearer spoofed-token",
 }
 
-// 8. Negative check: SafeCallerHeaders prohibits lowercase authorization
 export const illegalHeadersLowercase: SafeCallerHeaders = {
   // @ts-expect-error - Type 'string' is not assignable to type 'undefined'
   authorization: "Bearer spoofed-token",

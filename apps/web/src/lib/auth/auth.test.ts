@@ -32,7 +32,6 @@ describe("Better Auth Configuration & Plugins", () => {
       expect(pluginIds).toContain("jwt")
       expect(pluginIds).toContain("tanstack-start-cookies")
 
-      // Invariant: tanstackStartCookies must be strictly the last plugin
       const lastPlugin = plugins[plugins.length - 1]
       expect(lastPlugin.id).toBe("tanstack-start-cookies")
     })
@@ -196,7 +195,6 @@ describe("Better Auth Configuration & Plugins", () => {
     })
 
     it("auto-resolves active organization on session.create.before when missing", async () => {
-      // Create user and single org in DB
       const [testUser] = await db
         .insert(schema.user)
         .values({

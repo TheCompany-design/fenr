@@ -14,7 +14,6 @@ describe("Active Organization Resolver", () => {
   let testOrgId2: string
 
   beforeEach(async () => {
-    // Create test user
     const [user] = await db
       .insert(schema.user)
       .values({

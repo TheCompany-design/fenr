@@ -1,13 +1,3 @@
-/**
- * Outbound JWT token provider.
- *
- * SERVER-ONLY: Mints short-lived JWT tokens for downstream private services
- * using Better Auth's server instance and the active session context.
- *
- * All tokens carry tenant context (`activeOrganizationId`) and strictly
- * enforce the target endpoint's declared audience.
- */
-
 import { getRequestHeaders } from "@tanstack/react-start/server"
 import { auth } from "@/lib/auth"
 import { moduleLogger } from "@/lib/logger"
@@ -23,24 +13,14 @@ export interface TokenAcquisitionOptions {
     auth: Extract<EndpointAuth, { type: "authenticated" }>,
   ) => Promise<string>
   readonly signal?: AbortSignal
-  /**
-   * The caller's authority in the active workspace, minted as a `role` claim.
-   *
-   * The runtime uses this to decide who may change a workspace's model
-   * provider — the one thing it stores that is not a document. Omitted means the
-   * claim is absent, which the runtime reads as the least privilege.
-   */
+
   readonly tenantRole?: "owner" | "admin" | "member"
 }
 
-/**
- * Acquires a signed JWT token for an authenticated outbound request.
- */
 export async function acquireOutboundJwt(
   authContract: Extract<EndpointAuth, { type: "authenticated" }>,
   options: TokenAcquisitionOptions = {},
 ): Promise<string> {
-  // 0. Check cancellation before initiating async work
   if (options.signal?.aborted) {
     throw new HttpClientError("Request was cancelled", {
       code: "CANCELLED",
@@ -50,14 +30,11 @@ export async function acquireOutboundJwt(
     })
   }
 
-  // 1. Resolve incoming request headers from options or TanStack Start server context
   let headers: Headers | undefined = options.headersSource
   if (!headers) {
     try {
       headers = getRequestHeaders()
-    } catch {
-      // Outside active request context (e.g. CLI runner, background worker, or unit tests)
-    }
+    } catch {}
   }
 
   let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null

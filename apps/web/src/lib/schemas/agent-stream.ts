@@ -1,30 +1,5 @@
 import { z } from "zod"
 
-/**
- * The agent wire contract.
- *
- * These schemas are a hand-written mirror of the Rust definitions in
- * `thebookofnabu`:
- *
- *   - envelope and events: crates/nabu-agent-core/src/domain/events.rs
- *   - approval decisions: crates/nabu-agent-core/src/ports/store.rs
- *
- * The Rust side asserts its own serialization, and the fixtures in
- * `agent-stream.fixtures.ts` are captured from that implementation rather than
- * written by hand, so a change on either side shows up as a failing test
- * rather than a silently dropped event.
- *
- * Envelope rules, which the whole design rests on:
- *
- *   - every event is `{ "type": ..., "data": ... }`;
- *   - capability is added as a new `type`, never by reshaping an existing one,
- *     so a client that predates a variant keeps working;
- *   - therefore unknown types must be *tolerated* at runtime. The union below is
- *     exhaustive for the current server, and consumers additionally treat an
- *     unrecognised event as non-fatal (see `useAgentStream`).
- */
-
-/** Where a turn stands. `suspended` is not terminal: it is waiting on a human. */
 export const turnStatusSchema = z.enum([
   "in_progress",
   "completed",
@@ -34,19 +9,12 @@ export const turnStatusSchema = z.enum([
 ])
 export type TurnStatus = z.infer<typeof turnStatusSchema>
 
-/** Terminal states settle a turn; `suspended` is deliberately excluded. */
 export const TERMINAL_TURN_STATUSES: readonly TurnStatus[] = [
   "completed",
   "failed",
   "cancelled",
 ]
 
-/**
- * What an item represents.
- *
- * Approval bookkeeping is deliberately excluded from replay to the model, so
- * these kinds are not interchangeable from a transcript point of view.
- */
 export const itemKindSchema = z.enum([
   "user_message",
   "agent_message",
@@ -57,31 +25,17 @@ export const itemKindSchema = z.enum([
 ])
 export type ItemKind = z.infer<typeof itemKindSchema>
 
-/** Kinds a client renders as a chat bubble. */
 export const MESSAGE_ITEM_KINDS = ["user_message", "agent_message"] as const
 
 export type MessageItemKind = (typeof MESSAGE_ITEM_KINDS)[number]
 
-/**
- * Whether an item is a chat bubble rather than a transcript record.
- *
- * Tool calls, tool results and approval bookkeeping are real transcript items
- * but they are not messages, and treating them as such corrupts the timeline.
- */
 export function isMessageItemKind(kind: ItemKind): kind is MessageItemKind {
   return (MESSAGE_ITEM_KINDS as readonly string[]).includes(kind)
 }
 
-/** `approved` or `denied`. */
 export const approvalDecisionSchema = z.enum(["approved", "denied"])
 export type ApprovalDecision = z.infer<typeof approvalDecisionSchema>
 
-/**
- * How a tool call ended.
- *
- * `unknown` is never retried automatically: an unobserved effect is a question
- * for a human, not a retry.
- */
 export const toolOutcomeSchema = z.enum([
   "succeeded",
   "denied",
@@ -93,14 +47,7 @@ export type ToolOutcome = z.infer<typeof toolOutcomeSchema>
 export const itemDeltaPayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("thinking_delta"),
-    /**
-     * Which reasoning block this fragment belongs to.
-     *
-     * A provider can stream more than one block per response — thinking, a tool
-     * call, thinking again. Required rather than optional: Zod strips unknown
-     * keys, so an optional `block_id` would be accepted and thrown away, which is
-     * how every block arrived here already concatenated into one trace.
-     */
+
     block_id: z.string().min(1),
     text: z.string(),
   }),
@@ -108,11 +55,7 @@ export const itemDeltaPayloadSchema = z.discriminatedUnion("kind", [
     kind: z.literal("text_delta"),
     text: z.string(),
   }),
-  /**
-   * A fragment of a tool call's arguments, before they parse as JSON.
-   * Streamed so a client can show the call being assembled; the runtime
-   * accumulates these into the complete arguments on the item.
-   */
+
   z.object({
     kind: z.literal("tool_arguments_delta"),
     text: z.string(),
@@ -120,14 +63,6 @@ export const itemDeltaPayloadSchema = z.discriminatedUnion("kind", [
 ])
 export type ItemDeltaPayload = z.infer<typeof itemDeltaPayloadSchema>
 
-/**
- * A JSON value.
- *
- * Tool arguments are whatever JSON the model produced, so this is recursive
- * rather than a fixed shape. It is spelled out rather than left as `unknown`
- * because this data crosses the server-function boundary, and an `unknown` in a
- * return type is not something that can be proven to survive serialisation.
- */
 export type JsonValue =
   | string
   | number
@@ -157,22 +92,22 @@ export const itemPayloadSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("agent_message"),
     text: z.string(),
-    /** Aggregated reasoning, present only if the model produced any. */
+
     thinking: z.string().optional(),
   }),
   z.object({
     kind: z.literal("tool_call"),
-    /** Provider-assigned call identifier, echoed with the result. */
+
     call_id: z.string(),
     name: toolNameSchema,
-    /** Already parsed: the runtime buffers argument deltas until they do. */
+
     arguments: jsonValueSchema,
   }),
   z.object({
     kind: z.literal("tool_result"),
     call_id: z.string(),
     name: toolNameSchema,
-    /** Retained for the model; may be truncated, and says so. */
+
     output: z.string(),
     truncated: z.boolean(),
     outcome: toolOutcomeSchema,
@@ -208,13 +143,6 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
-    /**
-     * One model call finished, with what it cost as the provider reported
-     * it. The runtime emits one per call; the turn aggregate on
-     * `turn_completed` is unchanged. The composer uses the saved configuration,
-     * model id, and error code as key-scoped availability evidence. Other
-     * analytics can build on this event without adding a second report path.
-     */
     type: z.literal("model_call_recorded"),
     data: z.object({
       saved_config_id: z.string().uuid().nullable(),
@@ -236,22 +164,17 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
     }),
   }),
   z.object({
-    /**
-     * The turn stopped because it needs a human decision. Not terminal: the
-     * turn resumes when the decision is recorded.
-     */
     type: z.literal("turn_suspended"),
     data: z.object({
       thread_id: z.string().uuid(),
       turn_id: z.string().uuid(),
-      /** The approval item the client must decide on. */
+
       item_id: z.string().uuid(),
-      /** Which attempt suspended. Attempts are counted from one. */
+
       attempt: z.number().int().positive(),
     }),
   }),
   z.object({
-    /** A suspended turn was picked up again by a decision. */
     type: z.literal("turn_resumed"),
     data: z.object({
       thread_id: z.string().uuid(),
@@ -302,7 +225,6 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
 ])
 export type AgentStreamEvent = z.infer<typeof agentStreamEventSchema>
 
-/** Event names the current server emits, for logging and diagnostics. */
 export const AGENT_STREAM_EVENT_TYPES = [
   "turn_started",
   "model_call_recorded",
@@ -315,12 +237,6 @@ export const AGENT_STREAM_EVENT_TYPES = [
   "stream_error",
 ] as const
 
-/**
- * Parse without throwing.
- *
- * A failure here is not a crash: an event the client cannot model is recorded
- * and skipped, because one unrecognised frame must not end a live turn.
- */
 export function parseAgentStreamEvent(
   raw: unknown,
 ): { ok: true; event: AgentStreamEvent } | { ok: false; error: string } {

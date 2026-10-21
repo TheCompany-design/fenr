@@ -1,11 +1,3 @@
-/**
- * Social authentication provider configurations and metadata.
- *
- * Brand marks come from the shared logo service, through its one builder —
- * this module decides *which* sign-in providers exist and how their marks
- * behave on a dark surface, never where the service lives.
- */
-
 import { logoUrl } from "@/lib/brand/logos"
 
 export type SocialProviderId = "google" | "apple" | "github"
@@ -49,9 +41,6 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
   },
 ] as const
 
-/**
- * Look up a social provider config by its provider identifier.
- */
 export function getSocialProvider(
   id: SocialProviderId,
 ): SocialProviderConfig | undefined {

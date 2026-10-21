@@ -1,18 +1,3 @@
-/**
- * Central Outbound HTTP Transport.
- *
- * Implements:
- * - Strict auth token injection for authenticated services
- * - Complete protection against caller-supplied Authorization headers
- * - Absolute omission of tokens on public endpoints
- * - Request ID propagation (X-Request-Id)
- * - Composed timeout and AbortSignal cancellation with explicit timer cleanup
- * - Structured Pino wide event logging (redacted, no tokens/secrets)
- * - Non-leaky error classification (HttpClientError)
- * - Safe handling of HTTP 204 No Content / empty responses
- * - Zod request input and response payload validation
- */
-
 import { serverEnv } from "@/lib/env"
 import { generateUuidV7 } from "@/lib/id"
 import { moduleLogger } from "@/lib/logger"
@@ -40,9 +25,6 @@ function getServiceBaseUrl(service: string): string {
   )
 }
 
-/**
- * Resolves the absolute URL for a given service and endpoint definition.
- */
 function resolveEndpointUrl<TInput>(
   endpoint: EndpointDefinition<TInput, unknown>,
   input?: TInput,

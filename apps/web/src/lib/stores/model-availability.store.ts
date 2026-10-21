@@ -1,7 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-/** A successful inference is useful evidence for one day; failures are transient. */
 export const MODEL_AVAILABILITY_TTL_MS = 24 * 60 * 60 * 1000
 
 type ProviderEvidence = {
@@ -106,9 +105,7 @@ export const useModelAvailabilityStore = create<ModelAvailabilityState>()(
                 },
               },
             })
-          } catch {
-            // Persistence is best effort; stale records are still excluded here.
-          }
+          } catch {}
         }
         return fresh.map(([modelId, checkedAt]) => [modelId, checkedAt])
       },

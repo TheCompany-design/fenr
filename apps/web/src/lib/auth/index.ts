@@ -1,14 +1,3 @@
-/**
- * Better Auth server instance.
- *
- * SERVER-ONLY: never import from client code — this pulls in the database
- * and the auth secret. Client code uses `@/lib/auth/client` instead.
- *
- * Plugin ordering matters: `tanstackStartCookies()` must stay LAST so it can
- * attach Set-Cookie headers to the TanStack Start response (review-framework
- * invariant #7).
- */
-
 import { db, schema } from "@workspace/database"
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
@@ -36,8 +25,6 @@ export const auth = betterAuth({
     schema,
   }),
 
-  // Let the adapter fetch user+session in a single SQL join, and delegate
-  // ID generation to native Postgres 18 uuidv7().
   advanced: {
     database: {
       joins: true,

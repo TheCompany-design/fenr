@@ -1,10 +1,3 @@
-/**
- * Outbound HTTP client errors.
- *
- * Provides structured error classification and safe user-facing messaging
- * without leaking tokens, internal URLs, or raw downstream trace data.
- */
-
 export type HttpClientErrorCode =
   | "UNAUTHENTICATED"
   | "TIMEOUT"
@@ -56,9 +49,6 @@ export class HttpClientError extends Error {
     this.details = context.details
   }
 
-  /**
-   * Returns safe, actionable copy suitable for user-facing toasts (<Sonner />).
-   */
   getUserMessage(): string {
     const serviceName = this.service
       ? `${this.service} service`

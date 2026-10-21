@@ -1,10 +1,3 @@
-/**
- * Central Outbound HTTP Service & Endpoint Registry.
- *
- * Exposes all external services and typed endpoint definitions in one searchable location.
- * Every endpoint explicitly defines whether it requires an authenticated JWT or is public.
- */
-
 import { z } from "zod"
 import {
   type DashboardPost,
@@ -32,16 +25,8 @@ import type { TurnItemsInput } from "./types"
 
 import { defineAuthenticatedEndpoint, definePublicEndpoint } from "./types"
 
-/**
- * A response with no body.
- *
- * The runtime answers these endpoints with `202` and nothing to parse, so the
- * schema accepts an absent body rather than demanding an object — validating a
- * body that does not exist would turn every successful call into a failure.
- */
 const emptyResponseSchema = z.unknown()
 
-/** A turn identifier plus the paging options the items endpoint accepts. */
 const pathOnlyRequestSchema = z.object({
   turnId: z.string().uuid(),
 })
@@ -52,19 +37,11 @@ const turnItemsQueryInputSchema = z.object({
   limit: z.number().int().positive().max(200).optional(),
 })
 
-/** An approval decision, with the turn that routes it. */
 const approvalDecisionRequestSchema = approvalDecisionInputSchema.extend({
   turnId: z.string().uuid(),
 })
 type ApprovalDecisionRequest = z.infer<typeof approvalDecisionRequestSchema>
 
-/**
- * The body of a provider write.
- *
- * Named separately from the schema's inferred type so the endpoint registry
- * carries a request shape whose nullable overrides are genuinely optional on the
- * way out but always present on the way in.
- */
 type CreateTenantProviderRequest = z.infer<
   typeof createTenantProviderInputSchema
 >
@@ -76,10 +53,6 @@ export const SERVICES = {
 
 export type ServiceName = (typeof SERVICES)[keyof typeof SERVICES]
 
-/**
- * Nabu Agent Runtime Endpoints.
- * All Nabu endpoints require Better Auth JWT authentication with audience "nabu".
- */
 export const nabuEndpoints = {
   systemStatus: defineAuthenticatedEndpoint<void, NabuSystemStatus>({
     id: "nabu.system-status",
@@ -93,11 +66,6 @@ export const nabuEndpoints = {
       "Get health, engine version, and database connectivity status from thebookofnabu.",
   }),
 
-  /**
-   * What a turn may do in this deployment.
-   *
-   * `GET /api/v1/capabilities`
-   */
   capabilities: defineAuthenticatedEndpoint<void, NabuCapabilities>({
     id: "nabu.capabilities",
     service: SERVICES.NABU,
@@ -110,15 +78,6 @@ export const nabuEndpoints = {
       "Report which tools a model may request, how many attempts a turn has, and whether a disconnected client ends the turn.",
   }),
 
-  /**
-   * The workspace's saved model providers.
-   *
-   * `GET /api/v1/providers`
-   *
-   * Readable by any member: the chat picker needs the list to offer, and
-   * hiding it from a member helps nobody. Every entry carries a fingerprint,
-   * never a key.
-   */
   tenantProviders: defineAuthenticatedEndpoint<void, TenantProviderList>({
     id: "nabu.tenant-providers",
     service: SERVICES.NABU,
@@ -130,16 +89,6 @@ export const nabuEndpoints = {
     description: "List the workspace's saved model providers.",
   }),
 
-  /**
-   * Save another model provider for the workspace.
-   *
-   * `POST /api/v1/providers`
-   *
-   * The credential travels in the body and is sealed by the runtime before it
-   * is stored. Nothing echoes it back: the response is the saved entry's
-   * fingerprint shape, so a client cannot accidentally persist the key it just
-   * sent. The workspace's first entry becomes the default automatically.
-   */
   createTenantProvider: defineAuthenticatedEndpoint<
     CreateTenantProviderRequest,
     TenantProviderSummary
@@ -155,15 +104,6 @@ export const nabuEndpoints = {
     description: "Save another model provider for the workspace.",
   }),
 
-  /**
-   * Remove one saved model provider.
-   *
-   * `DELETE /api/v1/providers/{id}`
-   *
-   * Answers `204` whether or not there was anything to remove, so a retried
-   * delete that races another is not reported as a failure. Conversations that
-   * referenced it fall back to the workspace's default.
-   */
   deleteTenantProvider: defineAuthenticatedEndpoint<
     { readonly id: string },
     unknown

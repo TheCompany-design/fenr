@@ -6,7 +6,6 @@ import {
 } from "./header-portal.store"
 
 function fakeElement(): HTMLElement {
-  // Only identity matters here — nothing in the store inspects the node.
   return { nodeName: "DIV" } as unknown as HTMLElement
 }
 
@@ -57,8 +56,6 @@ describe("header portal store", () => {
       notifications.push(state.targets.start ? 1 : 0)
     })
 
-    // A ref callback fires again for an unchanged node. Each of those writes
-    // would re-render every page that has portalled content into the header.
     useHeaderPortalStore.getState().publish("start", start)
     useHeaderPortalStore.getState().publish("start", start)
 
