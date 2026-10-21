@@ -47,16 +47,6 @@ import { ContextRail } from "./surfaces/context-rail"
 import { ComposerFeedback } from "./surfaces/feedback"
 import { ModelPicker } from "./surfaces/model-picker"
 
-/**
- * The caret's position inside the shell the popup is positioned in.
- *
- * Not inside the textarea: the popup is absolutely positioned against the
- * shell's padding box, and the caret gets there in two steps — its offset
- * inside the textarea (what the mirror measures), plus the textarea's live
- * offset inside the shell. The live rect is what makes the anchor correct
- * while the draft scrolls: scrolling the editor moves the textarea's box
- * within the shell, and the offset follows it.
- */
 function anchorFor(textarea: HTMLTextAreaElement, value: string): CaretRect {
   return (
     measureCaret(
@@ -68,21 +58,6 @@ function anchorFor(textarea: HTMLTextAreaElement, value: string): CaretRect {
   )
 }
 
-/**
- * The editor, wired to the suggestion engine.
- *
- * The keyboard arbitration here is the part that decides whether the menu
- * feels like a tool or an interruption, so it is stated explicitly rather than
- * left to the order of `if`s:
- *
- *   menu open, item highlighted  →  commit the item
- *   menu open, nothing highlighted  →  close the menu, insert a newline
- *   menu closed  →  submit (or newline on Shift)
- *
- * The middle case is why `activeIndex` cannot default to 0 the moment a menu
- * opens: a bare `/` would otherwise make Enter commit whichever item happened
- * to sort first, instead of doing nothing.
- */
 function PromptEditor({ density }: { density: ComposerDensity }) {
   const { value, onSubmit, textareaRef } = usePromptInput()
   const store = useSuggestionStore()
@@ -110,9 +85,6 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
       sources,
     })
 
-    // Only measure when there is actually a trigger to anchor to. Measuring on
-    // every keystroke would lay out a mirror element per character for a popup
-    // that usually does not exist.
     if (state.open) {
       store.set({ ...state, anchor: anchorFor(textarea, value) })
     } else {
@@ -120,24 +92,6 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
     }
   }, [store, value, mentions, sources, textareaRef])
 
-  /**
-   * Re-anchors the popup when the editor scrolls under it.
-   *
-   * The draft is not its own scroll container any more — the scroll area is —
-   * so a long draft that opens a menu near its end has the browser scroll the
-   * caret into view, which moves the caret without changing a single
-   * character. Without this the popup stays where the caret *was* and the
-   * keyboard walks down a list nobody can see the anchor of.
-   *
-   * The text is read off the textarea rather than out of the closure: a scroll
-   * fired to reveal a fresh keystroke can land after the DOM update but before
-   * React has re-rendered, and the mirror should lay out the text that is
-   * actually in the box. That also frees the handler from changing identity on
-   * every keystroke, so the listener is not re-attached per character.
-   *
-   * Scroll events also fire at frame rate, so this only does work while a menu
-   * is actually open; closed, it is an early return.
-   */
   const resyncAnchor = useCallback(() => {
     const textarea = textareaRef.current
     const state = store.get()
@@ -145,22 +99,11 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
     store.set({ ...state, anchor: anchorFor(textarea, textarea.value) })
   }, [store, textareaRef])
 
-  // The latest re-anchor, reachable from an effect that must not re-run on
-  // every render — same pattern as the density probe's `report` ref.
   const resyncRef = useRef(resyncAnchor)
   useLayoutEffect(() => {
     resyncRef.current = resyncAnchor
   })
 
-  /**
-   * Re-anchors when the box changes shape under an open menu.
-   *
-   * A density flip does not need a keystroke — a narrowed window re-wraps a
-   * boundary draft past one line, and the probe flips the box from its
-   * ResizeObserver. The caret moves with the geometry (the pill and the panel
-   * put different padding under the same text), but `sync` only runs on input
-   * events, so without this the menu stays anchored where the caret *was*.
-   */
   // biome-ignore lint/correctness/useExhaustiveDependencies: `density` is the signal this effect waits on, not an input it reads — the re-anchor itself reaches the live caret through `resyncRef`, which is refreshed on every render for exactly that reason. A flip needs no keystroke and no geometry change of its own: a narrowed window re-wraps a boundary draft past one line and nothing else observable happens, so without this dependency the popup stays anchored where the caret *was*.
   useLayoutEffect(() => {
     resyncRef.current()
@@ -177,8 +120,7 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
 
       if (item.id.startsWith("command:")) {
         const action = actionForCommandId(item.id)
-        // A command is an action, not text: the label is inserted so the user
-        // can see what they chose, then the action runs.
+
         setText(committed.text)
         if (action) runCommand(action)
       } else {
@@ -202,8 +144,6 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
         anchor: null,
       })
 
-      // Restore the caret after the insertion so typing continues where the
-      // menu left off rather than jumping to the end of the document.
       requestAnimationFrame(() => {
         const textarea = textareaRef.current
         if (!textarea) return
@@ -231,9 +171,6 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
           return
         }
         if (event.key === "Escape") {
-          // First Escape closes the menu and keeps focus in the editor. Only a
-          // second one is allowed to blur — one Escape should never cost the
-          // user their place in a half-written prompt.
           event.preventDefault()
           store.set({ ...state, open: false, items: [], trigger: null })
           return
@@ -274,30 +211,11 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
           onClick={sync}
           onSelect={sync}
           onBlur={() => {
-            // A delayed close so a click that lands on a menu row is not
-            // cancelled by the blur it caused.
             setTimeout(() => {
               const state = store.get()
               if (state.open) store.set({ ...state, open: false })
             }, 120)
           }}
-          // Gutters are stated here rather than inherited, because the shell is
-          // rendered at `p-0` and three children would otherwise each guess. All
-          // three line up on the same optical edge: text and chips at `px-3`, the
-          // icon buttons at `px-2` so their circles clear the border.
-          //
-          // The pill replaces them with the room its controls actually occupy, so
-          // the text ends exactly where the model picker begins instead of
-          // wherever a constant guessed.
-          //
-          // `max-h-[1lh]` clamps it to one line — and, with border-box sizing,
-          // clamps the *padding* with it, so the pill's vertical breathing room
-          // belongs to the shell (see `py-3` above) rather than to a box that is
-          // never allowed to grow past its own line.
-          //
-          // The panel has no cap here at all: the scroll area around this
-          // textarea is what takes the overflow, so that the bar on the right is
-          // the app's and not the browser's.
           className={cn(
             "text-base leading-relaxed md:text-base",
             density === "pill"
@@ -329,9 +247,6 @@ function runCommand(action: ReturnType<typeof actionForCommandId>): void {
       store.setText("")
       break
     default:
-      // Opening the pickers is a UI concern; the commands dispatch a custom
-      // event the composer listens for rather than importing the components
-      // and creating a cycle.
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent(`composer:${action.kind.replace("open-", "open-")}`),

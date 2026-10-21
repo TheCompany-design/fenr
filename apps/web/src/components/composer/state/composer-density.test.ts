@@ -31,8 +31,6 @@ describe("resolveDensity", () => {
   })
 
   it("returns to the pill when the draft is deleted and the files are gone", () => {
-    // The morph is symmetric: the same inputs in reverse must collapse again,
-    // or the box would latch open for the rest of the session.
     expect(resolveDensity({ overflowing: true, hasAttachments: false })).toBe(
       "panel",
     )

@@ -18,29 +18,11 @@ import {
 } from "../catalog/capabilities"
 import { formatMb } from "../catalog/reconcile"
 
-/**
- * A tool the agent runtime manages itself.
- *
- * Declared here rather than imported from `state/` because `data/` sits below
- * the store in this folder's dependency direction; the shape is all this view
- * model needs, and the store's own `RuntimeTool` satisfies it.
- */
 type RuntimeToolView = {
   id: string
   label: string
   hint?: string
 }
-
-/**
- * What the add selector offers, and what each row means.
- *
- * The rows are computed here rather than in the menu so the rules that decide
- * what appears — which the model supports, which key can run, which tools the
- * runtime owns — can be read and tested without rendering anything. That
- * matters because most of those rules are *negative*: a section that is missing
- * is as much a decision as one that is present, and a decision buried in JSX is
- * a decision nobody can check.
- */
 
 type ToolDef = {
   id: string
@@ -49,11 +31,6 @@ type ToolDef = {
   icon: IconSvgElement
 }
 
-/**
- * Tool ids are `"<kind>:<name>"`. Encoding the kind in the id is what lets the
- * store answer "can this model run that" as a set intersection instead of a
- * registry lookup — see `toolKindOf`.
- */
 const LOCAL_TOOLS: ToolDef[] = [
   {
     id: "shell:Bash",
@@ -122,7 +99,6 @@ const FILE_KIND_LABELS: Record<FileKind, string> = {
   archive: "Archives",
 }
 
-/** The id of the one row that acts rather than reports. */
 export const ATTACH_FILES_ID = "files"
 
 export type AddMenuItem = {
@@ -132,36 +108,22 @@ export type AddMenuItem = {
   icon: IconSvgElement
 } & (
   | { kind: "action" }
-  /**
-   * A switch the user owns: it stays true or false, and it can be turned back
-   * off. Checkbox rows keep the menu open so a turn can be given several tools
-   * in one visit.
-   */
   | { kind: "toggle"; checked: boolean }
-  /**
-   * A fact about the deployment or the vendor. The user cannot change it, and a
-   * control that looks changeable when it is not is a lie about what happens on
-   * send.
-   */
   | { kind: "fact" }
 )
 
 export type AddMenuSection = {
   id: string
-  /** The group heading. `null` for a section that reads better without one. */
+
   label: string | null
   items: AddMenuItem[]
 }
 
 export type AddMenuView = {
   sections: AddMenuSection[]
-  /** What the trigger's count reports: the switches that are currently on. */
+
   enabledCount: number
-  /**
-   * True when a provider has native tools this key cannot run yet. Their rows
-   * are still listed — a hidden capability is an invisible problem — but they
-   * need a sentence saying why they cannot be used.
-   */
+
   nativeLocked: boolean
 }
 

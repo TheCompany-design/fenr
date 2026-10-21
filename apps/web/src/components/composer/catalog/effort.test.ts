@@ -16,11 +16,6 @@ const OPENAI = [
   { id: "high", label: "High" },
 ] satisfies readonly ReasoningLevel[]
 
-/**
- * The one that matters most. Anthropic's scale has no `none`, so it is not a
- * prefix of OpenAI's, and neither is a subset of any other provider's. A scale
- * that happens to line up with a fixed table hides every bug below.
- */
 const ANTHROPIC = [
   { id: "low", label: "Low" },
   { id: "medium", label: "Medium" },
@@ -28,12 +23,10 @@ const ANTHROPIC = [
   { id: "max", label: "Max" },
 ] satisfies readonly ReasoningLevel[]
 
-/** A single level, to prove the degenerate cases stay renderable. */
 const SOLO = [
   { id: "balanced", label: "Balanced" },
 ] satisfies readonly ReasoningLevel[]
 
-/** Names and labels that no prettifier could produce from each other. */
 const EXOTIC = [
   { id: "minimal", label: "Minimal" },
   { id: "medium_effort", label: "Balanced" },
@@ -44,11 +37,9 @@ const EXOTIC = [
 describe("effort vocabulary", () => {
   describe("levelIndex", () => {
     it("ranks by position in the model's own list, not in a table of names", () => {
-      // The bug this replaces: a fixed `none…max` order indexed `low` at 1, and
-      // the control compared that against this list's index for `low`, which is 0.
       expect(levelIndex(ANTHROPIC, "low")).toBe(0)
       expect(levelIndex(OPENAI, "low")).toBe(1)
-      // So the same stored level means different things, and says so.
+
       expect(levelIndex(OPENAI, "low")).not.toBe(levelIndex(ANTHROPIC, "low"))
     })
 
@@ -82,17 +73,11 @@ describe("effort vocabulary", () => {
     })
 
     it("falls to the model's declared default when the level is not on offer", () => {
-      // The bug this replaces: every unrecognised name scored the same distance,
-      // so the winner was whichever level happened to be declared first —
-      // ignoring the model's own default entirely.
       expect(settleLevel(ANTHROPIC, "none", "high")).toBe("high")
       expect(settleLevel(OPENAI, "max", "medium")).toBe("medium")
     })
 
     it("has no opinion about which level is 'nearest', because none of it knows", () => {
-      // `none` is the bottom of OpenAI's scale and does not exist on Anthropic's.
-      // There is no defensible answer that keeps the user at the bottom of a
-      // scale they are not on, so it takes the declared default and says so.
       expect(settleLevel(ANTHROPIC, "none", "high")).toBe("high")
     })
 
@@ -112,16 +97,11 @@ describe("effort vocabulary", () => {
 
   describe("narrowedDefault", () => {
     it("falls back to the lowest level the model offers", () => {
-      // Never the highest: a key that cannot reach the setting a model asks for
-      // must not be promoted to running at its maximum instead.
       expect(narrowedDefault(ANTHROPIC)).toBe("low")
       expect(narrowedDefault(OPENAI)).toBe("none")
     })
 
     it("answers the same as settleLevel, so one model cannot disagree with itself", () => {
-      // These two used to disagree — one fell back to the first level, the other
-      // to the last — so the same key got a different answer depending on which
-      // path asked.
       expect(narrowedDefault(ANTHROPIC)).toBe("low")
       expect(settleLevel(ANTHROPIC, "unheard-of", "unheard-of")).toBe("low")
     })
@@ -133,15 +113,11 @@ describe("effort vocabulary", () => {
 
   describe("levelPosition", () => {
     it("spans the whole bar, ends included", () => {
-      // The knob's travel is inset by half its own width, so a mark at the
-      // track's very end would be a position no setting could occupy.
       expect(levelPosition(ANTHROPIC, "low")).toBe(0)
       expect(levelPosition(ANTHROPIC, "max")).toBe(1)
     })
 
     it("is not what a level is worth", () => {
-      // The first level belongs at the left end of the bar: placing its mark
-      // anywhere else would leave a stretch of track no level can claim.
       expect(levelPosition(ANTHROPIC, "low")).toBe(0)
     })
 

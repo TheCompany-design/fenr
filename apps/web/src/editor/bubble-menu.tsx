@@ -80,10 +80,6 @@ export interface TextTypeMenuItemsProps {
   onSelect: (value: string) => void
 }
 
-/**
- * Animated text-type selection menu featuring the signature gliding hover pill.
- * Glides seamlessly across options with spring physics and returns to the active type.
- */
 export function TextTypeMenuItems({
   currentType,
   onSelect,
@@ -112,7 +108,6 @@ export function TextTypeMenuItems({
             aria-checked={isSelected}
             data-menu-item="true"
             onPointerDown={(e) => {
-              // Crucial for rich text editors: prevent losing selection in editor before click executes
               e.preventDefault()
             }}
             onFocus={() => setActiveId(item.value)}
@@ -128,7 +123,7 @@ export function TextTypeMenuItems({
               "active:scale-[0.98]",
             )}
           >
-            {/* Animated Glide Pill matching user-menu mechanics */}
+            {}
             {isActive ? (
               <motion.span
                 layoutId={`${menuId}-glider`}

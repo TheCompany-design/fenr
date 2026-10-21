@@ -23,21 +23,15 @@ export type CapabilityStatus =
 export type ModelView = {
   model: ModelSpec
   providerId: ProviderId
-  /** Whether the model itself is selectable; unrelated to its capabilities. */
+
   status: CapabilityStatus
-  /**
-   * Present even when gated, so a locked row can show what it would grant.
-   *
-   * Records, not names: the list is the model's own scale in its own order, and
-   * the only thing that should ever stand between a level and the user is the
-   * label the provider chose for it.
-   */
+
   effortLevels: readonly ReasoningLevel[]
   availableEffortLevels: readonly ReasoningLevel[]
   supportsVision: boolean
   supportsTools: boolean
   supportsSearch: boolean
-  /** Per-model capability badges, rendered as trailing metadata. */
+
   badges: readonly string[]
   isSelected: boolean
 }
@@ -60,14 +54,6 @@ function statusFor(caps: ResolvedCaps): CapabilityStatus {
   }
 }
 
-/**
- * Derives everything the model list renders from the catalog and the store.
- *
- * Kept out of the component so the expensive part — resolving capabilities for
- * every model across every provider, which is O(models × providers) — can be
- * memoized once per catalog change rather than once per render of a popover
- * that may be closed.
- */
 export function buildModelViews(input: {
   catalogs: Record<ProviderId, Catalog>
   connections: Record<ProviderId, Connection>
@@ -75,7 +61,7 @@ export function buildModelViews(input: {
     ProviderId,
     import("../catalog/capabilities").Entitlements
   >
-  /** Returns null when the provider is unknown to the caller's own list. */
+
   resolve: (providerId: ProviderId, model: ModelSpec) => ResolvedCaps | null
   selected: { providerId: ProviderId; modelId: string } | null
   starred: readonly string[]
@@ -89,11 +75,7 @@ export function buildModelViews(input: {
       const status = statusFor(caps)
 
       const effortLevels = caps.reasoning.capability?.levels ?? []
-      // Already narrowed by the resolver, since `resolve()` above ran the same
-      // intersection — but asked through `narrowScale` rather than restated
-      // inline, so the rule has one home. A second copy of it here would be free
-      // to drift, and the narrowing path is exactly the one a plan-downgrade
-      // regression would hide in.
+
       const narrowed = narrowScale(
         { levels: effortLevels, default: "" },
         input.entitlements[providerId]?.effort,
@@ -120,7 +102,6 @@ export function buildModelViews(input: {
   return views
 }
 
-/** Ranks by a cheap heuristic so the list is not alphabet-only. */
 export function rankModels(views: readonly ModelView[]): ModelView[] {
   const statusRank: Record<CapabilityStatus, number> = {
     available: 0,
@@ -135,8 +116,7 @@ export function rankModels(views: readonly ModelView[]): ModelView[] {
   return [...views].sort((a, b) => {
     const byStatus = statusRank[a.status] - statusRank[b.status]
     if (byStatus !== 0) return byStatus
-    // Within a status, newest first — `releasedAt` is the only ordering signal
-    // available across heterogeneous providers.
+
     const aDate = a.model.releasedAt ?? ""
     const bDate = b.model.releasedAt ?? ""
     if (aDate !== bDate) return bDate.localeCompare(aDate)

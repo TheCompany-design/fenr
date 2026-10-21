@@ -5,18 +5,6 @@ import { Composer } from "./composer"
 import { PANEL_EDITOR_MAX_HEIGHT_PX } from "./state/composer-density"
 import { usePromptStore } from "./state/prompt-store"
 
-/**
- * The morph, driven end to end: a draft is written, the textarea is given the
- * two layout numbers a browser would compute, and the box has to change shape.
- *
- * happy-dom has no layout engine, so `scrollHeight` and `clientHeight` are 0 for
- * every element and the clamp a real browser applies to `max-height` never
- * happens. That is the same gap the chat suite patches by hand, and it is why
- * the clamp's own semantics are proven in `use-composer-density.test.ts` with a
- * fake that models `field-sizing-content`. What is left to prove here is the
- * loop: store → probe → measurement → density → the element's own attribute.
- */
-
 describe("Composer density", () => {
   let container: HTMLDivElement | null = null
   let root: ReturnType<typeof createRoot> | null = null
@@ -45,9 +33,7 @@ describe("Composer density", () => {
     if (root) {
       try {
         act(() => root?.unmount())
-      } catch {
-        // Ignored: the tree is discarded either way.
-      }
+      } catch {}
       root = null
     }
     if (container?.parentNode) {
@@ -57,11 +43,6 @@ describe("Composer density", () => {
   })
 
   function render(): Promise<void> {
-    // Awaited, and deliberately so: the scroll area measures itself in a
-    // microtask after mount, and a synchronous `act` would let those state
-    // updates land outside the act scope — which shows up as a wall of
-    // "not wrapped in act" warnings and, worse, leaves the assertions racing a
-    // pending render.
     return act(async () => {
       root?.render(createElement(Composer, {}))
     })
@@ -78,7 +59,6 @@ describe("Composer density", () => {
     return container?.querySelector("textarea") ?? null
   }
 
-  /** Stands in for the layout a real browser would compute. */
   function layOut(scrollHeight: number, clientHeight: number): void {
     const element = textarea()
     if (!element) throw new Error("no textarea rendered")
@@ -143,14 +123,6 @@ describe("Composer density", () => {
   })
 
   it("measures a draft that was already there when it mounted", async () => {
-    // A restored draft is real: a thread reopened with text in the box must come
-    // up as a panel, not as a pill holding a scrollbar's worth of hidden text.
-    //
-    // The getters are patched on the prototype because there is no element yet
-    // to patch, which makes the restore load-bearing: these getters live on
-    // `Element.prototype`, so `HTMLTextAreaElement.prototype` has no own
-    // descriptor to put back and the patch must be *deleted*. Leaving it behind
-    // would report every later textarea as wrapped.
     const proto = Object.getPrototypeOf(document.createElement("textarea"))
     const scrollHeight = Object.getOwnPropertyDescriptor(proto, "scrollHeight")
     const clientHeight = Object.getOwnPropertyDescriptor(proto, "clientHeight")
@@ -190,10 +162,6 @@ describe("Composer density", () => {
     await type("a draft long enough to need a second line")
     const panelClass = shell()?.className ?? ""
 
-    // The fit test is taken at pill gutters whichever box we are in, so the
-    // textarea must be exactly as wide in both. Horizontal shell padding in one
-    // density and not the other would have the text measured against a width it
-    // never actually gets — off by enough to clip a line.
     expect(shell()?.className).not.toMatch(/\bpx-\d/)
     expect(pillClass).toMatch(/\bpy-3\b/)
     expect(panelClass).not.toMatch(/\bpy-3\b/)
@@ -205,8 +173,6 @@ describe("Composer density", () => {
     layOut(52, 26)
     await type("a draft long enough to need a second line")
 
-    // A remount here would drop the caret, the IME session, and the selection
-    // mid-sentence. The morph has to be the same box, not a swap.
     expect(textarea()).toBe(before)
   })
 
@@ -221,8 +187,6 @@ describe("Composer density", () => {
     )
     const draft = textarea()
 
-    // A capped textarea is a native scroll container, and the browser paints
-    // its own bar across the text. The cap belongs to the scroll area above it.
     expect(editor?.style.maxHeight).toBe(`${PANEL_EDITOR_MAX_HEIGHT_PX}px`)
     expect(draft?.style.maxHeight).toBe("")
     expect(viewport?.contains(draft ?? null)).toBe(true)

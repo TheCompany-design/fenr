@@ -1,44 +1,19 @@
-/**
- * Trigger detection for `/` commands and `@` references.
- *
- * Pure and headless: it takes text plus a caret offset and answers "is the
- * user mid-trigger, and what have they typed so far". No DOM, no React, so it
- * can be tested exhaustively — which matters, because the failure mode is
- * silent: a false negative just means no menu appears, but a false positive
- * means the menu hijacks the Enter key the user wanted for a newline.
- */
-
 export type TriggerKind = "slash" | "mention"
 
 export type Trigger = {
   kind: TriggerKind
-  /** Offset of the trigger character itself. */
+
   from: number
-  /** Caret offset; the query spans `from + 1 .. to`. */
+
   to: number
-  /** What the user typed after the trigger character. */
+
   query: string
 }
 
-/**
- * `/` only opens a menu after whitespace or at the start of a line, so paths
- * like `src/lib/store.ts` and URLs do not open one mid-word.
- */
 const SLASH = /(^|[\s(])(\/)([\w-]*)$/
 
-/**
- * `@` requires a non-word character before it. Without that guard the
- * overwhelmingly common case of typing an email address opens the menu at the
- * `@`, and the user cannot get rid of it except by pressing Escape.
- */
 const MENTION = /(^|[^\w@])@([\w./~-]*)$/
 
-/**
- * An odd number of fences before the caret means the caret is inside a code
- * block. Menus there are noise: inside a fence the user is almost always
- * typing literal text, and the `@` in a decorator or the `/` in a regex is
- * exactly the character that would otherwise trigger.
- */
 function insideFence(text: string, caret: number): boolean {
   const fences = text.slice(0, caret).match(/```/g)
   return fences !== null && fences.length % 2 === 1

@@ -8,24 +8,6 @@ import type { ContextUsage } from "../catalog/usage"
 import { usePromptStore } from "../state/prompt-store"
 import { formatTokens } from "./feedback"
 
-/**
- * The context meter.
- *
- * A ring rather than a bar because the quantity is a proportion of a whole,
- * and a ring already encodes that. A bar needs a track behind it to read as a
- * proportion; a circle *is* the proportion. It also survives being tiny — a
- * 20px ring sits in the rail next to the model picker without crowding it,
- * which a bar with a numeric label could not.
- *
- * The fill is the arc length, not the colour, so the gauge is readable without
- * relying on red/amber/green; hue is a second signal rather than the first.
- *
- * Always rendered once there is a measurement. An earlier version hid it below
- * half full, which was calibrated for a wide bar carrying a "48%" label and
- * was pure noise for a 20px ring — and it made the control impossible to find
- * in exactly the empty-conversation case where a new user looks for it. A
- * quiet ring costs nothing; a control that is not there cannot be learned.
- */
 const SIZE = 20
 const STROKE = 2
 const RADIUS = (SIZE - STROKE) / 2
@@ -37,9 +19,7 @@ export function ContextMeter({ className }: { className?: string }) {
   if (!usage || usage.window === 0) return null
 
   const over = usage.overflow > 0
-  // Thresholds mirror how the underlying APIs behave: most begin trimming or
-  // rejecting well before the hard limit, so a late warning arrives too late
-  // to act on.
+
   const warn = usage.ratio >= 0.8
 
   return (
@@ -48,8 +28,6 @@ export function ContextMeter({ className }: { className?: string }) {
         render={
           <button
             type="button"
-            // The tooltip is a visual affordance and cannot be relied on by a
-            // screen reader, so the state is spelled out in the name.
             aria-label={`Context ${Math.round(usage.ratio * 100)} percent full, ${formatTokens(usage.used)} of ${formatTokens(usage.window)} tokens used`}
             className={cn(
               // `h-8` to match every other control in the rail. The meter grew

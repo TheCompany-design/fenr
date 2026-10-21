@@ -13,16 +13,6 @@ import { usePromptStore } from "../state/prompt-store"
 
 export type ContextRailMode = "chips" | "cards"
 
-/**
- * One rail, two render modes.
- *
- * These look like two designs in the references — chips sitting above the
- * composer, or a card carousel below it — but they are the same list of
- * context items with different information density. Keeping one component and
- * switching the density means a file added by `@` and a file added with the
- * `+` button are indistinguishable downstream, which is the property that
- * actually matters.
- */
 export function ContextRail({
   mode = "chips",
   className,
@@ -48,8 +38,7 @@ export function ContextRail({
         <div
           className={cn(
             "flex gap-2 overflow-x-auto",
-            // Shares the editor's `px-3` so a chip's icon sits on the same
-            // left edge as the first character of the text below it.
+
             mode === "chips" ? "px-3 pt-2" : "px-2 pb-1",
           )}
         >

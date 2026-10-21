@@ -9,15 +9,8 @@ export interface DragTarget {
 }
 
 export interface ResolveDragTargetOptions {
-  /**
-   * Distance in px into the left margin/gutter where drag handle hover should still detect blocks.
-   * Defaults to 80px (covering Fenr's 72px canvas margin).
-   */
   gutterMargin?: number
-  /**
-   * Inset in px from the editor's left/right boundary when clamping coordinates.
-   * Defaults to 12px.
-   */
+
   clampedInset?: number
 }
 
@@ -33,12 +26,6 @@ function isHTMLElement(node: unknown): node is HTMLElement {
   )
 }
 
-/**
- * Resolves the block-level node and DOM element at the given viewport coordinates.
- *
- * Implements horizontal clamping to eliminate the "gutter dead-zone" when hovering
- * in the document margin to the left of the editor content.
- */
 export function resolveDragTarget(
   view: EditorView | null | undefined,
   clientX: number,
@@ -49,7 +36,6 @@ export function resolveDragTarget(
     return null
   }
 
-  // Disable drag handle target resolution when editor is not editable
   if (view.editable === false) {
     return null
   }
@@ -58,7 +44,6 @@ export function resolveDragTarget(
   const gutterMargin = options.gutterMargin ?? 80
   const clampedInset = options.clampedInset ?? 12
 
-  // Return early if pointer is far outside vertical or horizontal boundaries
   if (
     clientY < editorRect.top - 10 ||
     clientY > editorRect.bottom + 10 ||
@@ -68,10 +53,6 @@ export function resolveDragTarget(
     return null
   }
 
-  // Every block in left-to-right text begins at the left edge of the editor content area.
-  // Sampling posAtCoords at editorRect.left + clampedInset guarantees that we reliably hit
-  // the block on this vertical line, regardless of line length or whether clientX is in the
-  // left gutter, the middle of the document, or approaching the delete button in the right gutter.
   const clampedX = editorRect.left + clampedInset
 
   const coords = view.posAtCoords({ left: clampedX, top: clientY })
@@ -84,8 +65,6 @@ export function resolveDragTarget(
     return null
   }
 
-  // Find the target block depth. If nested inside a list item or task item,
-  // target that item rather than the entire list or inner inline container.
   let targetDepth = 1
   for (let d = $pos.depth; d > 0; d--) {
     const nodeType = $pos.node(d).type.name
@@ -95,7 +74,6 @@ export function resolveDragTarget(
     }
   }
 
-  // Ensure the target node is a block node
   while (targetDepth > 0 && !$pos.node(targetDepth).isBlock) {
     targetDepth--
   }
@@ -107,7 +85,6 @@ export function resolveDragTarget(
   const targetNode = $pos.node(targetDepth)
   const targetPos = $pos.before(targetDepth)
 
-  // Resolve corresponding DOM element
   let dom: HTMLElement | null = null
   const candidate = view.nodeDOM(targetPos)
   if (isHTMLElement(candidate)) {

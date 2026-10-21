@@ -28,7 +28,6 @@ describe("DragHandleState Atoms", () => {
   it("evaluates selectors correctly", () => {
     const store = createStore()
 
-    // 1. When visible is true, isDragHandleVisibleAtom is true
     store.set(dragHandleAtom, {
       visible: true,
       top: 42,
@@ -42,7 +41,6 @@ describe("DragHandleState Atoms", () => {
     expect(store.get(dragHandleTypeAtom)).toBe("heading")
     expect(store.get(isDragHandleLockedAtom)).toBe(false)
 
-    // 2. When visible is false but isLocked is true, isDragHandleVisibleAtom remains true
     store.set(dragHandleAtom, {
       visible: false,
       top: 42,
@@ -53,7 +51,6 @@ describe("DragHandleState Atoms", () => {
     expect(store.get(isDragHandleVisibleAtom)).toBe(true)
     expect(store.get(isDragHandleLockedAtom)).toBe(true)
 
-    // 3. When both are false, isDragHandleVisibleAtom is false
     store.set(dragHandleAtom, {
       visible: false,
       top: 0,

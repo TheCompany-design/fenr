@@ -6,12 +6,6 @@ import type {
   ReasoningLevel,
 } from "./capabilities"
 
-/**
- * Deliberately heterogeneous. If every provider looked the same, the parts of
- * the design that matter — entitlement-narrowed effort, providers needing no
- * credential, models with no reasoning at all — would never be exercised.
- */
-
 const caps = (overrides: Partial<ModelCaps>): ModelCaps => ({
   vision: { supported: false },
   files: {
@@ -29,22 +23,6 @@ const caps = (overrides: Partial<ModelCaps>): ModelCaps => ({
   ...overrides,
 })
 
-/**
- * Declares a provider's reasoning scale, lowest first.
- *
- * This is the *only* place in the composer that states what a provider's levels
- * are, and the array order is the scale — position is what every consumer ranks
- * by, so `("low", "medium", "high")` is a claim about that provider, not a
- * lookup in a shared table. Nothing downstream compares level names to each
- * other, which is what lets two providers here disagree: OpenAI stops at `high`
- * and Anthropic has no `none`, so the two lists are not subsets of one another
- * and the composer's controls still light the right one on either.
- *
- * Labels are derived here, at the point of declaration, rather than in the UI.
- * That is the whole extent of the convenience: a provider whose names need more
- * than a capital letter passes `{ id, label }` pairs directly, and the rest of
- * the composer cannot tell the difference.
- */
 const levels = (
   ...names: readonly (string | ReasoningLevel)[]
 ): readonly ReasoningLevel[] =>
@@ -203,7 +181,6 @@ export const LOCAL_MODELS: ModelSpec[] = [
   },
 ]
 
-/** A provider whose models are unavailable until a key is supplied. */
 const OPENAI_SOURCE = {
   id: "openai",
   label: "OpenAI",
@@ -220,10 +197,6 @@ const ANTHROPIC_SOURCE = {
   load: async () => ANTHROPIC_MODELS,
 } as const
 
-/**
- * The case that proves the model: no credential, no gate, no `connect` CTA.
- * A self-hosted endpoint is `available` the moment it answers.
- */
 const LOCAL_SOURCE = {
   id: "local",
   label: "Ollama (local)",
@@ -257,7 +230,6 @@ export function getProvider(id: string): ProviderSpec | undefined {
   return PROVIDERS.find((provider) => provider.id === id)
 }
 
-/** Simulates validation latency so the `validating` state is reachable. */
 export function validateConnection(
   provider: ProviderSpec,
   credential: string | null,

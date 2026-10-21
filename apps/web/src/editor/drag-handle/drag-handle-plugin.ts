@@ -18,17 +18,10 @@ export interface DragHandleSyncOptions {
     ) => R
   }
   container?: HTMLElement | null
-  /**
-   * Vertical optical offset in px to align handle with the block's first line cap height.
-   * Default: 2.
-   */
+
   verticalOffset?: number
 }
 
-/**
- * Pure synchronizer: observes pointer movement across the canvas and gutter,
- * resolves block drag targets, and updates the scoped Jotai store with equality gating.
- */
 export function setupDragHandleSync({
   editor,
   store,
@@ -59,10 +52,9 @@ export function setupDragHandleSync({
     if (editor.isDestroyed || !editor.view) return
 
     const currentState = store.get(dragHandleAtom)
-    // When dropdown menu is open, freeze handle position
+
     if (currentState.isLocked) return
 
-    // If editor is not editable, ensure handle is hidden
     if (!editor.isEditable) {
       if (currentState.visible) {
         store.set(dragHandleAtom, {
@@ -75,7 +67,6 @@ export function setupDragHandleSync({
 
     const canvasRect = canvas.getBoundingClientRect()
 
-    // 1. If currently outside canvas boundaries: hide
     if (
       clientX < canvasRect.left ||
       clientX > canvasRect.right ||
@@ -91,11 +82,6 @@ export function setupDragHandleSync({
       return
     }
 
-    // 2. Active Block Retention (Row Stability):
-    // A document block occupies an entire horizontal row across the canvas (from left gutter to right gutter).
-    // As long as the cursor remains within the vertical bounds of the currently active block (±10px tolerance),
-    // retain this block without re-resolving or jumping. This allows the user to freely move their mouse
-    // from the text or drag handle directly to the delete button on the right side of the canvas.
     if (currentState.visible && currentState.nodePos >= 0) {
       const activeDom = editor.view.nodeDOM(currentState.nodePos)
       let elementToMeasure: HTMLElement | null = null
@@ -123,7 +109,6 @@ export function setupDragHandleSync({
       }
     }
 
-    // 3. Resolve target block at new coordinates
     const target = resolveDragTarget(editor.view, clientX, clientY)
     if (!target) {
       if (currentState.visible) {
@@ -152,12 +137,10 @@ export function setupDragHandleSync({
   }
 
   const handlePointerMove = (e: MouseEvent | PointerEvent) => {
-    // Suppress hover logic on touch devices
     if ("pointerType" in e && e.pointerType === "touch") {
       return
     }
 
-    // If hovering directly over the drag handle or delete button, preserve current state
     const targetElement = e.target as HTMLElement | null
     if (
       targetElement &&
@@ -182,7 +165,6 @@ export function setupDragHandleSync({
   }
 
   const handleMouseLeave = (e: MouseEvent) => {
-    // If moving to children within canvas (e.g. handle itself), ignore
     if (e.relatedTarget && canvas.contains(e.relatedTarget as Node)) {
       return
     }
@@ -202,7 +184,6 @@ export function setupDragHandleSync({
 
     if (!editor.view || editor.isDestroyed) return
 
-    // Verify nodePos is still within document bounds
     if (
       current.nodePos < 0 ||
       current.nodePos >= editor.state.doc.content.size
@@ -239,9 +220,6 @@ export function setupDragHandleSync({
   }
 }
 
-/**
- * React hook bridging canvas hover events into the scoped Jotai store.
- */
 export function useDragHandleSync(
   editor: Editor | null,
   containerRef?: React.RefObject<HTMLElement | null>,

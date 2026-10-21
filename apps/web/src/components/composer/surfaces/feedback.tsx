@@ -15,30 +15,13 @@ import { TRANSITION_LAYOUT } from "../catalog/motion"
 import type { Blocker, Notice } from "../catalog/reconcile"
 import { usePromptEffort, usePromptStore } from "../state/prompt-store"
 
-/**
- * Renders the two channels `reconcile` produces.
- *
- * They look similar but are not interchangeable, and the difference is the
- * reason they are separate surfaces:
- *
- *   Blocker — the user has a decision to make. Send is disabled and the
- *             message names the decision, with a button that resolves it.
- *   Notice  — something was adjusted on their behalf. Informational, auto-dismissed.
- *
- * Showing a blocker as a dismissible toast would be a lie: it is not
- * informational, and dismissing it would not make send possible.
- */
 export function ComposerFeedback({ className }: { className?: string }) {
   const blockers = usePromptStore((s) => s.blockers)
   const notices = usePromptStore((s) => s.notices)
   const dismissNotice = usePromptStore((s) => s.dismissNotice)
-  // Notices name levels, and a level's id is the provider's wire vocabulary
-  // rather than something to show a person — `xhigh`, `medium_effort` and
-  // `BALANCED` would all be read out verbatim. Resolved against the same scale
-  // the notice was raised from.
+
   const effortLevels = usePromptEffort().levels
 
-  // Notices are transient by definition — they report something already done.
   useEffect(() => {
     if (notices.length === 0) return
     const timer = setTimeout(dismissNotice, 6000)

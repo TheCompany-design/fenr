@@ -21,15 +21,6 @@ function isHTMLElement(node: unknown): node is HTMLElement {
   )
 }
 
-/**
- * Orchestrates the ProseMirror <-> Browser HTML5 Drag & Drop handshake.
- *
- * 1. Creates and dispatches a NodeSelection for the target block.
- * 2. Serializes the block slice into HTML and plain text for the clipboard / dataTransfer.
- * 3. Populates ProseMirror view's internal `dragging` state so native drop handling
- *    moves the block atomically via ProseMirror's dropPoint calculation.
- * 4. Configures the drag preview ghost image.
- */
 export function handleBlockDragStart(
   event: DragEvent | React.DragEvent,
   editor: Editor | null | undefined,
@@ -41,24 +32,20 @@ export function handleBlockDragStart(
 
   const { state, dispatch } = editor.view
 
-  // Validate nodePos
   if (nodePos < 0 || nodePos >= state.doc.content.size) {
     return { success: false, nodePos }
   }
 
   try {
-    // 1. Dispatch NodeSelection to target the whole block
     const selection = NodeSelection.create(state.doc, nodePos)
     dispatch(state.tr.setSelection(selection))
 
     const slice = selection.content()
     const nodeType = selection.node.type.name
 
-    // 2. Populate native dataTransfer
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "copyMove"
 
-      // Attempt high-fidelity serialization via ProseMirror view
       let html = ""
       let text = ""
       try {
@@ -74,7 +61,6 @@ export function handleBlockDragStart(
           text = serialized.text ?? ""
         }
       } catch {
-        // Fallback if serializeForClipboard encounters an error
         text = selection.node.textContent
       }
 
@@ -89,7 +75,6 @@ export function handleBlockDragStart(
         JSON.stringify({ pos: nodePos, type: nodeType }),
       )
 
-      // 3. Configure drag ghost preview
       const targetDom = editor.view.nodeDOM(nodePos)
       if (
         isHTMLElement(targetDom) &&
@@ -99,7 +84,6 @@ export function handleBlockDragStart(
       }
     }
 
-    // 4. Set ProseMirror view's internal dragging contract for atomic drop transactions
     const viewWithDragging = editor.view as unknown as {
       dragging?: {
         slice: typeof slice
@@ -117,9 +101,6 @@ export function handleBlockDragStart(
   }
 }
 
-/**
- * Cleans up ProseMirror's dragging state when native drag ends or cancels.
- */
 export function handleBlockDragEnd(
   _event: DragEvent | React.DragEvent,
   editor: Editor | null | undefined,

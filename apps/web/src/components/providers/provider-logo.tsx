@@ -1,18 +1,3 @@
-/**
- * A vendor's mark.
- *
- * The logo *is* the name: wherever a vendor's name used to be spelled out, the
- * mark stands in its place, and a delayed tooltip names it — the hover reads
- * the name for anyone who has not learned the marks yet, and the tooltip is
- * delayed so moving across a row of them does not strobe four popups open.
- *
- * The image carries the name as its `alt`: the accessible name is the
- * vendor's, and the tooltip repeats it for pointing devices on a delay.
- *
- * The mark is theme-aware per vendor, not globally: a monochrome mark is
- * inverted under the dark theme so it stops being the colour of the surface
- * behind it, and a full-colour brand mark is left as served.
- */
 import {
   Tooltip,
   TooltipContent,
@@ -29,7 +14,7 @@ import {
 
 export function ProviderLogo({
   provider,
-  /** The name the tooltip shows, when it differs from the vendor's own. */
+
   label,
   size = 16,
   className,
@@ -41,12 +26,7 @@ export function ProviderLogo({
 }) {
   const name = label ?? providerDisplayName(provider)
   const url = providerLogoUrl(provider)
-  // An <img>-loaded SVG is its own document: nothing in this page's cascade
-  // reaches into it, so the dark theme cannot recolour it — only a filter can.
-  // A monochrome mark is served near-black, which on a dark surface is the
-  // same colour as the surface behind it; inverting flips its lightness and
-  // brings it back. A full-colour mark is left alone, because inverting a
-  // brand palette to keep it visible would trade legibility for wrongness.
+
   const themeFilter =
     url && providerMarkIsMonochrome(provider) ? "dark:invert" : undefined
 
@@ -61,12 +41,6 @@ export function ProviderLogo({
                 alt={name}
                 width={size}
                 height={size}
-                // Deliberately eager: a lazy image mounted inside a
-                // freshly-inserted subtree fires its load before layout and
-                // Chromium fails it without a network error — the mark then
-                // reads as permanently broken. These are 16px SVGs beside
-                // interactive controls; lazy buys nothing. The onError retry
-                // is the backstop for any other transient failure.
                 onError={(event) => {
                   const img = event.currentTarget
                   const original = img.src
@@ -78,8 +52,6 @@ export function ProviderLogo({
                 className={cn("shrink-0", themeFilter, className)}
               />
             ) : (
-              // A vendor this build has never seen: a letter mark names it
-              // honestly rather than a broken image pretending otherwise.
               <span
                 role="img"
                 aria-label={name}

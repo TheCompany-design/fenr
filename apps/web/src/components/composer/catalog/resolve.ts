@@ -14,12 +14,6 @@ import type {
 } from "./capabilities"
 import { levelIndex, narrowedDefault, narrowScale } from "./effort"
 
-/**
- * The only reason this is a plain function and not a hook: resolution has to
- * be callable from a reducer, from the submit path, and from a test, without a
- * React tree. Async lives one layer up, in the catalog loader.
- */
-
 function unavailable<T>(reason: string): Resolved<T> {
   return { access: { kind: "denied", reason }, capability: null }
 }
@@ -35,12 +29,6 @@ function gated<T>(capability: T, gate: Gate): Resolved<T> {
   return { access: { kind: "gated", gate }, capability }
 }
 
-/**
- * An authenticated listing proves access only for the saved credential revision
- * that produced it. Preserve all other model metadata when that evidence ages
- * across a key rotation, but downgrade the access claim to unknown. The
- * provider contract is positive-only: an absent claim does not mean denied.
- */
 export function scopeModelAccessToCredentialRevision(
   model: ModelSpec | null,
   catalogRevision: string | undefined,
@@ -57,7 +45,6 @@ export function scopeModelAccessToCredentialRevision(
   return { ...model, keyAccessConfirmed: undefined }
 }
 
-/** A provider with no working credential gates everything behind `connect`. */
 function connectionGate(
   provider: ProviderSpec,
   connection: Connection,
@@ -118,12 +105,8 @@ export function resolveCapabilities(input: {
     }
   }
 
-  // The credential gate applies to every capability, so it is resolved once
-  // and applied below rather than repeated in six branches.
   const pending = connectionGate(provider, connection)
-  // Catalog presence and provider-level key verification do not establish
-  // model access. A model-specific authenticated listing may confirm access;
-  // otherwise only a successful call with this key does.
+
   const modelAccess = pending
     ? { kind: "gated" as const, gate: pending }
     : model.keyAccessConfirmed ||
@@ -141,17 +124,12 @@ export function resolveCapabilities(input: {
   }
 
   const caps = model.caps
-  // Every capability is the model's own declaration, served with its listing.
-  // The effort level's wire form is the runtime's knowledge — the composer
-  // sends the id and the runtime encodes it per vendor.
 
   const reasoningCap = caps.reasoning
   let reasoning: Resolved<ReasoningScale>
   if (!reasoningCap.supported) {
     reasoning = unavailable("Not supported by this model")
   } else {
-    // Entitlement narrows the model's levels; the model still decides the
-    // ordering, so the intersection keeps the declared order — see `narrowScale`.
     const scale = narrowScale(reasoningCap, entitlements.effort)
     if (scale.levels.length === 0) {
       reasoning = offered(scale, {
@@ -163,13 +141,6 @@ export function resolveCapabilities(input: {
         },
       })
     } else {
-      // The model's own default survives the narrowing when it is still on
-      // offer. When the entitlement removed it, the scale defaults to the lowest
-      // level it still has rather than the highest: a key that cannot reach the
-      // setting a model asks for must not be promoted to running at its maximum
-      // instead. That fallback used to be the *last* level, which contradicted
-      // `settleLevel` and meant the same key got a different answer depending on
-      // which path asked.
       const preferred =
         levelIndex(scale.levels, scale.default) >= 0
           ? scale.default

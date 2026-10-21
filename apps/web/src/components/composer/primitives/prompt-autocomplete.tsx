@@ -7,25 +7,10 @@ export type PromptAutocompleteProps = {
   onSelect: (item: SuggestionItem) => void
   onActiveIndexChange?: (index: number) => void
   className?: string
-  /** Pixel gap between the caret and the popup. */
+
   offset?: number
 }
 
-/**
- * Generic list surface for the `/` and `@` menus. It knows how to render items
- * and where to put itself, and nothing about what the items mean — commands
- * and file references share it, as will anything else added later.
- *
- * Positioned from the measured caret rather than from the textarea, so the
- * popup tracks the cursor across a wrapped line. When it would fall off the
- * bottom it flips above the caret, which is the difference between usable and
- * not when the caret sits in the last line of a full-height composer.
- *
- * Rendered inline rather than portalled: it is positioned against the
- * composer box, and a portal would need the anchor rect re-read on every
- * scroll of an ancestor. The composer is already `overflow-visible`, so the
- * only escape is the viewport, which is handled by flipping.
- */
 export function PromptAutocomplete({
   state,
   onSelect,
@@ -41,14 +26,6 @@ export function PromptAutocomplete({
 
   const { open, anchor, items, activeIndex } = state
 
-  // Measured when the popup opens rather than in a mount effect: the geometry
-  // is only knowable once there is something on screen to measure against.
-  //
-  // The flip decision needs the caret in *viewport* space, but the anchor is
-  // in the shell's space — the popup's containing block, which is its own
-  // `offsetParent` once rendered. The shell's live rect converts between the
-  // two, and being live is the point: the editor's scroll moves the caret
-  // through the viewport without the anchor ever noticing.
   const reposition = React.useCallback(() => {
     if (!anchor || !listRef.current) return
     const shell = listRef.current.offsetParent
@@ -58,10 +35,7 @@ export function PromptAutocomplete({
     const spaceBelow = window.innerHeight - caretViewportTop - offset - 24
     const needed = Math.min(items.length, 8) * 40 + 16
     const flipped = spaceBelow < needed && caretViewportTop > spaceBelow
-    // CSS `bottom` counts from the containing block's padding-box bottom and
-    // `anchor.top` from its padding-box top, so the two together span the
-    // shell's client height: the flipped popup's bottom edge lands `offset`
-    // px above the caret without a single viewport number in the style.
+
     const bottomFromShell = shell.clientHeight - anchor.top + offset
     setFlip((current) =>
       current &&
@@ -76,10 +50,6 @@ export function PromptAutocomplete({
     if (open) reposition()
   }, [open, reposition])
 
-  // Keep the highlighted row visible during keyboard navigation.
-  // `block: "nearest"` avoids scrolling the whole composer to follow it.
-  // Keyed on the highlighted row as well as the open state — a list longer
-  // than the popup otherwise lets the highlight walk off the visible rows.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `activeIndex` is the signal this effect waits on, not an input it reads — the highlighted row is found in the DOM by its `data-active` marker, which is what keeps this in step with whatever the rows actually rendered.
   React.useEffect(() => {
     if (!open || !listRef.current) return
@@ -135,9 +105,6 @@ function AutocompleteRow({
       role="option"
       aria-selected={active}
       data-active={active}
-      // `onMouseDown`, not `onClick`: by the time a click lands the textarea
-      // has already lost focus, and the editor must not blur while the user
-      // is choosing from a menu that is about to close.
       onMouseDown={(event) => {
         event.preventDefault()
         onSelect()

@@ -1,28 +1,3 @@
-/**
- * Caret position inside a `<textarea>`.
- *
- * A textarea renders its own text and exposes nothing about where a given
- * offset landed on screen. There is no cross-browser equivalent of
- * `caretPositionFromPoint`, and the one that exists returns pixel offsets for
- * a *point*, not for an index, which requires bisecting against a hit test.
- *
- * The mirror technique is the reliable answer: clone the textarea's computed
- * text styles onto an off-screen element, lay out the same text up to the
- * caret, wrap the caret character in a span, and read the span's box. The
- * browser then does the line-breaking and bidi reordering for us, exactly as
- * it would in the textarea.
- *
- * Two details that are easy to miss and produce a popup that is off by one
- * line or drifts on every scroll:
- *
- *  - the mirror must be `position: absolute` and *visible* to the layout
- *    engine (`visibility: hidden` is fine, `display: none` is not — it would
- *    collapse every rect to zero)
- *  - the measured rect has to be corrected for scrolling that happens
- *    *inside* the textarea (`scrollTop`), or the popup stays put while the
- *    text moves under it
- */
-
 const COPIED_PROPERTIES = [
   "boxSizing",
   "width",
@@ -59,20 +34,6 @@ export type CaretRect = {
   height: number
 }
 
-/**
- * The caret's offset inside the textarea, in the mirror's own frame.
- *
- * The mirror is laid out at the document origin (see `position: absolute;
- * top: 0` below), so the marker's box says where the caret sits *within the
- * textarea* and nothing about where the textarea itself is. That is the point:
- * the difference of two boxes in the same frame cancels the page's scroll out
- * of the measurement entirely.
- *
- * The textarea's own `scrollTop` is subtracted because a clamped textarea
- * scrolls its text under itself — in the pill, for the moment between a
- * keystroke and the density probe's flip — and the mirror, which cannot
- * scroll, does not model that shift.
- */
 function caretWithinTextarea(
   markerBox: DOMRect,
   mirrorBox: DOMRect,
@@ -89,12 +50,7 @@ export function measureCaret(
   textarea: HTMLTextAreaElement,
   value: string,
   caret: number,
-  /**
-   * The box the popup is positioned in — in practice the input shell, whose
-   * `relative` class makes it the popup's containing block. The returned rect
-   * is the caret's offset from this box's *padding edge*, ready to be used as
-   * the popup's CSS `top`/`left`. Defaults to the textarea itself.
-   */
+
   relativeTo: HTMLElement = textarea,
 ): CaretRect | null {
   if (typeof document === "undefined") return null

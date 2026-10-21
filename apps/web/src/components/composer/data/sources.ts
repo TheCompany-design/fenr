@@ -1,22 +1,12 @@
 import type { SuggestionItem, TriggerSource } from "../primitives/suggestion"
 import { usePromptStore } from "../state/prompt-store"
 
-/**
- * The `/` menu.
- *
- * Commands are assembled from live capability state rather than a static list,
- * so `/effort` only appears when the selected model actually has reasoning to
- * configure. A menu that offers an action the current model cannot perform is
- * worse than no menu — it teaches the user that some of these silently do
- * nothing.
- */
-
 type CommandDefinition = {
   id: string
   label: string
   hint: string
   keywords?: string
-  /** Hidden unless this returns true. */
+
   available?: (state: ReturnType<typeof usePromptStore.getState>) => boolean
 }
 

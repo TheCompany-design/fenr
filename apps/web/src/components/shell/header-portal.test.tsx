@@ -13,10 +13,6 @@ const { useHeaderPortalStore } = await import(
 )
 const { HeaderPortal, HeaderPortalSlot } = await import("./header-portal")
 
-/**
- * Stands in for the shell's top bar: one mounted region per slot, plus a body
- * area whose components claim those slots.
- */
 function HeaderHarness({ children }: { readonly children?: React.ReactNode }) {
   return createElement(
     "div",
@@ -83,8 +79,7 @@ describe("header portal", () => {
     })
 
     expect(region("start")?.textContent).toBe("Ledger reconciliation")
-    // The page itself must not keep a copy: content that renders in both places
-    // during hydration is the classic portal mistake.
+
     expect(
       document.querySelector('[data-testid="page"]')?.textContent,
     ).not.toContain("Ledger reconciliation")
@@ -127,8 +122,6 @@ describe("header portal", () => {
   })
 
   it("renders nothing in place while no region is mounted", () => {
-    // The server's state, and the first client render before the shell's refs
-    // attach. Injected content must be absent here, not duplicated.
     act(() => {
       root?.render(
         createElement(HeaderPortal, {

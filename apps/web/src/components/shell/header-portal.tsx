@@ -7,24 +7,11 @@ import {
 } from "@/lib/stores/header-portal.store"
 
 export interface HeaderPortalSlotProps {
-  /** Which slot of the header this is. */
   readonly region: HeaderPortalRegion
-  /** Layout and styling for the slot itself. */
+
   readonly className?: string
 }
 
-/**
- * One slot of the app header: an empty container that publishes its own node so
- * any descendant can render content into exactly this spot.
- *
- * A *region* is which part of the bar (`start`, `center`, `end`); a *slot* is the
- * container the shell renders for one of them.
- *
- * The shell owns one of these per region and never renders feature content
- * itself — that separation is the whole point. The container is always rendered
- * (never conditionally) so the header's layout does not shift as pages come and
- * go.
- */
 export function HeaderPortalSlot({ region, className }: HeaderPortalSlotProps) {
   const publish = useHeaderPortalStore((state) => state.publish)
   const ref = useCallback(

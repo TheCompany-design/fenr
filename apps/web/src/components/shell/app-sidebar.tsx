@@ -1,14 +1,3 @@
-/**
- * Floating app sidebar with smooth spring animations.
- *
- * - `variant="floating"` gives the detached floating-card aesthetic.
- * - Morphing spring animations for desktop expand/collapse.
- * - Sliding active item indicator with layoutId.
- * - Collapses to icon rail on desktop (rail click toggles); sheet
- *   navigation on mobile via the SidebarTrigger in the shell's top bar.
- * - Active item is derived from TanStack Router state, never pathname
- *   string-parsing in components.
- */
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Link, useRouterState } from "@tanstack/react-router"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
@@ -44,9 +33,6 @@ function NavItemButton({ item, active }: { item: NavItem; active: boolean }) {
   )
 
   if (disabled || !to) {
-    // No `disabled`/`aria-disabled` pointer-events blocking: a disabled
-    // button never receives hover, so its tooltip could never show. The
-    // item is inert by construction (no onClick, no route).
     return (
       <SidebarMenuButton
         aria-disabled="true"

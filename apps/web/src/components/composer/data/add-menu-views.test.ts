@@ -2,10 +2,6 @@ import { describe, expect, it } from "bun:test"
 import type { ResolvedCaps } from "../catalog/capabilities"
 import { ATTACH_FILES_ID, buildAddMenuView } from "./add-menu-views"
 
-/**
- * A capability record with only what a test cares about set. Anything left out
- * resolves as unsupported, which is the state most of fenr's models are in.
- */
 function caps(overrides: Partial<ResolvedCaps> = {}): ResolvedCaps {
   return {
     model: null,
@@ -49,7 +45,6 @@ describe("buildAddMenuView", () => {
   })
 
   it("says nothing about files when the model takes none", () => {
-    // A hint is only honest when there is something true behind it.
     expect(view({}).sections[0]?.items[0]?.hint).toBeUndefined()
   })
 
@@ -62,9 +57,7 @@ describe("buildAddMenuView", () => {
         },
       }),
     })
-    // 51, not 50: 0.05 MB is 51.2 KiB, and the number here comes from the same
-    // formatter the blocker uses. One figure for both is the point — a hint that
-    // rounds a ceiling the error message does not is a hint that lies by 2%.
+
     expect(built.sections[0]?.items[0]?.hint).toBe(
       "Text, PDFs up to 51 KB · 8 per message",
     )
@@ -130,8 +123,6 @@ describe("buildAddMenuView", () => {
   })
 
   it("shows the ceiling only when some tools are available", () => {
-    // fenr's catalogue supports no tools at all, and five rows saying so is
-    // noise rather than a ceiling.
     const none = view({
       caps: caps({
         tools: { access: { kind: "denied", reason: "no" }, capability: null },
@@ -238,8 +229,7 @@ describe("buildAddMenuView", () => {
       }),
     })
     expect(locked.nativeLocked).toBe(true)
-    // The rows are still listed: a capability that is hidden is a problem that
-    // is invisible.
+
     expect(sectionIds(locked)).toContain("provider-tools")
 
     expect(view({}).nativeLocked).toBe(false)

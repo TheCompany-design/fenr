@@ -3,30 +3,15 @@ import { measurePillOverflow } from "./use-composer-density"
 
 const INSETS = { left: "2.75rem", right: "13rem" }
 const LINE = 26
-/** The panel's own vertical padding, which counts toward `scrollHeight`. */
+
 const PANEL_PADDING = { top: "12px", bottom: "4px" }
 
 type FakeTextarea = HTMLTextAreaElement & {
   writes: string[]
-  /** Puts the element in the state a panel leaves it in: unclamped, padded. */
+
   enterPanel: () => void
 }
 
-/**
- * A textarea that behaves the way the composer's does.
- *
- * happy-dom has no layout engine, so `scrollHeight` and `clientHeight` are
- * always 0 and the chat suite defines them by hand for the same reason. What
- * matters here is more than two numbers: the composer's textarea sizes itself to
- * its content, is clamped by `max-height`, and counts its padding toward both.
- * A fake with fixed numbers cannot show that — and the two bugs it did show are
- * exactly the ones it hid:
- *
- *  - with border-box sizing, a `max-height` of one line clips the padding too,
- *    so a padded pill has nowhere to put its vertical room;
- *  - in the panel, `scrollHeight` includes `pt-3 pb-1`, so a one-line draft
- *    reads 16px taller than its line and looks like two.
- */
 function fakeTextarea(contentHeight: number): FakeTextarea {
   const state = {
     maxHeight: "",

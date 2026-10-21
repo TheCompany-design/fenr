@@ -1,11 +1,3 @@
-/**
- * Sidebar navigation as data.
- *
- * New screens register here — one place to add/extend navigation. Items
- * without a destination yet are `disabled: true` placeholders (rendered
- * inert) instead of pointing at non-existent routes.
- */
-
 import {
   AiChat02Icon,
   Doc01Icon,
@@ -18,11 +10,9 @@ export interface NavItem {
   id: string
   title: string
   icon: IconSvgElement
-  /** Route path. Extend this union as real routes land. */
+
   to?: string
-  /** Placeholder item — rendered but inert until its route exists.
-   *  Inert by construction: NavItemButton renders no onClick for disabled
-   *  items regardless of `to`, so a future route won't silently activate. */
+
   disabled?: boolean
 }
 

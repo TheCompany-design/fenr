@@ -17,30 +17,11 @@ const TOOL_KINDS: readonly ToolKind[] = [
   "http",
 ] as const
 
-/**
- * Reconcile is a pure function of (composer state, capabilities). Everything
- * that can invalidate the composer — a model switch, a credential expiring, a
- * plan downgrade — routes through it, so there is one rule set rather than one
- * per trigger.
- *
- * Two output channels, and the split is the whole design:
- *
- *   notices  — settings we adjusted silently (effort clamped). The user's
- *              intent is still satisfiable, so we satisfy a close version of
- *              it and move on.
- *   blockers — content we refuse to drop (images on a model with no vision).
- *              Losing someone's attached work without asking is the one
- *              unforgivable failure, so send is gated until they decide.
- *
- * The invariant: settings are never preserved past the point they are valid,
- * and content is never discarded without a blocker.
- */
-
 export type Mention = {
   id: string
   kind: "file" | "folder" | "url" | "agent"
   label: string
-  /** Inserted text, used to validate the span against the current value. */
+
   insertText: string
   start: number
   end: number
@@ -103,7 +84,6 @@ export function reconcile(
     return { state: next, blockers, notices }
   }
 
-  // --- effort: a setting, so it is adjusted rather than surfaced -----------
   if (isUsable(caps.reasoning)) {
     const scale = caps.reasoning.capability
     const clamped = settleLevel(scale.levels, state.effort, scale.default)
@@ -116,18 +96,10 @@ export function reconcile(
     }
     next.effort = clamped
   } else {
-    // Reasoning disappearing is a notice, never a blocker. The user downgraded
-    // deliberately; dropping the level and telling them is the whole response.
-    // Blocking the send would punish them for changing models.
     if (state.effort !== null) notices.push({ kind: "effort-dropped" })
     next.effort = null
   }
 
-  // --- attachments: content, so they block rather than vanish -------------
-  // Everything a file rule rejects is listed by name, because the resolution
-  // is the user's to make: drop the file, or pick a model that accepts it.
-  // None of these are silently dropped at send — that is the one unforgivable
-  // failure this channel exists to prevent.
   const files = isUsable(caps.files) ? caps.files.capability : null
   const rejected: { name: string; reason: string }[] = []
   if (files) {
