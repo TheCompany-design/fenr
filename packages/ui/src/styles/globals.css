@@ -135,10 +135,7 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Tailwind v4 preflight sets buttons to cursor:default; interactive
-     elements should signal clickability. Disabled stays default/not-allowed,
-     and so do aria-disabled placeholders (inert — a pointer would imply clickability;
-     their tooltip still works via hover/focus). */
+
   button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
   [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
@@ -180,42 +177,20 @@
     color-mix(in srgb, var(--background) 88%, transparent) 92%
   );
 }
-/*
- * The composer's reasoning-effort bar.
- *
- * A discrete slider over a model's *declared* levels: the input's value is the
- * level's index and `--effort-at` is where the chosen level sits on the bar, so
- * the control is the same shape whatever the model offers and only the marks
- * move.
- *
- * The two sizes live on `effort-bar-scope`, the *wrapper*, and not on
- * `effort-bar`, the input — and that placement is load-bearing. They are needed
- * in two places: the input's own box, and the marks container drawn behind it.
- * The marks are the input's SIBLING, so a custom property declared on the input
- * is not in scope for them. Declared in the wrong place, `var(--effort-thumb)`
- * is unset on the container, its `inset-inline` becomes invalid at computed-value
- * time and falls back to `auto`, and because every mark inside is absolutely
- * positioned the container shrink-to-fits to zero width — so all the marks stack
- * at the left end of the bar and the control reads as a plain slider with a
- * smudge on it. Declaring on the common parent is what keeps the knob, its
- * travel, and the marks agreeing.
- *
- * A knob is drawn on a track thinner than itself, so both engines are told the
- * offset rather than left to guess: half the difference between the two sizes.
- * `primary` fills and `background` draws the knob because that is the pairing
- * that reads in both themes — primary is the darkest thing on a light surface
- * and the lightest on a dark one, and background is the opposite. The obvious
- * alternatives do not: `primary-foreground` and `popover` are both near-white on
- * a light surface, and the whole bar vanished.
- */
+
 @utility effort-bar-scope {
-  --effort-track: 6px;
-  --effort-thumb: 16px;
+  --effort-track: 24px;
+  --effort-thumb-w: 44px;
+  --effort-thumb-h: 32px;
+
+  --effort-accent: oklch(0.623 0.214 259.815);
+}
+
+.dark .effort-bar-scope {
+  --effort-accent: oklch(0.707 0.165 254.624);
 }
 
 @utility effort-bar {
-  /* Both spellings: Chromium gives the thumb its own `-webkit-appearance`, and
-     overriding only the unprefixed property leaves it natively drawn. */
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
@@ -225,8 +200,8 @@
   outline: none;
   background: linear-gradient(
     to right,
-    var(--primary) 0%,
-    var(--primary) var(--effort-at),
+    color-mix(in oklab, var(--effort-accent) 45%, transparent) 0%,
+    var(--effort-accent) var(--effort-at),
     var(--muted) var(--effort-at),
     var(--muted) 100%
   );
@@ -245,12 +220,12 @@
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    /* Half the difference between the two sizes, so a knob larger than the
-       track is centred on it instead of hanging below it. */
-    margin-top: calc((var(--effort-track) - var(--effort-thumb)) / 2);
-    width: var(--effort-thumb);
-    height: var(--effort-thumb);
-    border: 1px solid var(--border);
+
+    margin-top: calc((var(--effort-track) - var(--effort-thumb-h)) / 2);
+    width: var(--effort-thumb-w);
+    height: var(--effort-thumb-h);
+    border: 1px solid
+      color-mix(in oklab, var(--effort-accent) 30%, var(--border));
     border-radius: 9999px;
     background: var(--background);
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -264,10 +239,15 @@
 
   &::-moz-range-thumb {
     box-sizing: border-box;
-    width: var(--effort-thumb);
-    height: var(--effort-thumb);
-    border: 1px solid var(--border);
+    width: var(--effort-thumb-w);
+    height: var(--effort-thumb-h);
+    border: 1px solid
+      color-mix(in oklab, var(--effort-accent) 30%, var(--border));
     border-radius: 9999px;
     background: var(--background);
+  }
+
+  &:disabled {
+    cursor: default;
   }
 }

@@ -5,15 +5,6 @@ import type { ResolvedCaps } from "../catalog/capabilities"
 import { usePromptStore } from "../state/prompt-store"
 import { EffortControl } from "./effort-control"
 
-/**
- * The bar's job is to turn a position on a track into a level on *this* model's
- * scale. The store's side of that — settling a level onto a new model's list —
- * is proven in `catalog/effort.test.ts`; what is proven here is that the control
- * asks the model's own scale rather than a fixed one, and that it says the
- * level's name rather than its index.
- */
-
-/** Anthropic's scale: four levels, no `none`, so not a prefix of OpenAI's. */
 const ANTHROPIC = [
   { id: "low", label: "Low" },
   { id: "medium", label: "Medium" },
@@ -21,8 +12,12 @@ const ANTHROPIC = [
   { id: "max", label: "Max" },
 ]
 
-/** A single level, to prove the degenerate case is renderable. */
 const SOLO = [{ id: "balanced", label: "Balanced" }]
+
+const TWO = [
+  { id: "low", label: "Low" },
+  { id: "high", label: "High" },
+]
 
 function capsWith(
   levels: readonly { id: string; label: string }[],
@@ -53,9 +48,7 @@ describe("EffortControl", () => {
   afterEach(() => {
     try {
       act(() => root.unmount())
-    } catch {
-      // The tree is discarded either way.
-    }
+    } catch {}
     container.remove()
     usePromptStore.setState({
       caps: original.caps,
@@ -89,7 +82,10 @@ describe("EffortControl", () => {
     return [...container.querySelectorAll<HTMLElement>("[data-level-mark]")]
   }
 
-  /** Moves the bar the way a keyboard or pointer would, and returns nothing. */
+  function labels(): HTMLElement[] {
+    return [...container.querySelectorAll<HTMLElement>("[data-effort-label]")]
+  }
+
   async function moveTo(value: number): Promise<void> {
     await render()
     const el = bar()
@@ -107,46 +103,78 @@ describe("EffortControl", () => {
     seed(ANTHROPIC, "medium")
     await render()
     const el = bar()
-    // Three steps, not four: the value is an index, and `low` is 0.
+
     expect(el.min).toBe("0")
     expect(el.max).toBe("3")
     expect(el.step).toBe("1")
     expect(el.value).toBe("1")
   })
 
-  it("puts the chosen level's name in the label and in what it announces", async () => {
+  it("puts one of the model's own names over each of its stops", async () => {
     seed(ANTHROPIC, "high")
     await render()
-    expect(container.textContent).toContain("High")
-    // Announced as the level's name, not "2 of 4" — which is the reason labels
-    // are declared rather than prettified from the id.
+
+    expect(labels().map((l) => l.textContent)).toEqual([
+      "Low",
+      "Medium",
+      "High",
+      "Max",
+    ])
+    expect(labels().map((l) => l.style.left)).toEqual([
+      "0%",
+      "33.33333333333333%",
+      "66.66666666666666%",
+      "100%",
+    ])
+
+    expect(labels()[0].className).not.toContain("-translate-x")
+    expect(labels()[1].className).toContain("-translate-x-1/2")
+    expect(labels()[2].className).toContain("-translate-x-1/2")
+    expect(labels()[3].className).toContain("-translate-x-full")
+
+    const lit = labels().filter((l) => l.dataset.active === "true")
+    expect(lit.map((l) => l.dataset.effortLabel)).toEqual(["high"])
+    expect(lit[0].textContent).toBe("High")
+    expect(
+      container
+        .querySelector("[data-effort-labels]")
+        ?.getAttribute("aria-hidden"),
+    ).toBe("true")
     expect(bar().getAttribute("aria-valuetext")).toBe("High")
   })
 
-  it("carries the knob size on the wrapper, so the marks can see it", async () => {
+  it("carries the knob sizes on a common wrapper, so the marks and labels can see them", async () => {
     seed(ANTHROPIC, "medium")
     await render()
-    // happy-dom has no layout, so the percentages below cannot be checked
-    // against a rendered box — but the *scope* of `--effort-thumb` can be, and
-    // getting it wrong is silent: the marks container's `inset-inline` becomes
-    // invalid at computed-value time, falls back to `auto`, shrink-to-fits to
-    // zero width because every mark in it is absolutely positioned, and all the
-    // marks stack at the left end of the bar. The inline `left` values stay
-    // perfectly correct throughout, so a suite asserting only those passes while
-    // the control is broken. Declared on the wrapper, which is the marks'
-    // ancestor; on the input it would be a sibling's property and unset.
-    const host = container.querySelector<HTMLElement>("[data-effort-marks]")
-    expect(host?.parentElement?.className).toContain("effort-bar-scope")
+
+    const scope = container.querySelector<HTMLElement>(".effort-bar-scope")
+    expect(
+      scope?.contains(container.querySelector("[data-effort-marks]")),
+    ).toBe(true)
+    expect(scope?.contains(bar())).toBe(true)
+    expect(
+      scope?.contains(container.querySelector("[data-effort-labels]")),
+    ).toBe(true)
     expect(container.querySelector("input[type=range]")?.className).toBe(
       "effort-bar",
     )
   })
 
+  it("stays a plain two-stop bar when the model offers only two levels", async () => {
+    seed(TWO, "low")
+    await render()
+
+    expect(bar().max).toBe("1")
+    expect(bar().value).toBe("0")
+    expect(marks().map((m) => m.style.left)).toEqual(["0%", "100%"])
+
+    expect(labels().map((l) => l.textContent)).toEqual(["Low", "High"])
+  })
+
   it("draws one mark per level, at that level's own position", async () => {
     seed(ANTHROPIC, "medium")
     await render()
-    // Ends included, so the knob can reach them; a bar whose marks stop short of
-    // its ends has positions no setting could occupy.
+
     expect(marks().map((m) => m.style.left)).toEqual([
       "0%",
       "33.33333333333333%",
@@ -176,10 +204,7 @@ describe("EffortControl", () => {
       usePromptStore.setState({ setEffort: (effort) => chosen.push(effort) })
     })
     seed(ANTHROPIC, "low")
-    // Index 1 is `low` on OpenAI's scale and `medium` on this one. The bar has
-    // to ask this model, and the assertion is on what the *component* handed
-    // the store — not on a lookup of the same constant the helper was given,
-    // which would pass even if the component sent nothing.
+
     await moveTo(1)
     expect(chosen).toEqual(["medium"])
   })
@@ -188,16 +213,19 @@ describe("EffortControl", () => {
     seed(SOLO, "balanced")
     await render()
     const el = bar()
-    // `max` has to exceed `min` for the control to be valid at all.
+
     expect(el.min).toBe("0")
     expect(el.max).toBe("1")
     expect(el.value).toBe("0")
-    // Disabled rather than a degenerate range: a range input that cannot move is
-    // a control that lies about being a control, and would announce a maximum
-    // of 1 for a scale that has one level.
+
     expect(el.disabled).toBe(true)
-    // With nothing to compare it to, the single mark sits in the middle.
+
     expect(marks()[0].style.left).toBe("50%")
+
+    const name = labels()[0]
+    expect(name.style.left).toBe("50%")
+    expect(name.className).toContain("-translate-x-1/2")
+    expect(name.textContent).toBe("Balanced")
   })
 
   it("renders nothing for a model with no reasoning", async () => {
