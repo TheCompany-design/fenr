@@ -209,7 +209,6 @@ export function SidebarProvider({
       if (openProp === undefined) _setOpen(resolved)
       setOpenProp?.(resolved)
 
-      // SSR Cookie persistence
       // biome-ignore lint/suspicious/noDocumentCookie: cookie write for SSR state
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${resolved}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}; samesite=lax`
     },

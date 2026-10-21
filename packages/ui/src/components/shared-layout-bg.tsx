@@ -26,13 +26,13 @@ import {
 export interface SharedLayoutBgProps
   extends Omit<HTMLAttributes<HTMLElement>, "children"> {
   children: ReactNode
-  /** Semantic container used for the children. */
+
   as?: "div" | "ul"
-  /** Tailwind class applied to the moving pill. Defaults to a subtle foreground tint. */
+
   pillClassName?: string
-  /** Horizontal inset of the pill relative to each row (px). Default 0. */
+
   inset?: number
-  /** Optional positioning override for the pill wrapper inside each item. */
+
   pillContainerClassName?: string
 }
 

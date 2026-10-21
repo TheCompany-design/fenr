@@ -1,42 +1,20 @@
 "use client"
 
-/**
- * Gliding pill for dropdown rows.
- *
- * Every dropdown moves one pill between its rows instead of cross-fading
- * each row's own hover background: the pill is keyed by a per-dropdown
- * `layoutId`, so rows inside one dropdown glide into each other while rows
- * in different dropdowns never animate across menus.
- *
- * Rows must opt in on both hover and keyboard focus — a pointer-only pill
- * leaves arrow-key navigation with no visible position.
- *
- * ```tsx
- * const glide = useDropdownGlider()
- * // ...
- * <button {...glide.rowProps("billing")}>
- *   <DropdownGlidePill layoutId={glide.layoutId} active={glide.activeId === "billing"} />
- *   Billing
- * </button>
- * ```
- */
 import { SPRING_LAYOUT } from "@workspace/ui/lib/ease"
 import { cn } from "@workspace/ui/lib/utils"
 import { m, useReducedMotion } from "motion/react"
 import { useId, useState } from "react"
 
-/** Row handlers that hand the pill to whichever row the pointer or focus is on. */
 export interface DropdownRowProps {
   onFocus: () => void
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void
 }
 
 export interface DropdownGlider {
-  /** Id of the row currently holding the pill. */
   activeId: string | null
-  /** The `layoutId` shared by every row of this dropdown. */
+
   layoutId: string
-  /** Spread onto a row: `...glide.rowProps(id)`. */
+
   rowProps: (id: string) => DropdownRowProps
 }
 

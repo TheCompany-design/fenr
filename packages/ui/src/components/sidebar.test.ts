@@ -71,14 +71,12 @@ describe("desktop sidebar unified layout structure", () => {
       ),
     )
 
-    // Layout footprint is owned by <aside>, not a separate phantom gap
     expect(html).not.toContain('data-slot="sidebar-gap"')
     expect(html).toContain('data-slot="sidebar"')
     expect(html).toContain('data-slot="sidebar-container"')
     expect(html).toContain('data-slot="sidebar-inner"')
     expect(html).toContain('data-slot="sidebar-inset"')
 
-    // Aside is in document flow (sticky top-0, shrink-0) and not fixed out-of-flow
     expect(html).toContain("sticky top-0")
     expect(html).toContain("shrink-0")
     expect(html).not.toContain("fixed inset-y-0")
@@ -100,7 +98,6 @@ describe("desktop sidebar unified layout structure", () => {
       ),
     )
 
-    // The inner container houses the floating card visuals
     expect(html).toContain("p-2")
     expect(html).toContain("rounded-2xl")
     expect(html).toContain("border")

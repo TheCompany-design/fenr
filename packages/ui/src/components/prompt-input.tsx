@@ -8,24 +8,6 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 
-/**
- * The shared prompt-input shell.
- *
- * One implementation of "rounded panel that focuses a textarea" for every
- * chat surface, with named regions instead of a hard-coded layout: the caller
- * decides what sits in the leading and trailing clusters, and the textarea
- * grows with its content.
- *
- * The textarea is deliberately never capped. A capped textarea is a scroll
- * container in its own right, so the browser paints its own scrollbar across the
- * draft — and this repo has one scrollbar language (`ScrollArea`) and no native
- * ones. Height limits belong to the element *around* the editor, which scrolls
- * it with a thumb instead.
- *
- * The context is the measurement handle: the autocomplete popup needs the
- * textarea's ref to measure the caret, and reading it from context beats
- * threading a prop through every layer.
- */
 type PromptInputContextValue = {
   value: string
   onSubmit: (() => void) | undefined
@@ -47,10 +29,9 @@ export function usePromptInput(): PromptInputContextValue {
 }
 
 export type PromptInputProps = React.HTMLAttributes<HTMLDivElement> & {
-  /** Controlled text. */
   value: string
   onValueChange?: (value: string) => void
-  /** Called on Enter (without Shift) from the textarea. */
+
   onSubmit?: () => void
 }
 
@@ -97,17 +78,6 @@ export function PromptInputTextarea({
   const context = React.useContext(PromptInputContext)
   const value = context?.value
 
-  // The ref is shared through context so caret measurement sees the live
-  // element; a caller-supplied ref is chained rather than replaced.
-  //
-  // Keyed on the ref itself and not on the context object. The context value is
-  // rebuilt whenever `value` changes, so a callback keyed on it is a *new*
-  // function per keystroke — and a new ref callback means React detaches the
-  // element (`ref(null)`) and reattaches it during the same commit. Anything
-  // reading `textareaRef.current` from a layout effect therefore saw `null` on
-  // every keystroke, because effects run in tree order and the reader had not
-  // reached the reattach yet. The ref object never changes, so keying on it
-  // makes the callback stable and the ref stays put.
   const textareaRef = context?.textareaRef
   const setRef = React.useCallback(
     (node: HTMLTextAreaElement | null) => {
@@ -135,14 +105,6 @@ export function PromptInputTextarea({
         }
       }}
       className={cn(
-        // `block` is load-bearing and not cosmetic. A textarea is an
-        // inline-block by default, so it sits on a line box whose strut adds
-        // its own leading *below* the control: the element that wraps the
-        // draft ends up taller than the text, and the draft sits visibly high
-        // inside it. That is invisible when the textarea is a direct child of
-        // a padded box and obvious once a scroll area wraps it, because the
-        // stray leading becomes part of the box the pill's geometry is derived
-        // from. Block-level, the wrapper is exactly as tall as the text.
         "block min-h-11 w-full resize-none field-sizing-content bg-transparent text-[13px] leading-relaxed text-foreground placeholder:text-muted-foreground/50 focus:outline-hidden",
         className,
       )}
@@ -165,20 +127,11 @@ export function PromptInputActions({
 }
 
 export type PromptInputActionProps = {
-  /** Tooltip content; the action renders as a plain cluster when absent. */
   tooltip?: React.ReactNode
   className?: string
   children?: React.ReactNode
 }
 
-/**
- * A tooltip-wrapped cluster for the action row.
- *
- * The child is rendered *as* the trigger rather than inside it, so a button
- * keeps its own semantics and the tooltip attaches to it — nesting a focusable
- * control inside a tooltip trigger is how keyboard focus lands on the wrong
- * element.
- */
 export function PromptInputAction({
   tooltip,
   children,
