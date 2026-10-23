@@ -45,6 +45,32 @@ const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const MOBILE_QUERY = "(max-width: 767px)"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
+// Floating panel corner radii, animated in lockstep with the width morph so
+// the panel never pops between shapes. Expanded mirrors the `rounded-2xl`
+// class through the theme token — this theme derives radii from `--radius`
+// (`--radius-2xl` = 1.8 × 0.625rem = 1.125rem), so the class's resolved value
+// must not be duplicated as a literal here. Collapsed, the panel must be a
+// stadium (pill): the radius is exactly half the collapsed inner width —
+// (4.5rem `--sidebar-width-icon` − 2 × 0.5rem container `p-2`) ÷ 2 = 1.75rem —
+// so the tips are perfect semicircles with no straight segment before the
+// curve. Keep the pill radius in sync with `--sidebar-width-icon` and the
+// floating container padding if either changes.
+const SIDEBAR_FLOATING_RADIUS_EXPANDED = "var(--radius-2xl)"
+const SIDEBAR_FLOATING_RADIUS_PILL = "1.75rem"
+
+// Collapsed rows are squared to a fixed 40×40 (the icon rail's content slot
+// is 38px after the panel's 1px borders, so `w-full` rows would be 38×40 —
+// fully rounded, that is a radius-19 capsule with 2px straight verticals,
+// not the perfect circle this block requires). `w-10` + auto-centering
+// makes the row an exact square; the hover glider compensates with a 1px
+// negative inset per side so it covers the same 40×40 box. Expanded rows
+// keep their squircle. Every layer that paints a row shape — the button
+// itself, the hover glider, the selected highlight — resolves through these
+// so a highlight always displays the item's natural state and can never
+// desync from it.
+const SIDEBAR_ITEM_RADIUS_COLLAPSED = "rounded-full"
+const SIDEBAR_ITEM_RADIUS_EXPANDED = "rounded-xl"
+
 const PANEL_TRANSITION = {
   duration: 0.32,
   ease: EASE_DRAWER,
@@ -564,9 +590,22 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
             panelClassName,
           )}
         >
-          <div
+          <motion.div
             data-sidebar="sidebar"
             data-slot="sidebar-inner"
+            initial={false}
+            animate={
+              variant === "floating"
+                ? {
+                    borderRadius: collapsed
+                      ? SIDEBAR_FLOATING_RADIUS_PILL
+                      : SIDEBAR_FLOATING_RADIUS_EXPANDED,
+                  }
+                : undefined
+            }
+            transition={
+              context.reduce ? { duration: 0 } : SIDEBAR_MORPH_TRANSITION
+            }
             className={cn(
               "flex size-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden",
               variant === "floating" &&
@@ -577,7 +616,7 @@ export const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
             <SidebarPanelContext.Provider value={panelContextValue}>
               {children}
             </SidebarPanelContext.Provider>
-          </div>
+          </motion.div>
         </motion.div>
       </motion.aside>
     )
@@ -859,15 +898,29 @@ export const SidebarMenu = React.forwardRef<HTMLUListElement, SidebarMenuProps>(
     { children, className, enableHoverGlider = true, ...props },
     forwardedRef,
   ) {
+    const { collapsed } = useSidebarPanel()
+
     if (enableHoverGlider) {
       return (
         <SharedLayoutBg
           {...props}
           ref={forwardedRef as React.Ref<HTMLElement>}
           as="ul"
-          inset={0}
-          pillClassName="rounded-xl bg-sidebar-accent/50"
-          pillContainerClassName="inset-y-0.5"
+          // Collapsed rows are 40×40 squares centered in the 38px content slot
+          // (see SIDEBAR_ITEM_RADIUS_*); the 1px negative inset per side makes
+          // the glider cover the row's exact box instead of the slot.
+          inset={collapsed ? 1 : 0}
+          pillClassName={cn(
+            "bg-sidebar-accent/50",
+            // Collapsed items are fully rounded, so the hover glider mirrors
+            // their natural shape. Without the extra `inset-y-0.5` gap the
+            // glider is exactly the item's box — a perfect circle over the
+            // square collapsed row.
+            collapsed
+              ? SIDEBAR_ITEM_RADIUS_COLLAPSED
+              : SIDEBAR_ITEM_RADIUS_EXPANDED,
+          )}
+          pillContainerClassName={collapsed ? undefined : "inset-y-0.5"}
           data-slot="sidebar-menu"
           data-sidebar="menu"
           className={cn(
@@ -940,7 +993,15 @@ export function SidebarMenuButton({
         <motion.span
           layoutId={context.layoutId}
           transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
-          className="absolute inset-0 z-0 rounded-xl bg-sidebar-accent shadow-xs"
+          className={cn(
+            "absolute inset-0 z-0 bg-sidebar-accent shadow-xs",
+            // The selected highlight fills the button's own box, so it simply
+            // shows the item's natural shape — fully rounded when collapsed,
+            // the historical squircle when expanded.
+            panel.collapsed
+              ? SIDEBAR_ITEM_RADIUS_COLLAPSED
+              : SIDEBAR_ITEM_RADIUS_EXPANDED,
+          )}
         />
       )}
       {children}
@@ -955,7 +1016,14 @@ export function SidebarMenuButton({
         : "h-10 text-sm"
 
   const interactiveClassName = cn(
-    "peer/menu-button group/menu-button relative flex w-full min-w-0 items-center overflow-hidden rounded-xl text-left font-medium outline-none",
+    "peer/menu-button group/menu-button relative flex w-full min-w-0 items-center overflow-hidden text-left font-medium outline-none",
+    // Collapsed rows become fixed 40×40 squares centered in the rail's 38px
+    // content slot so fully rounded is a perfect circle; expanded rows keep
+    // their squircle and full row width.
+    panel.collapsed
+      ? SIDEBAR_ITEM_RADIUS_COLLAPSED
+      : SIDEBAR_ITEM_RADIUS_EXPANDED,
+    panel.collapsed && "mx-auto w-10",
     "text-sidebar-foreground/80 transition-colors hover:text-sidebar-foreground",
     "focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar active:scale-[0.98]",
     isActive && "text-sidebar-foreground font-semibold",
