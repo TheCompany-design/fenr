@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { NabuStatusCard } from "@/features/nabu"
 
 describe("NabuStatusCard Component", () => {
-  it("renders status card with title and action buttons without importing serverEnv", () => {
+  it("renders the engine's identity without importing serverEnv", () => {
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: {
@@ -24,8 +24,8 @@ describe("NabuStatusCard Component", () => {
     )
 
     expect(html).toContain("thebookofnabu Engine")
-    expect(html).toContain("Test Reconciliation")
-    expect(html).toContain("Dispatch Task")
-    expect(html).toContain("Ping")
+
+    expect(html).not.toContain("Test Reconciliation")
+    expect(html).not.toContain("Dispatch Task")
   })
 })

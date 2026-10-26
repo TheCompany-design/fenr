@@ -1,6 +1,3 @@
-/**
- * Custom hook to surface URL-derived auth errors as user-facing Sonner toasts.
- */
 import { useEffect } from "react"
 import { toast } from "sonner"
 

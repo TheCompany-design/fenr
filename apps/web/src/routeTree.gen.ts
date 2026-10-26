@@ -17,14 +17,18 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSettingsRouteRouteImport } from './routes/_app/settings/route'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
+import { Route as AppChatIndexRouteImport } from './routes/_app/chat/index'
+import { Route as AppChatThreadIdRouteImport } from './routes/_app/chat/$threadId'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as ApiAgentStreamRouteImport } from './routes/api/agent/stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthCheckEmailIndexRouteImport } from './routes/auth/check-email/index'
 import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index'
 import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index'
 import { Route as AppSettingsDangerIndexRouteImport } from './routes/_app/settings/danger/index'
 import { Route as AppSettingsMembersIndexRouteImport } from './routes/_app/settings/members/index'
+import { Route as AppSettingsProviderIndexRouteImport } from './routes/_app/settings/provider/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -65,6 +69,16 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   path: '/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppChatIndexRoute = AppChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppChatThreadIdRoute = AppChatThreadIdRouteImport.update({
+  id: '/chat/$threadId',
+  path: '/chat/$threadId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   id: '/document/',
   path: '/document/',
@@ -74,6 +88,11 @@ const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppSettingsRouteRoute,
+} as any)
+const ApiAgentStreamRoute = ApiAgentStreamRouteImport.update({
+  id: '/api/agent/stream',
+  path: '/api/agent/stream',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -105,6 +124,12 @@ const AppSettingsMembersIndexRoute = AppSettingsMembersIndexRouteImport.update({
   path: '/members/',
   getParentRoute: () => AppSettingsRouteRoute,
 } as any)
+const AppSettingsProviderIndexRoute =
+  AppSettingsProviderIndexRouteImport.update({
+    id: '/provider/',
+    path: '/provider/',
+    getParentRoute: () => AppSettingsRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -114,7 +139,10 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/auth/': typeof AuthIndexRoute
+  '/chat/$threadId': typeof AppChatThreadIdRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/chat/': typeof AppChatIndexRoute
   '/document/': typeof AppDocumentIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
@@ -122,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
   '/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/settings/members/': typeof AppSettingsMembersIndexRoute
+  '/settings/provider/': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -129,7 +158,10 @@ export interface FileRoutesByTo {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
+  '/chat/$threadId': typeof AppChatThreadIdRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/chat': typeof AppChatIndexRoute
   '/document': typeof AppDocumentIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/auth/check-email': typeof AuthCheckEmailIndexRoute
@@ -137,6 +169,7 @@ export interface FileRoutesByTo {
   '/auth/sign-up': typeof AuthSignUpIndexRoute
   '/settings/danger': typeof AppSettingsDangerIndexRoute
   '/settings/members': typeof AppSettingsMembersIndexRoute
+  '/settings/provider': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -148,7 +181,10 @@ export interface FileRoutesById {
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
+  '/_app/chat/$threadId': typeof AppChatThreadIdRoute
+  '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_app/chat/': typeof AppChatIndexRoute
   '/_app/document/': typeof AppDocumentIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
@@ -156,6 +192,7 @@ export interface FileRoutesById {
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
   '/_app/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/_app/settings/members/': typeof AppSettingsMembersIndexRoute
+  '/_app/settings/provider/': typeof AppSettingsProviderIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -167,7 +204,10 @@ export interface FileRouteTypes {
     | '/settings'
     | '/invitations/accept'
     | '/auth/'
+    | '/chat/$threadId'
+    | '/api/agent/stream'
     | '/api/auth/$'
+    | '/chat/'
     | '/document/'
     | '/settings/'
     | '/auth/check-email/'
@@ -175,6 +215,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up/'
     | '/settings/danger/'
     | '/settings/members/'
+    | '/settings/provider/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -182,7 +223,10 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/'
     | '/auth'
+    | '/chat/$threadId'
+    | '/api/agent/stream'
     | '/api/auth/$'
+    | '/chat'
     | '/document'
     | '/settings'
     | '/auth/check-email'
@@ -190,6 +234,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up'
     | '/settings/danger'
     | '/settings/members'
+    | '/settings/provider'
   id:
     | '__root__'
     | '/_app'
@@ -200,7 +245,10 @@ export interface FileRouteTypes {
     | '/invitations/accept'
     | '/_app/'
     | '/auth/'
+    | '/_app/chat/$threadId'
+    | '/api/agent/stream'
     | '/api/auth/$'
+    | '/_app/chat/'
     | '/_app/document/'
     | '/_app/settings/'
     | '/auth/check-email/'
@@ -208,6 +256,7 @@ export interface FileRouteTypes {
     | '/auth/sign-up/'
     | '/_app/settings/danger/'
     | '/_app/settings/members/'
+    | '/_app/settings/provider/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -216,6 +265,7 @@ export interface RootRouteChildren {
   ChooseOrganizationRoute: typeof ChooseOrganizationRoute
   OnboardingRoute: typeof OnboardingRoute
   InvitationsAcceptRoute: typeof InvitationsAcceptRoute
+  ApiAgentStreamRoute: typeof ApiAgentStreamRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -277,6 +327,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/chat/': {
+      id: '/_app/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AppChatIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/chat/$threadId': {
+      id: '/_app/chat/$threadId'
+      path: '/chat/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof AppChatThreadIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/document/': {
       id: '/_app/document/'
       path: '/document'
@@ -290,6 +354,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
+    }
+    '/api/agent/stream': {
+      id: '/api/agent/stream'
+      path: '/api/agent/stream'
+      fullPath: '/api/agent/stream'
+      preLoaderRoute: typeof ApiAgentStreamRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -333,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsMembersIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
     }
+    '/_app/settings/provider/': {
+      id: '/_app/settings/provider/'
+      path: '/provider'
+      fullPath: '/settings/provider/'
+      preLoaderRoute: typeof AppSettingsProviderIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
   }
 }
 
@@ -340,12 +418,14 @@ interface AppSettingsRouteRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSettingsDangerIndexRoute: typeof AppSettingsDangerIndexRoute
   AppSettingsMembersIndexRoute: typeof AppSettingsMembersIndexRoute
+  AppSettingsProviderIndexRoute: typeof AppSettingsProviderIndexRoute
 }
 
 const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSettingsDangerIndexRoute: AppSettingsDangerIndexRoute,
   AppSettingsMembersIndexRoute: AppSettingsMembersIndexRoute,
+  AppSettingsProviderIndexRoute: AppSettingsProviderIndexRoute,
 }
 
 const AppSettingsRouteRouteWithChildren =
@@ -354,12 +434,16 @@ const AppSettingsRouteRouteWithChildren =
 interface AppRouteRouteChildren {
   AppSettingsRouteRoute: typeof AppSettingsRouteRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
+  AppChatThreadIdRoute: typeof AppChatThreadIdRoute
+  AppChatIndexRoute: typeof AppChatIndexRoute
   AppDocumentIndexRoute: typeof AppDocumentIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppSettingsRouteRoute: AppSettingsRouteRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
+  AppChatThreadIdRoute: AppChatThreadIdRoute,
+  AppChatIndexRoute: AppChatIndexRoute,
   AppDocumentIndexRoute: AppDocumentIndexRoute,
 }
 
@@ -391,6 +475,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChooseOrganizationRoute: ChooseOrganizationRoute,
   OnboardingRoute: OnboardingRoute,
   InvitationsAcceptRoute: InvitationsAcceptRoute,
+  ApiAgentStreamRoute: ApiAgentStreamRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

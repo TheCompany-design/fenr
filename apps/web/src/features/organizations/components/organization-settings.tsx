@@ -131,9 +131,7 @@ export function OrganizationSettings({
       toast.success("You left the organization")
       try {
         await invalidateOrganizationQueries(queryClient, org.id)
-      } catch {
-        // Best-effort cache invalidation
-      }
+      } catch {}
       await router.navigate({ to: "/", replace: true })
     } catch (err) {
       toast.error("Could not leave organization", {

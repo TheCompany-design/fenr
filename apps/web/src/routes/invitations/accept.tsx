@@ -1,9 +1,3 @@
-/**
- * /invitations/accept — Invitation Acceptance Route.
- *
- * Validates session, confirms email ownership, displays organization details,
- * and accepts the invitation atomically into the user's active tenancy.
- */
 import {
   Alert02Icon,
   ArrowRight01Icon,

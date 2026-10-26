@@ -35,9 +35,6 @@ import {
 
 const log = moduleLogger("organizations")
 
-/**
- * List all organizations the user belongs to.
- */
 export async function listOrganizations(
   userId: string,
   activeOrgId?: string | null,
@@ -87,9 +84,6 @@ export async function listOrganizations(
   }))
 }
 
-/**
- * Get active organization details and caller's role.
- */
 export async function getActiveOrganization(
   userId: string,
   currentSessionActiveOrgId?: string | null,
@@ -180,9 +174,6 @@ export async function getActiveOrganization(
   }
 }
 
-/**
- * Resolve organization access for the authenticated app route guard.
- */
 export async function resolveAppOrganizationAccess(
   userId: string,
   currentSessionActiveOrgId?: string | null,
@@ -228,9 +219,6 @@ export async function resolveAppOrganizationAccess(
   return { status: "no_organizations" }
 }
 
-/**
- * Create a new organization, assigning caller as owner and setting active preference.
- */
 export async function createOrganization(
   userId: string,
   sessionId: string | null | undefined,
@@ -492,9 +480,6 @@ export async function deleteOrganization(
   return { success: true }
 }
 
-/**
- * Set active organization for the current user and session.
- */
 export async function setActiveOrganization(
   userId: string,
   sessionId: string | null | undefined,

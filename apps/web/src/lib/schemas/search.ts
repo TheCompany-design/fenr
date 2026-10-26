@@ -1,11 +1,5 @@
 import { z } from "zod"
 
-/**
- * Validated search schemas for application routes.
- *
- * Centralized under src/lib/schemas/ per AGENTS.md.
- */
-
 export const authLayoutSearchSchema = z.looseObject({
   redirect: z.string().optional(),
 })

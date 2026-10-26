@@ -1,7 +1,3 @@
-/**
- * Utility for deriving editorial taglines for auth sub-routes.
- */
-
 export function getAuthTagline(pathname: string): string {
   if (pathname.includes("/sign-up")) {
     return "Create your account and start with a clean, focused canvas."

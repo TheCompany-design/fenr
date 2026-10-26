@@ -36,7 +36,6 @@ describe("Editor Store Isolation", () => {
       empty: false,
     })
 
-    // Store A is updated
     expect(storeA.get(formattingAtom).isBold).toBe(true)
     expect(storeA.get(isBoldAtom)).toBe(true)
     expect(storeA.get(textTypeAtom)).toBe("heading-1")
@@ -47,7 +46,6 @@ describe("Editor Store Isolation", () => {
     })
     expect(storeA.get(isSelectionEmptyAtom)).toBe(false)
 
-    // Store B remains at defaults
     expect(storeB.get(formattingAtom).isBold).toBe(false)
     expect(storeB.get(isBoldAtom)).toBe(false)
     expect(storeB.get(textTypeAtom)).toBe("text")

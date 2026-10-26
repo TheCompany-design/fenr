@@ -18,7 +18,6 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
   let orgGamma: typeof schema.organization.$inferSelect
 
   beforeAll(async () => {
-    // 1. Create test users
     const [u0, u1, uMulti, uPref, uRevoke] = await db
       .insert(schema.user)
       .values([
@@ -58,7 +57,6 @@ describe("resolveAppOrganizationAccess Behavioral Tests (Atom 6)", () => {
 
     createdUserIds.push(u0.id, u1.id, uMulti.id, uPref.id, uRevoke.id)
 
-    // 2. Create organizations
     const [oAlpha, oBeta, oGamma] = await db
       .insert(schema.organization)
       .values([

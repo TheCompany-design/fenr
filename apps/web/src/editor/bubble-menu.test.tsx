@@ -45,7 +45,6 @@ describe("BubbleMenu & TextTypeMenuItems", () => {
     items[0].onClick()
     expect(clicked).toBe(true)
 
-    // Unformatted selection must remain unpressed (not stuck)
     const unformattedSelectionItem = {
       ...items[0],
       pressed: false,

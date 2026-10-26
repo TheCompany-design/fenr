@@ -105,13 +105,12 @@ describe("resolveDragTarget", () => {
       editorRect: { left: 100, right: 800, top: 100, bottom: 500 },
     })
 
-    // Pointer way above editor
     expect(resolveDragTarget(view, 200, 50)).toBeNull()
-    // Pointer way below editor
+
     expect(resolveDragTarget(view, 200, 550)).toBeNull()
-    // Pointer way to the left outside gutter margin
+
     expect(resolveDragTarget(view, 0, 200, { gutterMargin: 50 })).toBeNull()
-    // Pointer way to the right outside gutter margin
+
     expect(resolveDragTarget(view, 920, 200, { gutterMargin: 80 })).toBeNull()
   })
 
@@ -120,7 +119,6 @@ describe("resolveDragTarget", () => {
       editorRect: { left: 100, right: 800, top: 100, bottom: 500 },
     })
 
-    // Mouse is at X=40 (60px to the left of editor, inside the 80px gutter)
     const targetLeft = resolveDragTarget(view, 40, 200, {
       gutterMargin: 80,
       clampedInset: 16,
@@ -133,7 +131,6 @@ describe("resolveDragTarget", () => {
     ).getClampedCoords()
     expect(clampedLeft?.left).toBe(116)
 
-    // Mouse is at X=850 (50px to the right of editor, inside the 80px gutter)
     const targetRight = resolveDragTarget(view, 850, 200, {
       gutterMargin: 80,
       clampedInset: 16,

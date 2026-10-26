@@ -1,3 +1,4 @@
+import { generateUuidV7 } from "@/lib/id"
 import { logger } from "./index"
 
 export interface WideEventContext {
@@ -20,7 +21,7 @@ export async function withWideEvent<T>(
   const requestId =
     typeof initialContext?.requestId === "string"
       ? initialContext.requestId
-      : crypto.randomUUID()
+      : generateUuidV7()
   const timestamp = new Date().toISOString()
 
   const context: WideEventContext = { ...initialContext }

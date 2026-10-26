@@ -1,26 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { GlobalWindow } from "happy-dom"
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    Element: win.Element,
-    HTMLElement: win.HTMLElement,
-    HTMLButtonElement: win.HTMLButtonElement,
-    HTMLImageElement: win.HTMLImageElement,
-    Node: win.Node,
-    Event: win.Event,
-    UIEvent: win.UIEvent,
-    MouseEvent: win.MouseEvent,
-    customElements: win.customElements,
-    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-    cancelAnimationFrame: (id: number) => clearTimeout(id),
-  })
-}
+import { logoUrl } from "@/lib/brand/logos"
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -96,9 +76,9 @@ describe("OAuthButtons Component", () => {
       expect(html).toContain("Google")
       expect(html).toContain("Apple")
       expect(html).toContain("GitHub")
-      expect(html).toContain("https://logos.lndev.me/logos/google.svg")
-      expect(html).toContain("https://logos.lndev.me/logos/apple.svg")
-      expect(html).toContain("https://logos.lndev.me/logos/github.svg")
+      expect(html).toContain(logoUrl("google"))
+      expect(html).toContain(logoUrl("apple"))
+      expect(html).toContain(logoUrl("github"))
     })
 
     it("marks disabled providers with disabled attribute in SSR", () => {
@@ -190,7 +170,7 @@ describe("OAuthButtons Component", () => {
       )
     })
 
-    it("renders provider brand logos from logos.lndev.me with appropriate dark mode styling", () => {
+    it("renders provider brand logos from the shared logo service with appropriate dark mode styling", () => {
       const { getButton } = mount()
       const googleBtn = getButton("Google")
       const appleBtn = getButton("Apple")
@@ -200,19 +180,13 @@ describe("OAuthButtons Component", () => {
       const appleImg = appleBtn?.querySelector("img")
       const githubImg = githubBtn?.querySelector("img")
 
-      expect(googleImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/google.svg",
-      )
+      expect(googleImg?.getAttribute("src")).toBe(logoUrl("google"))
       expect(googleImg?.classList.contains("dark:invert")).toBe(false)
 
-      expect(appleImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/apple.svg",
-      )
+      expect(appleImg?.getAttribute("src")).toBe(logoUrl("apple"))
       expect(appleImg?.classList.contains("dark:invert")).toBe(true)
 
-      expect(githubImg?.getAttribute("src")).toBe(
-        "https://logos.lndev.me/logos/github.svg",
-      )
+      expect(githubImg?.getAttribute("src")).toBe(logoUrl("github"))
       expect(githubImg?.classList.contains("dark:invert")).toBe(true)
     })
 
@@ -270,7 +244,6 @@ describe("OAuthButtons Component", () => {
       const { getButton } = mount()
       const googleBtn = getButton("Google")
 
-      // First click: triggers in-flight request
       await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
@@ -279,14 +252,12 @@ describe("OAuthButtons Component", () => {
       expect(googleBtn?.textContent).toContain("Connecting…")
       expect(googleBtn?.hasAttribute("disabled")).toBe(true)
 
-      // Second click while in-flight: must be ignored
       await act(async () => {
         googleBtn?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
       })
 
       expect(mockSocial).toHaveBeenCalledTimes(1)
 
-      // Resolve the in-flight promise
       await act(async () => {
         resolvePromise({
           data: { url: "https://accounts.google.com", redirect: true },
@@ -327,7 +298,6 @@ describe("OAuthButtons Component", () => {
         description: "Access denied by user",
       })
 
-      // Button should be re-enabled after error
       expect(googleBtn?.hasAttribute("disabled")).toBe(false)
       expect(googleBtn?.textContent).toContain("Google")
     })

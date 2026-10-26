@@ -120,6 +120,13 @@ All changes must adhere to disciplined, atomic version control practices:
   - Scopes: feature/package area (e.g. `stores`, `schemas`, `auth`, `organizations`, `routes`, `ui`, `tooling`).
   - Imperative mood, lowercase, concise description, no trailing period.
   - When helpful, include a body explaining the rationale and non-obvious design choices.
+- **Co-authorship**: The repository owner is the sole commit author; agents
+  must not identify themselves as the commit author. When an agent materially
+  contributes to a commit, include a Git
+  `Co-authored-by: <agent name> <agent email>` trailer in the commit message.
+  Do not add the trailer for an agent that did not contribute, and do not
+  invent an identity or email address; use the agent's verified attribution
+  details or ask the repository owner if they are unavailable.
 - **Clean Working Tree**: Temporary scratch files, build artifacts, and
   incidental changes must never be committed.
 

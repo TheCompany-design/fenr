@@ -1,11 +1,3 @@
-/**
- * AppShell — composition root for every authenticated screen.
- *
- * Wraps the floating sidebar with the inset content area and a slim top
- * bar (mobile nav trigger + active-section label). Route content arrives
- * via children (the <Outlet /> rendered by the _app guard layout),
- * so this component stays route-agnostic.
- */
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import {
   SidebarInset,
@@ -16,12 +8,10 @@ import { TooltipProvider } from "@workspace/ui/components/tooltip"
 
 import { domAnimation, LazyMotion } from "motion/react"
 import { type SessionUser, UserMenu } from "@/components/shell/user-menu"
-import {
-  type ActiveOrganization,
-  OrganizationSwitcher,
-} from "@/features/organizations"
+import type { ActiveOrganization } from "@/features/organizations"
 
 import { AppSidebar } from "./app-sidebar"
+import { HeaderPortalSlot } from "./header-portal"
 
 export function AppShell({
   children,
@@ -31,36 +21,41 @@ export function AppShell({
 }: {
   children: React.ReactNode
   user: SessionUser
-  /** Initial sidebar state, restored from the sidebar_state cookie on SSR. */
+
   defaultOpen?: boolean
   activeOrganization?: ActiveOrganization | null
 }) {
   return (
-    // delay={0}: Base UI tooltips default to a 600ms open delay — nav
-    // tooltips should feel instant. The provider also makes moving between
-    // adjacent triggers switch tooltips instantly (delay group).
     <LazyMotion features={domAnimation}>
       <TooltipProvider delay={0}>
         <SidebarProvider defaultOpen={defaultOpen}>
-          <AppSidebar />
+          <AppSidebar activeOrganization={activeOrganization} />
           <SidebarInset className="relative flex h-svh max-h-svh flex-col overflow-hidden bg-background">
-            <header className="relative z-30 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md pointer-events-none">
-              {/* Free-standing left items */}
-              <div className="pointer-events-auto flex items-center gap-2">
-                <SidebarTrigger
-                  aria-label="Toggle navigation"
-                  className="size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-                />
-                <OrganizationSwitcher activeOrganization={activeOrganization} />
-              </div>
+            {}
+            <header className="pointer-events-none relative z-30 flex h-14 shrink-0 items-center gap-2 bg-background/95 px-4 pt-3 pb-1 backdrop-blur-md">
+              <SidebarTrigger
+                aria-label="Toggle navigation"
+                className="pointer-events-auto size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              />
 
-              {/* Free-standing right items */}
-              <div className="pointer-events-auto flex items-center gap-2">
-                <UserMenu
-                  user={user}
-                  className="size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-                />
-              </div>
+              {}
+              <HeaderPortalSlot
+                className="pointer-events-auto flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+                region="start"
+              />
+              <HeaderPortalSlot
+                className="pointer-events-auto flex min-w-0 items-center gap-2 overflow-hidden"
+                region="center"
+              />
+              <HeaderPortalSlot
+                className="pointer-events-auto flex shrink-0 items-center gap-2"
+                region="end"
+              />
+
+              <UserMenu
+                user={user}
+                className="pointer-events-auto size-9 rounded-full border border-border/60 bg-background/80 shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              />
             </header>
             <ScrollArea className="min-h-0 flex-1 w-full">
               <main className="flex h-full min-h-0 flex-1 flex-col">

@@ -1,10 +1,3 @@
-/**
- * Server functions for organization management and authorization.
- *
- * Exposes type-safe createServerFn endpoints for client consumption.
- * Domain logic is encapsulated in operations.ts and called inside .handler().
- */
-
 import { createServerFn } from "@tanstack/react-start"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"

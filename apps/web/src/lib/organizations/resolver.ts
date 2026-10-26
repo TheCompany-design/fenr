@@ -1,11 +1,3 @@
-/**
- * Active organization resolver and preference management.
- *
- * SERVER-ONLY: provides resolution of active organization following the core invariant:
- * 1. Stored user preference in `user_active_organization` (if still a valid member)
- * 2. Auto-selection if user belongs to exactly one organization
- * 3. Null (prompting chooser/onboarding) if user belongs to 0 or >1 orgs without valid preference.
- */
 import { and, db, eq, schema, sql } from "@workspace/database"
 
 import { moduleLogger } from "../logger"
@@ -30,9 +22,6 @@ export type ActiveOrgResolution =
       count: number
     }
 
-/**
- * Resolve the appropriate active organization for a given user.
- */
 export async function resolveUserActiveOrganization(
   userId: string,
 ): Promise<ActiveOrgResolution> {
@@ -44,7 +33,6 @@ export async function resolveUserActiveOrganization(
     }
   }
 
-  // Parallel fetch: retrieve user's memberships and stored preference concurrently
   const [memberships, [preference]] = await Promise.all([
     db
       .select({ organizationId: schema.member.organizationId })
@@ -64,7 +52,6 @@ export async function resolveUserActiveOrganization(
       .limit(1),
   ])
 
-  // 1. If stored preference exists, check if user is still an active member
   if (preference?.organizationId) {
     const isStillMember = memberships.some(
       (m) => m.organizationId === preference.organizationId,
@@ -77,7 +64,6 @@ export async function resolveUserActiveOrganization(
       }
     }
 
-    // Stale preference: clean it up atomically targeting only the stale organizationId and updatedAt
     try {
       await db
         .delete(schema.userActiveOrganization)
@@ -99,10 +85,9 @@ export async function resolveUserActiveOrganization(
     }
   }
 
-  // 2. Fall back to evaluating active memberships
   if (memberships.length === 1) {
     const orgId = memberships[0].organizationId
-    // Auto-select single membership and record preference
+
     try {
       await setActiveOrganizationPreference(userId, orgId)
     } catch (err) {
@@ -133,10 +118,6 @@ export async function resolveUserActiveOrganization(
   }
 }
 
-/**
- * Persist user active organization preference to `user_active_organization`.
- * Enforces that user must be a member of the organization and uses monotonic timestamp ordering.
- */
 export async function setActiveOrganizationPreference(
   userId: string,
   organizationId: string,
@@ -148,7 +129,6 @@ export async function setActiveOrganizationPreference(
     )
   }
 
-  // Invariant verification: ensure user is a valid member of the target organization atomically
   await db.transaction(async (tx) => {
     const [membership] = await tx
       .select({ id: schema.member.id })

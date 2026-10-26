@@ -10,9 +10,6 @@ import {
 } from "../atoms"
 import { useEditorStore } from "../editor-store"
 
-/**
- * Pure function: extracts formatting metadata from the current editor state.
- */
 export function deriveFormattingSnapshot(
   editor: Editor | null,
 ): FormattingState {
@@ -55,9 +52,6 @@ export function deriveFormattingSnapshot(
   }
 }
 
-/**
- * Pure function: extracts selection metadata from the current editor state.
- */
 export function deriveSelectionSnapshot(editor: Editor | null): SelectionState {
   if (!editor || editor.isDestroyed || !editor.state) {
     return DEFAULT_SELECTION_STATE
@@ -71,9 +65,6 @@ export function deriveSelectionSnapshot(editor: Editor | null): SelectionState {
   }
 }
 
-/**
- * Shallow comparison helper to prevent redundant formatting atom updates.
- */
 export function areStatesEqual(
   a: FormattingState,
   b: FormattingState,
@@ -109,11 +100,6 @@ export interface EditorSyncBridgeProps {
   editor?: Editor | null
 }
 
-/**
- * Invisible bridge component mounted at the DocumentEditor boundary.
- * Synchronizes Tiptap state domain-by-domain directly into the instance's Jotai store.
- * Resolves the editor from props if supplied, otherwise falls back to Tiptap Context.
- */
 export const EditorSyncBridge = ({
   editor: propEditor,
 }: EditorSyncBridgeProps = {}) => {
@@ -140,17 +126,14 @@ export const EditorSyncBridge = ({
       }
     }
 
-    // 1. Run initial synchronization
     syncFormatting()
     syncSelection()
 
-    // 2. Selection updates trigger selection sync and active formatting sync
     const handleSelectionUpdate = () => {
       syncSelection()
       syncFormatting()
     }
 
-    // 3. Transactions perform domain-specific synchronization
     const handleTransaction = ({
       transaction,
     }: {

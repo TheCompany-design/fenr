@@ -1,10 +1,3 @@
-/**
- * /choose-organization — Workspace / Organization Chooser.
- *
- * Route guard ensures user is authenticated and has at least 1 membership.
- * If user has 0 memberships, redirects to /onboarding.
- * Users can switch between their organizations or proceed to active workspace.
- */
 import {
   Add01Icon,
   Building01Icon,
@@ -110,9 +103,7 @@ function ChooseOrganizationRoute() {
 
     try {
       await invalidateOrganizationQueries(queryClient, organizationId)
-      void router.invalidate().catch(() => {
-        // Invalidation best-effort
-      })
+      void router.invalidate().catch(() => {})
 
       if (!isMountedRef.current) return
 

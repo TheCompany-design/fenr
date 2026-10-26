@@ -1,17 +1,3 @@
-/**
- * Check-email screen rebuilt from devl.dev reference block.
- *
- * Implements:
- * - Hugeicons CheckmarkCircle02Icon with semantic design tokens
- * - Wall-clock based resend cooldown timer immune to tab throttling
- * - Concurrency lock preventing double-click / rapid resubmit races
- * - Unmounted component state guards
- * - Resend count tracking badge
- * - "Open mail app" deeplink
- * - Magic link expiration or invalidity error recovery
- * - Accessible error and status regions
- * - Single-page router navigation via TanStack Router <Link>
- */
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -151,7 +137,7 @@ export function CheckEmailCard({
 
   return (
     <div className="w-full max-w-lg">
-      {/* Error recovery notice if previous magic link was expired or invalid */}
+      {}
       {errorReason && resendCount === 0 ? (
         <AuthErrorBanner error={errorReason} />
       ) : null}

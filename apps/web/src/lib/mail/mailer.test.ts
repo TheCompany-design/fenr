@@ -174,7 +174,6 @@ describe("Mailer Service", () => {
         expect(callArgs.to).toBe(to)
         expect(callArgs.subject).toBe("Sign in to Fenr")
 
-        // Verifies both html and plaintext fallback exist
         expect(typeof callArgs.html).toBe("string")
         expect(callArgs.html).toContain(url)
         expect(callArgs.html).toContain("Fenr")
@@ -284,14 +283,12 @@ describe("Mailer Service", () => {
         expect(callArgs.from).toBe(serverEnv.EMAIL_FROM)
         expect(callArgs.to).toBe(to)
 
-        // Subject should have CRLF stripped!
         expect(callArgs.subject).toBe(
           "You've been invited to join Stark Enterprises Bcc: evil@attacker.com on Fenr",
         )
         expect(callArgs.subject).not.toContain("\r")
         expect(callArgs.subject).not.toContain("\n")
 
-        // HTML and plain text
         expect(callArgs.html).toContain("Stark Enterprises")
         expect(callArgs.html).toContain("Tony Stark")
         expect(callArgs.html).toContain(role)

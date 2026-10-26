@@ -84,7 +84,6 @@ describe("withWideEvent", () => {
     const errorSpy = spyOn(logger, "error").mockImplementation(() => logger)
 
     try {
-      // UnauthorizedError -> 401
       class UnauthorizedError extends Error {
         constructor() {
           super("Unauthorized")
@@ -107,7 +106,6 @@ describe("withWideEvent", () => {
       expect(event.status_code).toBe(401)
       expect(event.outcome).toBe("error")
 
-      // ForbiddenError -> 403
       class ForbiddenError extends Error {
         constructor() {
           super("Forbidden")
@@ -126,7 +124,6 @@ describe("withWideEvent", () => {
       expect(event.status_code).toBe(403)
       expect(event.outcome).toBe("error")
 
-      // NotFoundError -> 404
       class NotFoundError extends Error {
         constructor() {
           super("Not Found")
@@ -145,7 +142,6 @@ describe("withWideEvent", () => {
       expect(event.status_code).toBe(404)
       expect(event.outcome).toBe("error")
 
-      // ConflictError -> 409
       class ConflictError extends Error {
         constructor() {
           super("Conflict")
@@ -164,7 +160,6 @@ describe("withWideEvent", () => {
       expect(event.status_code).toBe(409)
       expect(event.outcome).toBe("error")
 
-      // ZodError -> 400
       class ZodError extends Error {
         issues: unknown[]
         constructor() {
@@ -185,7 +180,6 @@ describe("withWideEvent", () => {
       expect(event.status_code).toBe(400)
       expect(event.outcome).toBe("error")
 
-      // Generic error with status property -> 422
       class CustomHttpError extends Error {
         status = 422
         constructor() {
@@ -239,13 +233,11 @@ describe("withWideEvent", () => {
     })
 
     try {
-      // Success path returns even if logger fails
       const result = await withWideEvent("mod", "action", async () => {
         return "success-value"
       })
       expect(result).toBe("success-value")
 
-      // Error path re-throws original error even if logger fails
       await expect(
         withWideEvent("mod", "action", async () => {
           throw new Error("Original business error")

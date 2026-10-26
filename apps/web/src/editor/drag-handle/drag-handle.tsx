@@ -56,10 +56,6 @@ export interface BlockDeleteButtonProps {
   top?: number
 }
 
-/**
- * Dedicated Block Delete Button rendered in the right gutter of the canvas.
- * Appears as a round button with a trash icon aligned with the active block.
- */
 export function BlockDeleteButton({
   editor,
   nodePos,

@@ -1,13 +1,3 @@
-/**
- * Outbound JWT token provider.
- *
- * SERVER-ONLY: Mints short-lived JWT tokens for downstream private services
- * using Better Auth's server instance and the active session context.
- *
- * All tokens carry tenant context (`activeOrganizationId`) and strictly
- * enforce the target endpoint's declared audience.
- */
-
 import { getRequestHeaders } from "@tanstack/react-start/server"
 import { auth } from "@/lib/auth"
 import { moduleLogger } from "@/lib/logger"
@@ -23,16 +13,14 @@ export interface TokenAcquisitionOptions {
     auth: Extract<EndpointAuth, { type: "authenticated" }>,
   ) => Promise<string>
   readonly signal?: AbortSignal
+
+  readonly tenantRole?: "owner" | "admin" | "member"
 }
 
-/**
- * Acquires a signed JWT token for an authenticated outbound request.
- */
 export async function acquireOutboundJwt(
   authContract: Extract<EndpointAuth, { type: "authenticated" }>,
   options: TokenAcquisitionOptions = {},
 ): Promise<string> {
-  // 0. Check cancellation before initiating async work
   if (options.signal?.aborted) {
     throw new HttpClientError("Request was cancelled", {
       code: "CANCELLED",
@@ -42,14 +30,11 @@ export async function acquireOutboundJwt(
     })
   }
 
-  // 1. Resolve incoming request headers from options or TanStack Start server context
   let headers: Headers | undefined = options.headersSource
   if (!headers) {
     try {
       headers = getRequestHeaders()
-    } catch {
-      // Outside active request context (e.g. CLI runner, background worker, or unit tests)
-    }
+    } catch {}
   }
 
   let session: Awaited<ReturnType<typeof auth.api.getSession>> | null = null
@@ -231,7 +216,12 @@ export async function acquireOutboundJwt(
     return candidateToken
   }
 
-  // 5. Mint a fresh short-lived JWT token from active session context
+  // 5. Mint a fresh short-lived JWT token from active session context.
+  //
+  // The role claim is omitted rather than defaulted when the caller did not
+  // supply one. The runtime reads an absent claim as the least privilege, so
+  // forgetting to pass a role can only ever *reduce* what the token authorises —
+  // it cannot quietly grant an admin.
   let signRes: { token?: string } | null = null
   try {
     signRes = await auth.api.signJWT({
@@ -240,6 +230,7 @@ export async function acquireOutboundJwt(
           sub: session.user.id,
           email: session.user.email,
           activeOrganizationId: activeOrgId,
+          ...(options.tenantRole ? { role: options.tenantRole } : {}),
         },
         overrideOptions: {
           jwt: {

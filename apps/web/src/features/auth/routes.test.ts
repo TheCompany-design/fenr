@@ -14,7 +14,6 @@ mock.module("@/lib/auth/session", () => ({
   },
 }))
 
-// Import routes after mock.module so they use the mocked session
 const { Route: AuthParentRoute } = await import("@/routes/auth/route")
 const { Route: AuthIndexRoute } = await import("@/routes/auth/index")
 const { Route: CheckEmailRoute } = await import(

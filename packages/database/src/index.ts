@@ -1,14 +1,3 @@
-/**
- * Fenr Postgres connection (Drizzle ORM + postgres.js).
- *
- * SERVER-ONLY: never import this module from client components, hooks, or
- * any code that runs in the browser — the connection string must not leak
- * into a bundle. All app DB I/O goes through server functions.
- *
- * The client is a module-level singleton; postgres.js pools connections and
- * is safe to share across requests. Under Bun this works both in dev SSR
- * (`bun --bun vite`) and the production `Bun.serve` server.
- */
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 
@@ -41,7 +30,6 @@ export function resolveDatabaseUrl(): string {
 const DATABASE_URL = resolveDatabaseUrl()
 
 const client = postgres(DATABASE_URL, {
-  // Small pool is plenty for an SSR app; postgres.js queues beyond max.
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,

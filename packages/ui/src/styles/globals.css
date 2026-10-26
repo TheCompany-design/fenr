@@ -135,10 +135,7 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Tailwind v4 preflight sets buttons to cursor:default; interactive
-     elements should signal clickability. Disabled stays default/not-allowed,
-     and so do aria-disabled placeholders (inert — a pointer would imply clickability;
-     their tooltip still works via hover/focus). */
+
   button:not(:disabled):not([aria-disabled="true"]),
   [role="button"]:not([aria-disabled="true"]):not([data-disabled]),
   [role="menuitem"]:not([aria-disabled="true"]):not([data-disabled]),
@@ -179,4 +176,78 @@
     transparent 45%,
     color-mix(in srgb, var(--background) 88%, transparent) 92%
   );
+}
+
+@utility effort-bar-scope {
+  --effort-track: 24px;
+  --effort-thumb-w: 44px;
+  --effort-thumb-h: 32px;
+
+  --effort-accent: oklch(0.623 0.214 259.815);
+}
+
+.dark .effort-bar-scope {
+  --effort-accent: oklch(0.707 0.165 254.624);
+}
+
+@utility effort-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--effort-track);
+  cursor: pointer;
+  border-radius: 9999px;
+  outline: none;
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--effort-accent) 45%, transparent) 0%,
+    var(--effort-accent) var(--effort-at),
+    var(--muted) var(--effort-at),
+    var(--muted) 100%
+  );
+
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  &::-webkit-slider-runnable-track {
+    height: var(--effort-track);
+    border-radius: 9999px;
+    background: transparent;
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+
+    margin-top: calc((var(--effort-track) - var(--effort-thumb-h)) / 2);
+    width: var(--effort-thumb-w);
+    height: var(--effort-thumb-h);
+    border: 1px solid
+      color-mix(in oklab, var(--effort-accent) 30%, var(--border));
+    border-radius: 9999px;
+    background: var(--background);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+
+  &::-moz-range-track {
+    height: var(--effort-track);
+    border-radius: 9999px;
+    background: transparent;
+  }
+
+  &::-moz-range-thumb {
+    box-sizing: border-box;
+    width: var(--effort-thumb-w);
+    height: var(--effort-thumb-h);
+    border: 1px solid
+      color-mix(in oklab, var(--effort-accent) 30%, var(--border));
+    border-radius: 9999px;
+    background: var(--background);
+  }
+
+  &:disabled {
+    cursor: default;
+  }
 }

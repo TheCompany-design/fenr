@@ -1,10 +1,3 @@
-/**
- * /auth — Top-level layout route for public authentication pages.
- *
- * Unifies:
- * 1. Session guard: Bounces authenticated visitors to their intended destination.
- * 2. Layout shell: Persists the split-screen brand panel across child page transitions.
- */
 import {
   createFileRoute,
   Outlet,

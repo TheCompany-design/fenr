@@ -24,3 +24,11 @@ todos.json
 .agents
 # keep the example tracked even though .env* is ignored
 !apps/web/.env.example
+
+# scratch probes and one-off diagnostics — these get written by hand, run
+# against a real database or a live service, and are never part of the build.
+# One of them was committed with a live secret in it; the rule below is the
+# reason it cannot happen again.
+*.tmp.mjs
+*.tmp.ts
+*.tmp.js

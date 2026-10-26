@@ -1,9 +1,3 @@
-/**
- * AuthErrorBanner — accessible alert banner for authentication errors.
- *
- * Displays error explanations (such as expired session, invalid magic link token,
- * or access resolution failures) using semantic design tokens.
- */
 import { AlertCircleIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 

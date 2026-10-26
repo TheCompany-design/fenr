@@ -5,10 +5,6 @@ export interface GoogleProviderConfig {
   clientSecret: string
 }
 
-/**
- * Returns Google OAuth provider configuration for Better-Auth if credentials
- * are present in server environment variables.
- */
 export function getGoogleSocialProvider(): GoogleProviderConfig | undefined {
   if (serverEnv.GOOGLE_CLIENT_ID && serverEnv.GOOGLE_CLIENT_SECRET) {
     return {

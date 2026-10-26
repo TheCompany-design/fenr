@@ -1,9 +1,3 @@
-/**
- * / — authenticated landing page.
- *
- * Lives under the _app guard layout, so a session is guaranteed here;
- * the session arrives through the router context set by _app/route.tsx's beforeLoad.
- */
 import { RocketIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useSuspenseQuery } from "@tanstack/react-query"
@@ -41,7 +35,7 @@ function App() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-6 lg:p-8">
-      {/* Header */}
+      {}
       <header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-semibold text-2xl tracking-tight sm:text-3xl">
@@ -54,10 +48,10 @@ function App() {
         </div>
       </header>
 
-      {/* Dashboard Block Preview */}
+      {}
       <DashboardOverview />
 
-      {/* Architecture Integrations (State, Data Fetching, Forms) */}
+      {}
       <div className="border-border border-t pt-8">
         <div className="mb-6 flex items-center gap-2">
           <HugeiconsIcon icon={RocketIcon} size={22} className="text-primary" />

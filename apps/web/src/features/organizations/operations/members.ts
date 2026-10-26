@@ -11,9 +11,6 @@ import { ForbiddenError, NotFoundError } from "./errors"
 
 const log = moduleLogger("organizations")
 
-/**
- * Get members of an organization.
- */
 export async function getOrganizationMembers(
   userId: string,
   data: GetOrganizationMembersInput,
@@ -61,10 +58,6 @@ export async function getOrganizationMembers(
   }
 }
 
-/**
- * Update a member's role (owner only).
- * Invariant: Cannot demote the sole remaining owner.
- */
 export async function updateMemberRole(
   userId: string,
   data: UpdateMemberRoleInput,
@@ -142,13 +135,6 @@ export async function updateMemberRole(
   })
 }
 
-/**
- * Remove a member from an organization.
- * Invariants:
- * - Caller must be owner, or admin (removing regular member), or self-removal.
- * - Cannot remove the sole remaining owner.
- * - If removed member had this org as active preference, clear it.
- */
 export async function removeMember(userId: string, data: RemoveMemberInput) {
   const { organizationId, memberId } = data
 

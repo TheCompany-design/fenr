@@ -61,8 +61,6 @@ describe("isDarkApplied", () => {
 })
 
 describe("storage key contract", () => {
-  // The pre-hydration script in __root.tsx reads this key directly — if the
-  // key or persist shape ever changes, both places must change together.
   test("FOUC script reads the same key + persist shape as the store", async () => {
     const source = await Bun.file(
       new URL("../../routes/__root.tsx", import.meta.url),

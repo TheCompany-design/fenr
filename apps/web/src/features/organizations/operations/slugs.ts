@@ -6,9 +6,6 @@ import {
   normalizeSlug,
 } from "@/lib/schemas/organizations"
 
-/**
- * Check whether an organization slug is valid and available.
- */
 export async function checkSlugAvailability(input: CheckSlugInput) {
   const normalized = normalizeSlug(input.slug)
 

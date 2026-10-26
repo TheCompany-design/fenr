@@ -1,16 +1,3 @@
-/**
- * Pathless guard layout for the whole authenticated app area.
- *
- * Every nested route (including /) requires a valid session: unauthenticated
- * navigation is redirected to /auth/sign-in, preserving the intended
- * destination in the `redirect` search param. Server functions must still
- * authorize themselves via ensureSession() or authMiddleware — this UI guard
- * alone is never sufficient (review-framework invariant #7).
- *
- * The shell composition lives here too: every authenticated screen renders
- * inside the AppShell. The session arrives via router context — it is never
- * refetched by shell chrome.
- */
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
 import { AppErrorComponent } from "@/components/shell/app-error"
 import { AppShell } from "@/components/shell/app-shell"
@@ -34,8 +21,6 @@ function GuardLayout() {
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async ({ location }) => {
-    // Parallel: both are cheap server reads, so the common (authenticated)
-    // path pays one round of concurrent work instead of two sequential ones.
     const [session, sidebarOpen] = await Promise.all([
       getSession(),
       getSidebarOpen(),

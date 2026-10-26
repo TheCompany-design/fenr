@@ -20,9 +20,6 @@ import {
 
 const log = moduleLogger("organizations")
 
-/**
- * Get pending invitations for an organization (owner/admin only).
- */
 export async function getOrganizationInvitations(
   userId: string,
   data: GetOrganizationInvitationsInput,
@@ -72,9 +69,6 @@ export async function getOrganizationInvitations(
   return invitations
 }
 
-/**
- * Invite a member to the organization (owner/admin only).
- */
 export async function inviteMember(
   userId: string,
   userName: string | null | undefined,

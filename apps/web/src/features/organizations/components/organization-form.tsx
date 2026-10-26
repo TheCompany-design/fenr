@@ -78,7 +78,6 @@ export function OrganizationForm({
         ? String(slugError.message)
         : "Invalid workspace URL"
 
-  // Derive slug availability status
   let slugStatusBadge: React.ReactNode = null
   const isAvailable =
     slugMeta?.isDirty === true &&
@@ -162,7 +161,7 @@ export function OrganizationForm({
         form.handleSubmit()
       }}
     >
-      {/* Organization Name Field */}
+      {}
       <form.Field name="name">
         {(field) => (
           <div className="flex flex-col gap-2">
@@ -179,7 +178,6 @@ export function OrganizationForm({
                 const newName = e.target.value
                 field.handleChange(newName)
 
-                // Auto-generate slug if user hasn't manually edited it
                 if (!isSlugManuallyEditedRef.current) {
                   const generatedSlug = normalizeSlug(newName)
                   form.setFieldValue("slug", generatedSlug)
@@ -191,7 +189,7 @@ export function OrganizationForm({
         )}
       </form.Field>
 
-      {/* Organization Slug Field */}
+      {}
       <form.Field
         name="slug"
         asyncDebounceMs={300}
@@ -242,7 +240,7 @@ export function OrganizationForm({
         )}
       </form.Field>
 
-      {/* Action Buttons */}
+      {}
       <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
         {([canSubmit, isSubmitting]) => {
           const loading = externalIsSubmitting || isSubmitting

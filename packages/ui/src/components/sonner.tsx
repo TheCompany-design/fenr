@@ -1,12 +1,5 @@
 "use client"
 
-/**
- * Sonner toaster wired to Fenr design tokens.
- *
- * Rebuilt from shadcn's generated component: dropped the next-themes
- * dependency (no Next.js in this stack) and swapped lucide icons for
- * hugeicons per project policy.
- */
 import {
   AlertCircleIcon,
   CancelCircleIcon,

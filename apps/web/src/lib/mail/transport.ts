@@ -1,8 +1,3 @@
-/**
- * Mail transport singleton and factory using Nodemailer and serverEnv.
- *
- * SERVER-ONLY: provides SMTP transport configured from validated server environment.
- */
 import nodemailer, { type Transporter } from "nodemailer"
 import type SMTPPool from "nodemailer/lib/smtp-pool"
 
@@ -57,9 +52,7 @@ export function setMailTransport(
   if (cachedTransporter && cachedTransporter !== transporter) {
     try {
       cachedTransporter.close()
-    } catch {
-      // Ignore errors when closing old transporter
-    }
+    } catch {}
   }
   cachedTransporter = transporter
 }
@@ -69,7 +62,6 @@ export function closeMailTransport(): void {
     try {
       cachedTransporter.close()
     } catch {
-      // Ignore errors when closing transporter
     } finally {
       cachedTransporter = null
     }

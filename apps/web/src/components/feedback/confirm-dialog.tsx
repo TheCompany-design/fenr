@@ -15,12 +15,6 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useCallback } from "react"
 import { useConfirmStore } from "@/lib/stores/confirm.store"
 
-/**
- * Global confirmation modal component.
- *
- * Mounts once at the root level (in `__root.tsx`) and is driven dynamically
- * by the `useConfirm` hook and `useConfirmStore`.
- */
 export function ConfirmDialogRoot() {
   const isOpen = useConfirmStore((state) => state.isOpen)
   const isLoading = useConfirmStore((state) => state.isLoading)
@@ -97,9 +91,7 @@ export function ConfirmDialogRoot() {
             onClick={async () => {
               try {
                 await handleConfirm()
-              } catch {
-                // Error feedback is surfaced via Sonner/useConfirm
-              }
+              } catch {}
             }}
             className="rounded-xl px-4"
           >

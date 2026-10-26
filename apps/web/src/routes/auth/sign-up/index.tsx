@@ -1,9 +1,3 @@
-/**
- * /auth/sign-up — public route for passwordless registration and social sign-up.
- *
- * Session bouncing is handled at the parent /auth route.
- * Entering an email or authenticating with OAuth automatically creates and verifies the account.
- */
 import { createFileRoute, Link } from "@tanstack/react-router"
 
 import {

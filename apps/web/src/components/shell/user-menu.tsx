@@ -1,13 +1,3 @@
-/**
- * User profile menu & floating sidebar card — signed-in identity and actions.
- *
- * Enhanced with @beui/context-menu animation mechanics:
- * - Origin-based clip-morph toggle animation expanding smoothly from the trigger avatar.
- * - Shared layout hover pill gliding seamlessly across menu items with spring physics.
- * - Dedicated floating theme flyout with matching glide pill physics.
- * - Defensive design: robust fallbacks, full keyboard navigation, and reduced-motion compliance.
- */
-
 import {
   Alert02Icon,
   ArrowRight01Icon,
@@ -63,10 +53,6 @@ import { initialsOf, type SessionUser, useIsMounted } from "./user-utils"
 
 export type { SessionUser }
 
-/**
- * Clean profile identity header card inspired by the reference design.
- * Features avatar, full name, email, and Pro tier badge.
- */
 export function UserProfileHeader({ user }: { user?: SessionUser | null }) {
   const displayName =
     user?.name?.trim() || user?.email?.split("@")[0] || "Andrew Garfield"
@@ -103,7 +89,6 @@ export function UserProfileHeader({ user }: { user?: SessionUser | null }) {
   )
 }
 
-/** Segmented visual telemetry bar preserved for backward compatibility */
 export function UsageWidget({
   percent = 90,
   tier = "Fenr Pro",

@@ -1,10 +1,3 @@
-/**
- * Server environment variables — validated with Zod at the trust boundary.
- *
- * SERVER-ONLY: importing this module pulls in nothing client-safe by design;
- * it reads process.env which only exists meaningfully on the server.
- * Bun auto-loads apps/web/.env (see .env.example) in dev and production.
- */
 import { z } from "zod"
 
 export const serverEnvSchema = z

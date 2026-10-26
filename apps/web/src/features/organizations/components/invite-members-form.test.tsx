@@ -70,7 +70,6 @@ describe("InviteMembersForm (Block 2)", () => {
     ) as HTMLInputElement
     expect(input).toBeDefined()
 
-    // Type email and press Enter
     await act(async () => {
       setNativeValue(input, "alice@example.com")
     })
@@ -80,11 +79,10 @@ describe("InviteMembersForm (Block 2)", () => {
     })
 
     expect(container.textContent).toContain("alice@example.com")
-    expect(container.textContent).toContain("AL") // 2-char initials
+    expect(container.textContent).toContain("AL")
     expect(input.value).toBe("")
     expect(container.textContent).toContain("1 to invite")
 
-    // Type second email and press comma
     await act(async () => {
       setNativeValue(input, "bob@example.com")
     })
@@ -152,7 +150,6 @@ describe("InviteMembersForm (Block 2)", () => {
     expect(container.textContent).toContain("member2@example.com")
     expect(container.textContent).toContain("2 to invite")
 
-    // Remove first chip via remove button
     const removeBtn = container.querySelector(
       'button[data-testid="remove-chip-member1@example.com"]',
     ) as HTMLButtonElement
@@ -166,7 +163,6 @@ describe("InviteMembersForm (Block 2)", () => {
     expect(container.textContent).toContain("member2@example.com")
     expect(container.textContent).toContain("1 to invite")
 
-    // Remove remaining chip via backspace on empty input
     const input = container.querySelector(
       'input[data-testid="invite-email-input"]',
     ) as HTMLInputElement
@@ -211,7 +207,6 @@ describe("InviteMembersForm (Block 2)", () => {
       adminOption?.click()
     })
 
-    // Now submit to verify the role updated to admin in the payload
     const submitBtn = container.querySelector(
       'button[data-testid="submit-invites-btn"]',
     ) as HTMLButtonElement
@@ -240,8 +235,8 @@ describe("InviteMembersForm (Block 2)", () => {
 
     expect(container.textContent).toContain("teammate@fenr.app")
     expect(container.textContent).toContain("Auto")
-    expect(container.textContent).toContain("1 to invite") // external is sendable
-    expect(container.textContent).toContain("1 auto-join") // teammate is auto-join
+    expect(container.textContent).toContain("1 to invite")
+    expect(container.textContent).toContain("1 auto-join")
     expect(container.textContent).toContain("Domain auto-join is on")
     expect(container.textContent).toContain("@fenr.app")
   })
@@ -469,9 +464,8 @@ describe("InviteMembersForm (Block 2)", () => {
     })
 
     expect(onInvite).toHaveBeenCalledTimes(1)
-    expect(onComplete).toHaveBeenCalledTimes(0) // Should not complete yet
+    expect(onComplete).toHaveBeenCalledTimes(0)
 
-    // user2 should have a retry button
     const retryBtn = container.querySelector(
       'button[aria-label="Retry invitation to user2@example.com"]',
     ) as HTMLButtonElement
@@ -482,7 +476,7 @@ describe("InviteMembersForm (Block 2)", () => {
     })
 
     expect(onInvite).toHaveBeenCalledTimes(2)
-    expect(onComplete).toHaveBeenCalledTimes(1) // Now all completed!
+    expect(onComplete).toHaveBeenCalledTimes(1)
   })
 
   it("handles server rejection gracefully by setting chip error state", async () => {
@@ -527,9 +521,8 @@ describe("InviteMembersForm (Block 2)", () => {
       )
     })
 
-    // @fenr.app is invalid because it has no local-part
     expect(container.textContent).toContain("1 invalid")
-    // alice@sub.fenr.app is a subdomain match and valid
+
     expect(container.textContent).toContain("1 auto-join")
   })
 
@@ -624,7 +617,7 @@ describe("InviteMembersForm (Block 2)", () => {
     })
 
     expect(onComplete).toHaveBeenCalledTimes(1)
-    expect(onInvite).toHaveBeenCalledTimes(0) // No network calls needed for auto-join
+    expect(onInvite).toHaveBeenCalledTimes(0)
   })
 
   it("allows proceeding via Continue button when removing failed invite leaves only succeeded invites", async () => {
@@ -655,7 +648,6 @@ describe("InviteMembersForm (Block 2)", () => {
     expect(onInvite).toHaveBeenCalledTimes(1)
     expect(onComplete).toHaveBeenCalledTimes(0)
 
-    // Remove user2 (failed invite)
     const removeBtn = container.querySelector(
       'button[data-testid="remove-chip-user2@example.com"]',
     ) as HTMLButtonElement
@@ -665,7 +657,6 @@ describe("InviteMembersForm (Block 2)", () => {
       removeBtn.click()
     })
 
-    // Button should now be enabled and say "Continue"
     expect(submitBtn.disabled).toBe(false)
     expect(submitBtn.textContent).toContain("Continue")
 
@@ -751,7 +742,7 @@ describe("InviteMembersForm (Block 2)", () => {
       retryBtn.click()
     })
 
-    expect(onInvite).toHaveBeenCalledTimes(2) // Only 1 additional call despite rapid clicks
+    expect(onInvite).toHaveBeenCalledTimes(2)
 
     await act(async () => {
       resolveRetry([{ email: "failed@example.com", success: true }])

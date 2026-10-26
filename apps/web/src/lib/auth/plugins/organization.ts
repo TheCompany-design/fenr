@@ -6,7 +6,7 @@ export function createOrganizationPlugin() {
   return organization({
     allowUserToCreateOrganization: true,
     creatorRole: "owner",
-    invitationExpiresIn: 48 * 60 * 60, // 48 hours
+    invitationExpiresIn: 48 * 60 * 60,
     sendInvitationEmail: async (data) => {
       const baseUrl = serverEnv.BETTER_AUTH_URL.replace(/\/+$/, "")
       const acceptUrl = `${baseUrl}/invitations/accept?id=${encodeURIComponent(data.id)}`

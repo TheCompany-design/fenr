@@ -1,19 +1,5 @@
-/**
- * Central Outbound HTTP Transport.
- *
- * Implements:
- * - Strict auth token injection for authenticated services
- * - Complete protection against caller-supplied Authorization headers
- * - Absolute omission of tokens on public endpoints
- * - Request ID propagation (X-Request-Id)
- * - Composed timeout and AbortSignal cancellation with explicit timer cleanup
- * - Structured Pino wide event logging (redacted, no tokens/secrets)
- * - Non-leaky error classification (HttpClientError)
- * - Safe handling of HTTP 204 No Content / empty responses
- * - Zod request input and response payload validation
- */
-
 import { serverEnv } from "@/lib/env"
+import { generateUuidV7 } from "@/lib/id"
 import { moduleLogger } from "@/lib/logger"
 import { HttpClientError } from "./errors"
 import { SERVICES } from "./registry"
@@ -39,9 +25,6 @@ function getServiceBaseUrl(service: string): string {
   )
 }
 
-/**
- * Resolves the absolute URL for a given service and endpoint definition.
- */
 function resolveEndpointUrl<TInput>(
   endpoint: EndpointDefinition<TInput, unknown>,
   input?: TInput,
@@ -105,11 +88,7 @@ export async function executeRequest<
   options: ExecuteRequestOptions<TInput> = {},
 ): Promise<TOutput> {
   const startTime = Date.now()
-  const requestId =
-    options.requestId ||
-    (typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `req_${Date.now()}`)
+  const requestId = options.requestId || generateUuidV7()
 
   // 0. Check cancellation before doing any work
   if (options.signal?.aborted) {
@@ -189,6 +168,7 @@ export async function executeRequest<
       token: options.token,
       tokenProvider: options.tokenProvider,
       signal: options.signal,
+      tenantRole: options.tenantRole,
     })
     headers.set("Authorization", `Bearer ${token}`)
   } else {
@@ -204,8 +184,16 @@ export async function executeRequest<
       endpoint.method === "PUT" ||
       endpoint.method === "PATCH")
   ) {
+    // The body is whatever the endpoint declares, not the whole input: a path
+    // segment that happens to travel in the input is routing, not payload, and
+    // an endpoint that takes no payload sends none.
+    const payload = endpoint.body
+      ? endpoint.body(validatedInput)
+      : validatedInput
     try {
-      body = JSON.stringify(validatedInput)
+      if (payload !== undefined) {
+        body = JSON.stringify(payload)
+      }
     } catch (err) {
       throw new HttpClientError(
         `Failed to serialize request for ${endpoint.service}`,
@@ -218,7 +206,7 @@ export async function executeRequest<
         },
       )
     }
-    if (!headers.has("Content-Type")) {
+    if (body !== undefined && !headers.has("Content-Type")) {
       headers.set("Content-Type", "application/json")
     }
   }

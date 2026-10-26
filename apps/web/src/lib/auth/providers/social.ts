@@ -1,9 +1,4 @@
-/**
- * Social authentication provider configurations and metadata.
- *
- * All company/brand logos are fetched directly from https://logos.lndev.me/
- * per Fenr architectural standards.
- */
+import { logoUrl } from "@/lib/brand/logos"
 
 export type SocialProviderId = "google" | "apple" | "github"
 
@@ -23,7 +18,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     name: "Google",
     label: "Continue with Google",
     enabled: true,
-    logoUrl: "https://logos.lndev.me/logos/google.svg",
+    logoUrl: logoUrl("google"),
     invertInDarkMode: false,
   },
   {
@@ -32,7 +27,7 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     label: "Continue with Apple",
     enabled: false,
     disabledReason: "Apple sign-in is coming soon",
-    logoUrl: "https://logos.lndev.me/logos/apple.svg",
+    logoUrl: logoUrl("apple"),
     invertInDarkMode: true,
   },
   {
@@ -41,14 +36,11 @@ export const SOCIAL_PROVIDERS: readonly SocialProviderConfig[] = [
     label: "Continue with GitHub",
     enabled: false,
     disabledReason: "GitHub sign-in is coming soon",
-    logoUrl: "https://logos.lndev.me/logos/github.svg",
+    logoUrl: logoUrl("github"),
     invertInDarkMode: true,
   },
 ] as const
 
-/**
- * Look up a social provider config by its provider identifier.
- */
 export function getSocialProvider(
   id: SocialProviderId,
 ): SocialProviderConfig | undefined {

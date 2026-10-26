@@ -1,0 +1,130 @@
+import {
+  type Catalog,
+  type Connection,
+  catalogModels,
+  isUsable,
+  type ModelSpec,
+  type ProviderId,
+  type ReasoningLevel,
+  type ResolvedCaps,
+} from "../catalog/capabilities"
+import { narrowScale } from "../catalog/effort"
+
+export type CapabilityStatus =
+  | "available"
+  | "unverified"
+  | "gated-connect"
+  | "gated-upgrade"
+  | "gated-region"
+  | "gated-capacity"
+  | "unsupported"
+  | "no-model"
+
+export type ModelView = {
+  model: ModelSpec
+  providerId: ProviderId
+
+  status: CapabilityStatus
+
+  effortLevels: readonly ReasoningLevel[]
+  availableEffortLevels: readonly ReasoningLevel[]
+  supportsVision: boolean
+  supportsTools: boolean
+  supportsSearch: boolean
+
+  badges: readonly string[]
+  isSelected: boolean
+}
+
+function statusFor(caps: ResolvedCaps): CapabilityStatus {
+  if (!caps.model) return "no-model"
+  const access = caps.modelAccess
+  if (access.kind === "available") return "available"
+  if (access.kind === "denied") return "unsupported"
+  if (access.kind === "unknown") return "unverified"
+  switch (access.gate.kind) {
+    case "connect":
+      return "gated-connect"
+    case "upgrade":
+      return "gated-upgrade"
+    case "region":
+      return "gated-region"
+    case "capacity":
+      return "gated-capacity"
+  }
+}
+
+export function buildModelViews(input: {
+  catalogs: Record<ProviderId, Catalog>
+  connections: Record<ProviderId, Connection>
+  entitlements: Record<
+    ProviderId,
+    import("../catalog/capabilities").Entitlements
+  >
+
+  resolve: (providerId: ProviderId, model: ModelSpec) => ResolvedCaps | null
+  selected: { providerId: ProviderId; modelId: string } | null
+  starred: readonly string[]
+}): ModelView[] {
+  const views: ModelView[] = []
+
+  for (const [providerId, catalog] of Object.entries(input.catalogs)) {
+    for (const model of catalogModels(catalog)) {
+      const caps = input.resolve(providerId, model)
+      if (!caps) continue
+      const status = statusFor(caps)
+
+      const effortLevels = caps.reasoning.capability?.levels ?? []
+
+      const narrowed = narrowScale(
+        { levels: effortLevels, default: "" },
+        input.entitlements[providerId]?.effort,
+      ).levels
+
+      views.push({
+        model,
+        providerId,
+        status,
+        effortLevels,
+        availableEffortLevels: narrowed,
+        supportsVision:
+          isUsable(caps.vision) || caps.vision.access.kind === "gated",
+        supportsTools: caps.tools.capability !== null,
+        supportsSearch: caps.search.capability !== null,
+        badges: model.badges ?? [],
+        isSelected:
+          input.selected?.providerId === providerId &&
+          input.selected.modelId === model.id,
+      })
+    }
+  }
+
+  return views
+}
+
+export function rankModels(views: readonly ModelView[]): ModelView[] {
+  const statusRank: Record<CapabilityStatus, number> = {
+    available: 0,
+    unverified: 1,
+    "gated-connect": 2,
+    "gated-upgrade": 3,
+    "gated-region": 3,
+    "gated-capacity": 4,
+    unsupported: 5,
+    "no-model": 5,
+  }
+  return [...views].sort((a, b) => {
+    const byStatus = statusRank[a.status] - statusRank[b.status]
+    if (byStatus !== 0) return byStatus
+
+    const aDate = a.model.releasedAt ?? ""
+    const bDate = b.model.releasedAt ?? ""
+    if (aDate !== bDate) return bDate.localeCompare(aDate)
+    return a.model.name.localeCompare(b.model.name)
+  })
+}
+
+export function formatContextWindow(tokens: number): string {
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 100_000) / 10}M`
+  return `${Math.round(tokens / 1000)}k`
+}

@@ -1,14 +1,3 @@
-/**
- * Fenr production server — pure Bun.
- *
- * Serves pre-built static assets from dist/client and falls back to the
- * TanStack Start SSR handler (dist/server/server.js) for everything else.
- *
- * Environment:
- *   PORT (number)  — server port, default 3000
- *
- * Build first with `bun run build` (vite build), then start with `bun run start`.
- */
 import path from "node:path"
 
 import { logger } from "./src/lib/logger"

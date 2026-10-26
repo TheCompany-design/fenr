@@ -116,7 +116,6 @@ describe("Mail Transport", () => {
     closeMailTransport()
     expect(closed).toBe(true)
 
-    // After closeMailTransport, next getMailTransport creates a fresh instance
     const t3 = getMailTransport()
     expect(t3).not.toBe(mockTransporter)
   })

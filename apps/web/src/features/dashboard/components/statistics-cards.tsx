@@ -72,7 +72,7 @@ export function StatisticsCards({
 }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {/* Primary analytics overview */}
+      {}
       <Card className="col-span-1 flex flex-col justify-between md:col-span-2">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold">
@@ -114,7 +114,7 @@ export function StatisticsCards({
         </CardContent>
       </Card>
 
-      {/* Secondary stat cards */}
+      {}
       {secondaryStats.map((stat) => (
         <Card key={stat.title} className="flex flex-col justify-between">
           <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">

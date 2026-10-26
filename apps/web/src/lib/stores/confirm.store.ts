@@ -1,29 +1,21 @@
-/**
- * Global confirmation modal store.
- *
- * Provides in-memory state and actions for the reusable confirmation modal.
- * Supports both imperative Promise-based awaiting and callback-based workflows.
- */
-
 import type { ReactNode } from "react"
 import { create } from "zustand"
 
 export type ConfirmVariant = "default" | "destructive"
 
 export interface ConfirmOptions {
-  /** Title of the confirmation dialog */
   title: ReactNode
-  /** Descriptive explanation of the consequences of the action */
+
   description?: ReactNode
-  /** Label for the confirmation action button. Defaults to "Confirm" (or "Delete" for destructive). */
+
   confirmText?: string
-  /** Label for the cancel button. Defaults to "Cancel". */
+
   cancelText?: string
-  /** Visual variant determining action button style and alert badge coloring */
+
   variant?: ConfirmVariant
-  /** Optional callback invoked when the user confirms. Can return a Promise. */
+
   onConfirm?: () => Promise<void> | void
-  /** Optional callback invoked when the user cancels or dismisses the modal. */
+
   onCancel?: () => void
 }
 
@@ -39,15 +31,14 @@ interface ConfirmState {
   onCancel?: () => void
   _resolve?: (confirmed: boolean) => void
 
-  /** Open the confirmation modal with custom options */
   openConfirm: (options: ConfirmOptions) => Promise<boolean>
-  /** User clicked confirm action */
+
   handleConfirm: () => Promise<void>
-  /** User clicked cancel action or dismissed modal */
+
   handleCancel: () => void
-  /** Set loading indicator on confirmation action */
+
   setLoading: (loading: boolean) => void
-  /** Close and reset the modal */
+
   reset: () => void
 }
 
@@ -73,7 +64,6 @@ export const useConfirmStore = create<ConfirmState>((set, get) => ({
   ...INITIAL_STATE,
 
   openConfirm: (options: ConfirmOptions) => {
-    // If a previous confirmation was still pending, cancel it first
     const prevResolve = get()._resolve
     if (prevResolve) {
       prevResolve(false)

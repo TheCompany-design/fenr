@@ -1,8 +1,3 @@
-/**
- * Open-redirect guard for post-login navigation.
- *
- * Only relative in-app paths are allowed; anything else falls back.
- */
 const FALLBACK_PATH = "/"
 
 const FORBIDDEN_APP_REDIRECT_PREFIXES = [
@@ -13,7 +8,7 @@ const FORBIDDEN_APP_REDIRECT_PREFIXES = [
 
 export function safeRedirectPath(value: unknown): string {
   if (typeof value !== "string") return FALLBACK_PATH
-  // Reject absolute URLs, protocol-relative URLs, and backslash tricks.
+
   if (
     !value.startsWith("/") ||
     value.startsWith("//") ||

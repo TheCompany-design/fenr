@@ -151,7 +151,6 @@ describe("confirm store", () => {
     const firstConfirm = useConfirmStore.getState().handleConfirm()
     expect(useConfirmStore.getState().isLoading).toBe(true)
 
-    // Second confirm and cancel should be ignored while loading
     await useConfirmStore.getState().handleConfirm()
     useConfirmStore.getState().handleCancel()
 

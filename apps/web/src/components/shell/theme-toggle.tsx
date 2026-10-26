@@ -1,10 +1,3 @@
-/**
- * Theme mode toggle (light / dark / system).
- *
- * Writes only the user's preference to the theme store; applying it to the
- * DOM is ThemeSync's job. The icon reflects the selected preference, not
- * the resolved theme.
- */
 import { LaptopIcon, Moon02Icon, Sun03Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Button } from "@workspace/ui/components/button"
@@ -32,9 +25,7 @@ const OPTIONS: ReadonlyArray<{
 export function ThemeToggle({ className }: { className?: string } = {}) {
   const mode = useThemeStore((s) => s.mode)
   const setMode = useThemeStore((s) => s.setMode)
-  // The persisted mode resolves synchronously on the client but the server
-  // always renders the default ("system"). Render that same default until
-  // after mount so hydration output matches the server HTML exactly.
+
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 

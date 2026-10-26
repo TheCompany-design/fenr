@@ -1,9 +1,3 @@
-/**
- * /auth/sign-in — public route for passwordless magic-link sign in.
- *
- * Session bouncing is handled at the parent /auth route.
- * The `redirect` search param is validated against open-redirects.
- */
 import { createFileRoute, Link } from "@tanstack/react-router"
 
 import {

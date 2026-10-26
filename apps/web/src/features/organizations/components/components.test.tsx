@@ -1,19 +1,4 @@
 import { describe, expect, it } from "bun:test"
-import { GlobalWindow } from "happy-dom"
-
-if (typeof window === "undefined") {
-  const win = new GlobalWindow({ url: "http://localhost:3000" })
-  Object.assign(globalThis, {
-    window: win,
-    document: win.document,
-    navigator: win.navigator,
-    customElements: win.customElements,
-    HTMLElement: win.HTMLElement,
-    scrollTo: () => {},
-    requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(cb, 0),
-    cancelAnimationFrame: (id: number) => clearTimeout(id),
-  })
-}
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createElement } from "react"

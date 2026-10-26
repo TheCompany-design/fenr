@@ -18,7 +18,6 @@ mock.module("@/lib/auth/session", () => ({
 
 import { onboardingSearchSchema } from "@/lib/schemas/search"
 
-// Import Route after mock.module
 const { Route: OnboardingRoute } = await import("./onboarding")
 
 type BeforeLoadCaller = (opts: {
@@ -266,7 +265,7 @@ describe("/onboarding Route & Step Progression (Atom 9)", () => {
       let fetchQueryCalled = false
       const staleContext = {
         queryClient: {
-          ensureQueryData: async () => [], // stale cache returns empty
+          ensureQueryData: async () => [],
           fetchQuery: async () => {
             fetchQueryCalled = true
             return [{ id: validOrgId, name: "Acme Corp", slug: "acme" }]

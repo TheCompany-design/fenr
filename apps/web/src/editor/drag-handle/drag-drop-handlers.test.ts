@@ -114,18 +114,15 @@ describe("handleBlockDragStart and handleBlockDragEnd", () => {
     expect(currentSelection).not.toBeNull()
     expect(currentSelection instanceof NodeSelection).toBe(true)
 
-    // Verify dataTransfer
     expect(mockDataStore.get("text/html")).toBe("<p>Hello world</p>")
     expect(mockDataStore.get("text/plain")).toBe("Hello world")
     expect(mockDataStore.has(FENR_BLOCK_MIME_TYPE)).toBe(true)
 
-    // Verify view.dragging
     expect(mockView.dragging).not.toBeNull()
     expect(
       (mockView.dragging as unknown as { move: boolean; slice: unknown }).move,
     ).toBe(true)
 
-    // Test drag end resets view.dragging
     handleBlockDragEnd(fakeEvent, editor)
     expect(mockView.dragging).toBeNull()
   })

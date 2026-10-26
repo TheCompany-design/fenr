@@ -1,9 +1,3 @@
-/**
- * /auth/check-email — public route displaying the magic link confirmation screen.
- *
- * Session bouncing is handled at the parent /auth route.
- * Missing email bounces back to /auth/sign-in.
- */
 import { createFileRoute, redirect } from "@tanstack/react-router"
 
 import { CheckEmailCard } from "@/features/auth"

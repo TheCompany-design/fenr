@@ -239,7 +239,7 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
 
     try {
       await executeRequest(testPublicEndpoint)
-      expect(true).toBe(false) // Should not reach here
+      expect(true).toBe(false)
     } catch (err) {
       expect(err).toBeInstanceOf(HttpClientError)
       const httpErr = err as HttpClientError
@@ -280,13 +280,10 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
 
   it("handles response schema validation failures defensively", async () => {
     setMockFetch(async () => {
-      return new Response(
-        JSON.stringify({ unexpectedField: 123 }), // Missing 'id' and 'success'
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      )
+      return new Response(JSON.stringify({ unexpectedField: 123 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
     })
 
     try {
@@ -316,7 +313,6 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
       signal: controller.signal,
     })
 
-    // Trigger cancellation
     controller.abort()
 
     try {
@@ -512,7 +508,7 @@ describe("Outbound HTTP Transport (executeRequest)", () => {
       const httpErr = err as HttpClientError
       expect(httpErr.code).toBe("SERVICE_UNREACHABLE")
       expect(httpErr.status).toBe(503)
-      // Error message MUST NOT leak raw host/port/socket strings
+
       expect(httpErr.message).toBe("Unable to reach nabu service")
       expect(httpErr.message).not.toContain("127.0.0.1")
       expect(httpErr.message).not.toContain("ECONNREFUSED")

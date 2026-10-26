@@ -139,7 +139,6 @@ export function InviteMembersForm({
     }
   }, [])
 
-  // Ensure defaultRole is among allowedRoles
   React.useEffect(() => {
     if (allowedRoles.length > 0 && !allowedRoles.includes(defaultRole)) {
       form.setFieldValue("defaultRole", allowedRoles[0] ?? "member")

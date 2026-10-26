@@ -1,8 +1,3 @@
-/**
- * Shared types for organization domain data.
- * Safe to import on both client and server.
- */
-
 export interface ActiveOrganization {
   organization: {
     id: string

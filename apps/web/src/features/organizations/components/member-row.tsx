@@ -79,9 +79,6 @@ export function MemberRow({
   onUpdateRole,
   onRemoveMember,
 }: MemberRowProps) {
-  // Can current user manage this member?
-  // Owners can manage anyone (except demoting sole owner).
-  // Admins can only manage regular members.
   const canChangeRole =
     !isSoleOwner &&
     ((isOwner && !isCurrentUser) ||

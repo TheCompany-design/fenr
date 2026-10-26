@@ -1,11 +1,3 @@
-/**
- * Nabu Server HTTP Client Adapter.
- *
- * SERVER-ONLY: Communicates from Fenr server runtime (TanStack Start BFF)
- * to thebookofnabu agent runtime using the central typed HTTP transport.
- * All requests automatically carry a Better Auth-signed JWT with audience "nabu".
- */
-
 import {
   HttpClientError,
   type HttpClientErrorCode,
@@ -13,12 +5,11 @@ import {
 } from "@/lib/http"
 import { executeRequest } from "@/lib/http/client.server"
 import type { ExecuteRequestOptions } from "@/lib/http/types"
+import type { ApprovalDecision } from "@/lib/schemas/agent-stream"
 import type {
-  AgentTaskResult,
-  CreateAgentTaskInput,
+  NabuCapabilities,
   NabuSystemStatus,
-  ReconciliationMatchInput,
-  ReconciliationMatchResult,
+  TurnItemsResponse,
 } from "@/lib/schemas/nabu"
 
 export class OrganizationRequiredError extends Error {
@@ -85,7 +76,7 @@ export class NabuClientError extends HttpClientError {
   }
 }
 
-async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
+export async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
   } catch (err) {
@@ -106,9 +97,6 @@ async function runNabuRequest<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-/**
- * Retrieves the current system and engine status from thebookofnabu.
- */
 export async function getNabuSystemStatus(
   options?: ExecuteRequestOptions<void>,
 ): Promise<NabuSystemStatus> {
@@ -117,32 +105,63 @@ export async function getNabuSystemStatus(
   )
 }
 
-/**
- * Submits an inflow payment transaction for deterministic reconciliation matching.
- */
-export async function matchInflowReconciliation(
-  input: ReconciliationMatchInput,
-  options?: Omit<ExecuteRequestOptions<ReconciliationMatchInput>, "input">,
-): Promise<ReconciliationMatchResult> {
+export async function getNabuCapabilities(
+  options?: ExecuteRequestOptions<void>,
+): Promise<NabuCapabilities> {
   return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.matchReconciliation, {
+    executeRequest(nabuEndpoints.capabilities, options),
+  )
+}
+
+export async function getTurnItems(
+  input: { turnId: string; after?: string; limit?: number },
+  options?: Omit<
+    ExecuteRequestOptions<{ turnId: string; after?: string; limit?: number }>,
+    "input"
+  >,
+): Promise<TurnItemsResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.turnItems, { ...options, input }),
+  )
+}
+
+export async function decideApproval(
+  input: { turnId: string; itemId: string; decision: ApprovalDecision },
+  options?: Omit<
+    ExecuteRequestOptions<{
+      turnId: string
+      itemId: string
+      decision: ApprovalDecision
+    }>,
+    "input"
+  >,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.decideApproval, {
       ...options,
-      input,
+      input: {
+        turnId: input.turnId,
+        item_id: input.itemId,
+        decision: input.decision,
+      },
     }),
   )
 }
 
-/**
- * Dispatches an operational agent task turn to thebookofnabu.
- */
-export async function dispatchAgentTask(
-  input: CreateAgentTaskInput,
-  options?: Omit<ExecuteRequestOptions<CreateAgentTaskInput>, "input">,
-): Promise<AgentTaskResult> {
-  return runNabuRequest(() =>
-    executeRequest(nabuEndpoints.dispatchTask, {
-      ...options,
-      input,
-    }),
+export async function cancelTurn(
+  input: { turnId: string },
+  options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.cancelTurn, { ...options, input }),
+  )
+}
+
+export async function resumeTurn(
+  input: { turnId: string },
+  options?: Omit<ExecuteRequestOptions<{ turnId: string }>, "input">,
+): Promise<void> {
+  await runNabuRequest(() =>
+    executeRequest(nabuEndpoints.resumeTurn, { ...options, input }),
   )
 }

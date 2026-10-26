@@ -1,5 +1,3 @@
-// Minimal Storage polyfill so zustand's persist middleware works under `bun test`
-// (no DOM available in the Bun runtime).
 class MemoryStorage implements Storage {
   private map = new Map<string, string>()
   get length() {
