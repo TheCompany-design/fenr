@@ -9,11 +9,14 @@
     "preview": "bun --bun vite preview",
     "start": "bun run server.ts",
     "typecheck": "tsc --noEmit",
-    "auth:generate": "bun x @better-auth/cli@latest generate --output ../../packages/database/src/schema/auth/.reference-schema.ts"
+    "auth:generate": "bun x @better-auth/cli@latest generate --output ../../packages/database/src/schema/auth/.reference-schema.ts",
+    "genui:prompt": "bun scripts/generate-openui-prompt.ts"
   },
   "dependencies": {
     "@hugeicons/core-free-icons": "^1",
     "@hugeicons/react": "^1",
+    "@openuidev/react-lang": "1.0.1",
+    "@openuidev/react-ui": "0.18.1",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",
     "@tailwindcss/vite": "^4",
