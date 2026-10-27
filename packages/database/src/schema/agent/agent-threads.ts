@@ -17,6 +17,7 @@ export const agentThreads = pgTable(
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
     title: text("title"),
+    createdByUserId: uuid("created_by_user_id"),
 
     providerConfigId: uuid("provider_config_id"),
     model: text("model"),

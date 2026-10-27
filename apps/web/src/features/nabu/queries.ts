@@ -1,12 +1,18 @@
 import { queryOptions } from "@tanstack/react-query"
 
-import { getNabuCapabilitiesFn, getNabuSystemStatusFn } from "./nabu.functions"
+import {
+  getNabuCapabilitiesFn,
+  getNabuSystemStatusFn,
+  getUsageSummaryFn,
+} from "./nabu.functions"
 import { getTenantProvidersFn } from "./tenant-provider.functions"
 
 export const nabuKeys = {
   all: ["nabu"] as const,
   systemStatus: () => [...nabuKeys.all, "system-status"] as const,
   capabilities: () => [...nabuKeys.all, "capabilities"] as const,
+  usageSummary: (days?: number) =>
+    [...nabuKeys.all, "usage-summary", days ?? 30] as const,
 }
 
 export const tenantProviderKeys = {
@@ -36,5 +42,13 @@ export const tenantProvidersQueryOptions = () =>
     queryKey: tenantProviderKeys.list(),
     queryFn: () => getTenantProvidersFn(),
     staleTime: 1000 * 60 * 2,
+    retry: 1,
+  })
+
+export const usageSummaryQueryOptions = (days: number = 30) =>
+  queryOptions({
+    queryKey: nabuKeys.usageSummary(days),
+    queryFn: () => getUsageSummaryFn({ data: { days } }),
+    staleTime: 1000 * 60,
     retry: 1,
   })

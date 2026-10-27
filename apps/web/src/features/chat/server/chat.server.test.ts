@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test"
 import { db, eq, schema } from "@workspace/database"
-import { getThreadChoice, getThreadMessages } from "./chat.server"
+import {
+  getThreadChoice,
+  getThreadMessages,
+  lastAgentMessageByTurn,
+} from "./chat.server"
 
 async function seedOrganization(id: string) {
   await db.insert(schema.organization).values({
@@ -60,6 +64,22 @@ describe("Chat Server Operations (Thread Messages)", () => {
       crypto.randomUUID(),
     )
     expect(messages).toBeNull()
+  })
+
+  it("attaches a turn's model-call ledger to only its last assistant bubble", () => {
+    const last = lastAgentMessageByTurn([
+      { id: "user-1", turnId: "turn-1", kind: "user_message" },
+      { id: "agent-1", turnId: "turn-1", kind: "agent_message" },
+      { id: "tool-1", turnId: "turn-1", kind: "tool_call" },
+      { id: "agent-2", turnId: "turn-1", kind: "agent_message" },
+      { id: "agent-3", turnId: "turn-2", kind: "agent_message" },
+    ])
+    expect(last).toEqual(
+      new Map([
+        ["turn-1", "agent-2"],
+        ["turn-2", "agent-3"],
+      ]),
+    )
   })
 
   it("keeps non-message transcript items out of the chat timeline", async () => {

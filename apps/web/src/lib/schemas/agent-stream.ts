@@ -131,6 +131,13 @@ export const usageReportSchema = z.object({
   prompt_tokens: z.number().int().nonnegative(),
   completion_tokens: z.number().int().nonnegative(),
   total_tokens: z.number().int().nonnegative(),
+  uncached_prompt_tokens: z.number().int().nonnegative().optional(),
+  cached_prompt_tokens: z.number().int().nonnegative().optional(),
+  cache_creation_prompt_tokens: z.number().int().nonnegative().optional(),
+  reasoning_tokens: z.number().int().nonnegative().optional(),
+  last_step_prompt_tokens: z.number().int().nonnegative().optional(),
+  last_step_completion_tokens: z.number().int().nonnegative().optional(),
+  model_call_count: z.number().int().nonnegative().optional(),
 })
 export type UsageReport = z.infer<typeof usageReportSchema>
 
@@ -148,9 +155,12 @@ export const agentStreamEventSchema = z.discriminatedUnion("type", [
       saved_config_id: z.string().uuid().nullable(),
       provider: z.string(),
       model: z.string(),
+      effort: z.string().nullable().optional(),
+      attempt: z.number().int().positive().default(1),
       step: z.number().int().positive(),
       usage: z.object({
         input_tokens: z.number().int().nonnegative(),
+        uncached_input_tokens: z.number().int().nonnegative().optional(),
         output_tokens: z.number().int().nonnegative(),
         cached_input_tokens: z.number().int().nonnegative(),
         cache_creation_input_tokens: z.number().int().nonnegative(),

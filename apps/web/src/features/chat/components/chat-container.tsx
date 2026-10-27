@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { ComposerMount, useComposerEvent } from "@/components/composer"
 import { HeaderPortal } from "@/components/shell/header-portal"
 import { getThreadChoiceFn } from "../chat.functions"
@@ -10,6 +10,10 @@ import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
 import { ApprovalPrompt } from "./approval-prompt"
 import { ChatHeaderTitle } from "./chat-header-title"
 import { ChatMessages } from "./chat-messages"
+import {
+  SessionStatsSheet,
+  SessionStatsSheetTrigger,
+} from "./session-stats-sheet"
 
 export interface ChatContainerProps {
   readonly threadId?: string
@@ -24,6 +28,8 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
   const { send, stop, isStreaming, turn } = useAgentStream()
   const { savedProviders } = useComposerHostData()
+  const [statsSheetOpen, setStatsSheetOpen] = useState(false)
+  const [selectedTurnId, setSelectedTurnId] = useState<string | null>(null)
 
   const clearedDraftRef = useRef(false)
   useEffect(() => {
@@ -71,6 +77,7 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
     threadChoice: threadChoice ?? null,
     savedProviders,
     turnUsage: turn.usage,
+    liveTelemetry: turn.liveTelemetry,
     turnStatus: turn.status,
     isStreaming,
     send,
@@ -86,6 +93,30 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   useComposerEvent("composer:open-provider-picker", () => {
     void safeNavigate({ to: "/settings/provider" })
   })
+
+  const handleGenUiContinue = useCallback(
+    (prompt: string) => {
+      void send(prompt, threadId, {
+        providerConfigId: threadChoice?.providerConfigId,
+        modelId: threadChoice?.model,
+        effort: threadChoice?.effort,
+        onTurnStarted: (serverThreadId) =>
+          safeNavigate({
+            to: "/chat/$threadId",
+            params: { threadId: serverThreadId },
+            replace: true,
+          }),
+      })
+    },
+    [
+      safeNavigate,
+      send,
+      threadChoice?.effort,
+      threadChoice?.model,
+      threadChoice?.providerConfigId,
+      threadId,
+    ],
+  )
 
   const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
 
@@ -103,10 +134,31 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
         <ChatHeaderTitle threadId={threadId} />
       </HeaderPortal>
 
+      <HeaderPortal region="end" className="flex items-center gap-2">
+        <SessionStatsSheetTrigger
+          threadId={threadId}
+          messages={safeMessages}
+          activeTurn={turn}
+          isStreaming={isStreaming}
+          onOpen={() => {
+            setSelectedTurnId(null)
+            setStatsSheetOpen(true)
+          }}
+        />
+      </HeaderPortal>
+
       {}
       <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
         {}
-        <ChatMessages messages={safeMessages} showEmptyState={false} />
+        <ChatMessages
+          messages={safeMessages}
+          showEmptyState={false}
+          onContinue={handleGenUiContinue}
+          onInspectTurn={(inspectedTurnId) => {
+            setSelectedTurnId(inspectedTurnId)
+            setStatsSheetOpen(true)
+          }}
+        />
 
         {}
         {awaitingApproval ? (
@@ -157,6 +209,16 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
           </div>
         </div>
       </div>
+
+      <SessionStatsSheet
+        open={statsSheetOpen}
+        onOpenChange={setStatsSheetOpen}
+        threadId={threadId}
+        messages={safeMessages}
+        activeTurn={turn}
+        isStreaming={isStreaming}
+        selectedTurnId={selectedTurnId}
+      />
     </div>
   )
 }

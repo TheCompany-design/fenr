@@ -1,7 +1,15 @@
-import { CheckmarkCircle02Icon, Copy01Icon } from "@hugeicons/core-free-icons"
+import {
+  ArrowRight01Icon,
+  CheckmarkCircle02Icon,
+  Copy01Icon,
+  Layers01Icon,
+} from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { cn } from "@workspace/ui/lib/utils"
 import { useAtom } from "jotai"
 import { toast } from "sonner"
+import { OpenUiRenderer } from "../genui/openui-renderer"
+import { extractOpenUiProgram } from "../genui/openui-response"
 import { copiedMessageIdAtom } from "../state/chat-atoms"
 import { type ChatTurn, turnText, turnThinking } from "../state/chat-turns"
 import { formatTimestamp } from "./format-timestamp"
@@ -9,9 +17,15 @@ import { ThinkingTrace } from "./thinking-trace"
 
 export interface ChatTurnBlockProps {
   readonly turn: ChatTurn
+  readonly onContinue?: (prompt: string) => void
+  readonly onInspectTurn?: (turnId: string) => void
 }
 
-export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
+export function ChatTurnBlock({
+  turn,
+  onContinue,
+  onInspectTurn,
+}: ChatTurnBlockProps) {
   const [copiedId, setCopiedId] = useAtom(copiedMessageIdAtom)
   const isUser = turn.isUser
 
@@ -32,10 +46,37 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
 
   const thinking = turnThinking(turn.messages)
   const text = turnText(turn.messages)
+  const hasOpenUi = extractOpenUiProgram(text) !== null
 
   const startedAt = turn.messages.find(
     (message) => message.createdAt,
   )?.createdAt
+  const turnId = turn.messages.find((message) => message.turnId)?.turnId
+  const modelCalls = turn.messages.flatMap(
+    (message) => message.modelCalls ?? [],
+  )
+  const latestCall = modelCalls.at(-1)
+  const totalInput = modelCalls.reduce(
+    (sum, call) => sum + call.usage.input_tokens,
+    0,
+  )
+  const totalOutput = modelCalls.reduce(
+    (sum, call) => sum + call.usage.output_tokens,
+    0,
+  )
+  const totalCached = modelCalls.reduce(
+    (sum, call) => sum + call.usage.cached_input_tokens,
+    0,
+  )
+  const cacheHitRate =
+    totalInput > 0 && totalCached <= totalInput
+      ? totalCached / totalInput
+      : null
+  const compactTokens = (tokens: number) =>
+    new Intl.NumberFormat(undefined, {
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(tokens)
   const lastMessage = turn.messages.at(-1)
   const isCopied = lastMessage ? copiedId === lastMessage.id : false
 
@@ -62,7 +103,13 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
             />
           )}
 
-          {text && (
+          {text && hasOpenUi ? (
+            <OpenUiRenderer
+              content={text}
+              isStreaming={turn.isStreaming}
+              onContinue={onContinue ?? (() => {})}
+            />
+          ) : text ? (
             <div className="text-[13px] leading-relaxed text-foreground">
               <p className="whitespace-pre-wrap">
                 {text}
@@ -74,6 +121,64 @@ export function ChatTurnBlock({ turn }: ChatTurnBlockProps) {
                 )}
               </p>
             </div>
+          ) : null}
+
+          {latestCall && (modelCalls.length > 0 || totalInput > 0) && (
+            <button
+              type="button"
+              onClick={
+                turnId && onInspectTurn
+                  ? () => onInspectTurn(turnId)
+                  : undefined
+              }
+              className={cn(
+                "group/telemetry mt-2 inline-flex flex-wrap items-center gap-2 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-1 text-[11px] font-mono tabular-nums text-muted-foreground/90 transition-all",
+                turnId && onInspectTurn
+                  ? "cursor-pointer hover:border-border hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  : "cursor-default",
+              )}
+              title={
+                turnId && onInspectTurn
+                  ? "Inspect step breakdown and token economics"
+                  : undefined
+              }
+            >
+              <span className="font-sans font-medium text-foreground/90">
+                {latestCall.model}
+              </span>
+              {latestCall.effort ? (
+                <span className="rounded bg-background/80 px-1 py-0.5 text-[10px] text-muted-foreground border border-border/40">
+                  {latestCall.effort}
+                </span>
+              ) : null}
+              {modelCalls.length > 1 ? (
+                <span className="inline-flex items-center gap-1 rounded bg-background/80 px-1 py-0.5 text-[10px] text-muted-foreground border border-border/40">
+                  <HugeiconsIcon icon={Layers01Icon} size={11} />
+                  <span>{modelCalls.length} steps</span>
+                </span>
+              ) : null}
+              <span className="text-muted-foreground/50">·</span>
+              <span>
+                {compactTokens(totalInput)} in / {compactTokens(totalOutput)}{" "}
+                out
+              </span>
+              {cacheHitRate !== null && cacheHitRate > 0 ? (
+                <>
+                  <span className="text-muted-foreground/50">·</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="size-1.5 rounded-full bg-emerald-500" />
+                    <span>{Math.round(cacheHitRate * 100)}% cached</span>
+                  </span>
+                </>
+              ) : null}
+              {turnId && onInspectTurn && (
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={12}
+                  className="text-muted-foreground/40 transition-transform group-hover/telemetry:translate-x-0.5 group-hover/telemetry:text-foreground"
+                />
+              )}
+            </button>
           )}
 
           {}

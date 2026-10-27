@@ -14,10 +14,14 @@ import {
   providerModelsResponseSchema,
   type TenantProviderList,
   type TenantProviderSummary,
+  type ThreadUsageResponse,
   type TurnItemsResponse,
   tenantProviderListSchema,
   tenantProviderSummarySchema,
+  threadUsageResponseSchema,
   turnItemsResponseSchema,
+  type UsageSummaryResponse,
+  usageSummaryResponseSchema,
   type VerifyTenantProviderResponse,
   verifyTenantProviderResponseSchema,
 } from "@/lib/schemas/nabu"
@@ -30,6 +34,16 @@ const emptyResponseSchema = z.unknown()
 const pathOnlyRequestSchema = z.object({
   turnId: z.string().uuid(),
 })
+
+const threadUsageRequestSchema = z.object({
+  threadId: z.string().uuid(),
+})
+
+const usageSummaryRequestSchema = z
+  .object({
+    days: z.number().int().positive().max(366).optional(),
+  })
+  .optional()
 
 const turnItemsQueryInputSchema = z.object({
   turnId: z.string().uuid(),
@@ -296,6 +310,50 @@ export const nabuEndpoints = {
     responseSchema: emptyResponseSchema,
     timeoutMs: 15_000,
     description: "Resume a suspended turn after a recorded decision.",
+  }),
+
+  /**
+   * Read full session token, timing, and cost usage breakdown for a conversation.
+   *
+   * `GET /api/v1/threads/{thread_id}/usage`
+   */
+  threadUsage: defineAuthenticatedEndpoint<
+    { threadId: string },
+    ThreadUsageResponse
+  >({
+    id: "nabu.thread-usage",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: (input) => `/api/v1/threads/${input.threadId}/usage`,
+    inputSchema: threadUsageRequestSchema,
+    responseSchema: threadUsageResponseSchema,
+    timeoutMs: 15_000,
+    description: "Read token, timing, and cost usage breakdown for a thread.",
+  }),
+
+  /**
+   * Aggregate workspace model usage, trends, and attribution across a time window.
+   *
+   * `GET /api/v1/usage/summary`
+   */
+  usageSummary: defineAuthenticatedEndpoint<
+    { days?: number } | undefined,
+    UsageSummaryResponse
+  >({
+    id: "nabu.usage-summary",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: (input) =>
+      input?.days
+        ? `/api/v1/usage/summary?days=${input.days}`
+        : "/api/v1/usage/summary",
+    inputSchema: usageSummaryRequestSchema,
+    responseSchema: usageSummaryResponseSchema,
+    timeoutMs: 20_000,
+    description:
+      "Aggregate workspace model usage, daily spend trends, and actor attribution.",
   }),
 } as const
 

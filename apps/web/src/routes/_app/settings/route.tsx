@@ -1,6 +1,7 @@
 import {
   Alert02Icon,
   Building01Icon,
+  ChartHistogramIcon,
   CloudServerIcon,
   CrownIcon,
   Shield01Icon,
@@ -35,6 +36,12 @@ const SETTINGS_SECTIONS = [
     label: "Model provider",
     icon: CloudServerIcon,
     to: "/settings/provider",
+  },
+  {
+    id: "usage",
+    label: "Usage & cost",
+    icon: ChartHistogramIcon,
+    to: "/settings/usage",
   },
   {
     id: "members",

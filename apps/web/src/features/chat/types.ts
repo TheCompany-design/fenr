@@ -1,4 +1,7 @@
-import type { ActiveTurnProjection } from "./state/stream-reducer"
+import type {
+  ActiveTurnProjection,
+  ModelCallProjection,
+} from "./state/stream-reducer"
 
 export interface ChatMessage {
   readonly id: string
@@ -7,6 +10,8 @@ export interface ChatMessage {
   readonly thinking?: string | null
   readonly status?: "pending" | "streaming" | "completed" | "error"
   readonly createdAt?: string
+  readonly turnId?: string
+  readonly modelCalls?: readonly ModelCallProjection[]
 
   readonly unclaimed?: boolean
 }

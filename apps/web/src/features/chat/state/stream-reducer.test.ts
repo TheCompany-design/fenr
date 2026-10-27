@@ -156,6 +156,90 @@ describe("streamReducer (Pure Event Reducer)", () => {
     expect(next).toEqual(activeState)
   })
 
+  it("projects model-call telemetry cumulatively and keeps the latest context footprint", () => {
+    const started = streamReducer(initialTurnProjection, {
+      type: "turn_started",
+      data: { thread_id: threadId, turn_id: turnId },
+    })
+    const step0 = {
+      type: "model_call_recorded",
+      data: {
+        saved_config_id: null,
+        provider: "anthropic",
+        model: "claude-sonnet",
+        effort: "high",
+        attempt: 1,
+        step: 1,
+        usage: {
+          input_tokens: 1_000,
+          uncached_input_tokens: 200,
+          output_tokens: 100,
+          cached_input_tokens: 700,
+          cache_creation_input_tokens: 100,
+          tool_use_input_tokens: 0,
+          reasoning_tokens: 20,
+        },
+        duration_ms: 800,
+        ttft_ms: 120,
+        finish_reason: "tool_use",
+        error_code: null,
+      },
+    } satisfies AgentStreamEvent
+    const step1 = {
+      ...step0,
+      data: {
+        ...step0.data,
+        step: 2,
+        usage: {
+          ...step0.data.usage,
+          input_tokens: 1_200,
+          uncached_input_tokens: 400,
+          cached_input_tokens: 700,
+          output_tokens: 150,
+        },
+      },
+    } satisfies AgentStreamEvent
+
+    const afterFirst = streamReducer(started, step0)
+    const afterSecond = streamReducer(afterFirst, step1)
+    const afterDuplicate = streamReducer(afterSecond, step1)
+    const resumed = streamReducer(afterDuplicate, {
+      type: "turn_resumed",
+      data: {
+        thread_id: threadId,
+        turn_id: turnId,
+        attempt: 2,
+        decision: "approved",
+      },
+    })
+    const resumedStep1 = {
+      ...step0,
+      data: {
+        ...step0.data,
+        attempt: 2,
+        usage: { ...step0.data.usage, input_tokens: 80, output_tokens: 20 },
+      },
+    } satisfies AgentStreamEvent
+    const afterResumedCall = streamReducer(resumed, resumedStep1)
+
+    expect(afterSecond.modelCalls).toHaveLength(2)
+    expect(afterDuplicate.modelCalls).toHaveLength(2)
+    expect(afterResumedCall.modelCalls).toHaveLength(3)
+    expect(afterResumedCall.liveTelemetry?.inputTokens).toBe(2_280)
+    expect(afterSecond.liveTelemetry).toEqual({
+      inputTokens: 2_200,
+      uncachedInputTokens: 600,
+      cachedInputTokens: 1_400,
+      cacheCreationInputTokens: 200,
+      outputTokens: 250,
+      reasoningTokens: 40,
+      totalTokens: 2_450,
+      cacheHitRate: 1_400 / 2_200,
+      lastStepPromptTokens: 1_200,
+      lastStepCompletionTokens: 150,
+    })
+  })
+
   it("handles turn_completed by setting status to completed", () => {
     const activeState: ActiveTurnProjection = {
       ...initialTurnProjection,

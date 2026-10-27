@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
+import { getThreadUsage } from "../nabu/nabu.server"
 import { getThreadChoice, getThreadMessages } from "./server/chat.server"
 
 const getThreadMessagesInputSchema = z.object({
@@ -55,5 +56,30 @@ export const getThreadChoiceFn = createServerFn({ method: "GET" })
       })
 
       return getThreadChoice(data.threadId, tenantId)
+    })
+  })
+
+const getThreadUsageInputSchema = z.object({
+  threadId: z.string().uuid(),
+})
+
+export const getThreadUsageFn = createServerFn({ method: "GET" })
+  .validator((input: unknown) => getThreadUsageInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    return withWideEvent("chat", "getThreadUsage", async (setContext) => {
+      const session = await ensureSession()
+      const tenantId = session.session.activeOrganizationId
+
+      if (!tenantId) {
+        throw new Error("Active organization context is required")
+      }
+
+      setContext({
+        userId: session.user.id,
+        organizationId: tenantId,
+        threadId: data.threadId,
+      })
+
+      return getThreadUsage({ threadId: data.threadId })
     })
   })

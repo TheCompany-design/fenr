@@ -22,6 +22,8 @@ function projection(
     error: null,
     errorCode: null,
     usage: null,
+    modelCalls: [],
+    liveTelemetry: null,
     ...overrides,
   }
 }

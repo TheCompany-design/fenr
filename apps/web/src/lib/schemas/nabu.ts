@@ -172,3 +172,162 @@ export const providerModelsResponseSchema = z.object({
 export type ProviderModelsResponse = z.infer<
   typeof providerModelsResponseSchema
 >
+
+export const usageCostBreakdownSchema = z.object({
+  uncached_input_usd: z.number().default(0),
+  tool_use_input_usd: z.number().default(0),
+  cache_read_usd: z.number().default(0),
+  cache_creation_usd: z.number().default(0),
+  output_usd: z.number().default(0),
+  reasoning_usd: z.number().default(0),
+  total_usd: z.number().default(0),
+  cache_savings_usd: z.number().default(0),
+})
+export type UsageCostBreakdown = z.infer<typeof usageCostBreakdownSchema>
+
+export const callTokensViewSchema = z.object({
+  input_tokens: z.number().int().nonnegative(),
+  uncached_input_tokens: z.number().int().nonnegative(),
+  cached_input_tokens: z.number().int().nonnegative(),
+  cache_creation_input_tokens: z.number().int().nonnegative(),
+  tool_use_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative(),
+  reasoning_tokens: z.number().int().nonnegative().default(0),
+})
+export type CallTokensView = z.infer<typeof callTokensViewSchema>
+
+export const threadCallUsageSchema = z.object({
+  call_id: z.string().uuid(),
+  turn_id: z.string().uuid(),
+  actor_user_id: z.string().uuid().nullable().optional(),
+  attempt: z.number().int().default(1),
+  step: z.number().int().default(0),
+  provider: z.string(),
+  model: z.string(),
+  effort: z.string().nullable().optional(),
+  started_at: z.string(),
+  duration_ms: z.number().nullable().optional(),
+  ttft_ms: z.number().nullable().optional(),
+  finish_reason: z.string().nullable().optional(),
+  error_code: z.string().nullable().optional(),
+  estimated_prompt_tokens: z.number().int().nullable().optional(),
+  window_start_index: z.number().int().nullable().optional(),
+  messages_in_request: z.number().int().nullable().optional(),
+  messages_dropped: z.number().int().nullable().optional(),
+  tokens: callTokensViewSchema,
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+})
+export type ThreadCallUsage = z.infer<typeof threadCallUsageSchema>
+
+export const threadUsageTotalsSchema = z.object({
+  calls: z.number().int().nonnegative().default(0),
+  failed_calls: z.number().int().nonnegative().default(0),
+  unpriced_calls: z.number().int().nonnegative().default(0),
+  input_tokens: z.number().int().nonnegative().default(0),
+  uncached_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative().default(0),
+  cached_input_tokens: z.number().int().nonnegative().default(0),
+  cache_creation_input_tokens: z.number().int().nonnegative().default(0),
+  tool_use_input_tokens: z.number().int().nonnegative().default(0),
+  reasoning_tokens: z.number().int().nonnegative().default(0),
+  cache_hit_rate: z.number().nullable().optional(),
+  cost_usd: z.number().nullable().optional(),
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+})
+export type ThreadUsageTotals = z.infer<typeof threadUsageTotalsSchema>
+
+export const threadTurnUsageSchema = z.object({
+  turn_id: z.string().uuid(),
+  totals: threadUsageTotalsSchema,
+})
+export type ThreadTurnUsage = z.infer<typeof threadTurnUsageSchema>
+
+export const threadUsageResponseSchema = z.object({
+  thread_id: z.string().uuid(),
+  pricing_snapshot_id: z.string(),
+  totals: threadUsageTotalsSchema,
+  by_turn: z.array(threadTurnUsageSchema).default([]),
+  calls: z.array(threadCallUsageSchema).default([]),
+})
+export type ThreadUsageResponse = z.infer<typeof threadUsageResponseSchema>
+
+export const modelUsageViewSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+  calls: z.number().int().nonnegative().default(0),
+  failed_calls: z.number().int().nonnegative().default(0),
+  input_tokens: z.number().int().nonnegative().default(0),
+  uncached_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative().default(0),
+  cached_input_tokens: z.number().int().nonnegative().default(0),
+  cache_creation_input_tokens: z.number().int().nonnegative().default(0),
+  reasoning_tokens: z.number().int().nonnegative().default(0),
+  cost_usd: z.number().nullable().optional(),
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+  unpriced_calls: z.number().int().nonnegative().default(0),
+  mean_duration_ms: z.number().nullable().optional(),
+  mean_ttft_ms: z.number().nullable().optional(),
+})
+export type ModelUsageView = z.infer<typeof modelUsageViewSchema>
+
+export const dailyUsageViewSchema = z.object({
+  day: z.string(),
+  calls: z.number().int().nonnegative().default(0),
+  input_tokens: z.number().int().nonnegative().default(0),
+  uncached_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative().default(0),
+  cost_usd: z.number().nullable().optional(),
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+  unpriced_calls: z.number().int().nonnegative().default(0),
+})
+export type DailyUsageView = z.infer<typeof dailyUsageViewSchema>
+
+export const actorUsageViewSchema = z.object({
+  user_id: z.string().uuid().nullable().optional(),
+  sessions_count: z.number().int().nonnegative().default(0),
+  turns_count: z.number().int().nonnegative().default(0),
+  calls: z.number().int().nonnegative().default(0),
+  input_tokens: z.number().int().nonnegative().default(0),
+  uncached_input_tokens: z.number().int().nonnegative().default(0),
+  cached_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative().default(0),
+  cache_hit_rate: z.number().nullable().optional(),
+  unpriced_calls: z.number().int().nonnegative().default(0),
+  last_active_at: z.string().nullable().optional(),
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+})
+export type ActorUsageView = z.infer<typeof actorUsageViewSchema>
+
+export const contextPressureViewSchema = z.object({
+  estimated_prompt_tokens: z.number().int().nonnegative().default(0),
+  actual_input_tokens: z.number().int().nonnegative().default(0),
+  truncated_calls: z.number().int().nonnegative().default(0),
+  messages_dropped: z.number().int().nonnegative().default(0),
+})
+export type ContextPressureView = z.infer<typeof contextPressureViewSchema>
+
+export const usageSummaryTotalsSchema = z.object({
+  calls: z.number().int().nonnegative().default(0),
+  failed_calls: z.number().int().nonnegative().default(0),
+  unpriced_calls: z.number().int().nonnegative().default(0),
+  input_tokens: z.number().int().nonnegative().default(0),
+  uncached_input_tokens: z.number().int().nonnegative().default(0),
+  output_tokens: z.number().int().nonnegative().default(0),
+  cached_input_tokens: z.number().int().nonnegative().default(0),
+  cache_creation_input_tokens: z.number().int().nonnegative().default(0),
+  cache_hit_rate: z.number().nullable().optional(),
+  cost_usd: z.number().nullable().optional(),
+  cost_breakdown: usageCostBreakdownSchema.nullable().optional(),
+})
+export type UsageSummaryTotals = z.infer<typeof usageSummaryTotalsSchema>
+
+export const usageSummaryResponseSchema = z.object({
+  pricing_snapshot_id: z.string(),
+  window_days: z.number().int(),
+  totals: usageSummaryTotalsSchema,
+  by_model: z.array(modelUsageViewSchema).default([]),
+  by_day: z.array(dailyUsageViewSchema).default([]),
+  by_actor: z.array(actorUsageViewSchema).default([]),
+  context: contextPressureViewSchema,
+})
+export type UsageSummaryResponse = z.infer<typeof usageSummaryResponseSchema>

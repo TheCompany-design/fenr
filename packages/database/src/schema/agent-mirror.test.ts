@@ -5,6 +5,7 @@ import { db } from "../index"
 import {
   agentApprovals,
   agentItems,
+  agentModelCalls,
   agentThreads,
   agentToolIntents,
   agentTurns,
@@ -44,6 +45,7 @@ async function actualColumns(table: string): Promise<string[]> {
 const MIRRORED_TABLES: { table: string; schema: MirrorTable }[] = [
   { table: "agent_threads", schema: agentThreads },
   { table: "agent_turns", schema: agentTurns },
+  { table: "agent_model_calls", schema: agentModelCalls },
   { table: "agent_items", schema: agentItems },
   { table: "agent_approvals", schema: agentApprovals },
   { table: "agent_tool_intents", schema: agentToolIntents },
@@ -69,6 +71,10 @@ describe("agent table mirror matches the runtime schema", () => {
     // These columns are what every reader must explicitly filter on. The
     // database no longer supplies isolation implicitly through RLS.
     expect(declaredColumns(agentTurns)).toContain("tenant_id")
+    expect(declaredColumns(agentTurns)).toContain("user_id")
+    expect(declaredColumns(agentThreads)).toContain("created_by_user_id")
+    expect(declaredColumns(agentModelCalls)).toContain("user_id")
+    expect(declaredColumns(agentModelCalls)).toContain("tenant_id")
     expect(declaredColumns(agentItems)).toContain("tenant_id")
     expect(declaredColumns(agentApprovals)).toContain("tenant_id")
   })

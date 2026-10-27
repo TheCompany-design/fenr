@@ -345,6 +345,9 @@ export function useAgentStream(): UseAgentStreamReturn {
                   void queryClient.invalidateQueries({
                     queryKey: chatKeys.thread(event.data.thread_id),
                   })
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.usage(event.data.thread_id),
+                  })
                 }
 
                 if (event.type === "stream_error") {

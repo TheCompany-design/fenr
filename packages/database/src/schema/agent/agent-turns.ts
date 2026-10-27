@@ -21,6 +21,7 @@ export const agentTurns = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
+    userId: uuid("user_id"),
     turnIndex: integer("turn_index").notNull(),
 
     attempt: integer("attempt").default(1).notNull(),

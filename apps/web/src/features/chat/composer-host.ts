@@ -26,6 +26,8 @@ import {
   orderProviders,
   toRuntimeTools,
 } from "./composer-catalog"
+import { contextMeterSeedTokens } from "./context-meter-seed"
+import type { LiveTurnTelemetry } from "./state/stream-reducer"
 import type { ChatMessage } from "./types"
 
 const log = moduleLogger("chat:composer-host")
@@ -73,6 +75,8 @@ export interface ComposerBridgeOptions {
 
   readonly turnUsage: UsageReport | null
 
+  readonly liveTelemetry: LiveTurnTelemetry | null
+
   readonly turnStatus: string
   readonly isStreaming: boolean
   readonly send: (
@@ -105,6 +109,7 @@ export function useComposerBridge(
     threadChoice,
     savedProviders,
     turnUsage,
+    liveTelemetry,
     turnStatus,
     isStreaming,
     send: sendTurn,
@@ -118,12 +123,18 @@ export function useComposerBridge(
   } | null>(null)
 
   useEffect(() => {
-    if (!turnUsage) return
+    const promptTokens = liveTelemetry
+      ? liveTelemetry.lastStepPromptTokens +
+        liveTelemetry.lastStepCompletionTokens
+      : turnUsage
+        ? contextMeterSeedTokens(turnUsage)
+        : null
+    if (promptTokens === null) return
     seedRef.current = {
-      promptTokens: turnUsage.prompt_tokens,
+      promptTokens,
       boundaryId: lastUserId(messages),
     }
-  }, [turnUsage, messages])
+  }, [liveTelemetry, turnUsage, messages])
 
   useEffect(() => {
     if (isStreaming) {

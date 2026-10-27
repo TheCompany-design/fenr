@@ -9,11 +9,15 @@ import { ChatTurnBlock } from "./chat-turn-block"
 export interface ChatMessagesProps {
   readonly messages: readonly ChatMessage[]
   readonly showEmptyState?: boolean
+  readonly onContinue?: (prompt: string) => void
+  readonly onInspectTurn?: (turnId: string) => void
 }
 
 export function ChatMessages({
   messages,
   showEmptyState = true,
+  onContinue,
+  onInspectTurn,
 }: ChatMessagesProps) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const isAtBottomRef = useRef(true)
@@ -100,7 +104,12 @@ export function ChatMessages({
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
           {}
           {groupIntoTurns(messages).map((turn, index) => (
-            <ChatTurnBlock key={turn.messages[0]?.id ?? index} turn={turn} />
+            <ChatTurnBlock
+              key={turn.messages[0]?.id ?? index}
+              turn={turn}
+              onContinue={onContinue}
+              onInspectTurn={onInspectTurn}
+            />
           ))}
         </div>
       </ScrollArea>

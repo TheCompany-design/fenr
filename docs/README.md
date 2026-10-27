@@ -32,6 +32,7 @@ docs/
 - [Block Drag Handle Subsystem](file:///home/muchiri/dev/bag/atelier/fenr/docs/architecture/documents/drag-handle-architecture.md): Floating block drag handle, coordinate clamping, and HTML5 drag-and-drop integration.
 - [Role of Jotai Justification](file:///home/muchiri/dev/bag/atelier/fenr/docs/architecture/documents/jotai-justification.md): In-depth technical justification for choosing Jotai over React Context, Zustand, and Tiptap's `useEditorState`.
 - [Role of EditorSyncBridge Justification](file:///home/muchiri/dev/bag/atelier/fenr/docs/architecture/documents/editor-sync-bridge-justification.md): Synchronization boundary between ProseMirror transactions and Jotai.
+- [Session Transcript Stats, Real-Time Session Telemetry Sheet & RBAC/ABAC Usage Analytics](file:///home/muchiri/dev/bag/atelier/fenr/docs/architecture/usage-analytics-and-session-stats.md): End-to-end architecture and implementation plan for accurate per-turn/per-session token accounting, real-time `SessionStatsSheet`, multi-team RBAC/ABAC (`team` / `team_member`), and `/settings/usage` cost analytics.
 
 ### 🔌 Third-Party Integrations
 

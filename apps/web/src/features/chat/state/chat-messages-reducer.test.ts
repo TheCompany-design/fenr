@@ -270,6 +270,42 @@ describe("chatMessagesReducer (Pure In-Place Message Stream Reducer)", () => {
       expect(next[1]?.id).toBe(itemId)
     })
 
+    it("attaches model call telemetry to the active assistant bubble idempotently", () => {
+      const event: AgentStreamEvent = {
+        type: "model_call_recorded",
+        data: {
+          saved_config_id: null,
+          provider: "openai",
+          model: "gpt-5",
+          effort: null,
+          attempt: 1,
+          step: 1,
+          usage: {
+            input_tokens: 1_000,
+            output_tokens: 100,
+            cached_input_tokens: 300,
+            cache_creation_input_tokens: 0,
+            tool_use_input_tokens: 0,
+            reasoning_tokens: 20,
+          },
+          duration_ms: 700,
+          ttft_ms: 150,
+          finish_reason: "stop",
+          error_code: null,
+        },
+      }
+      const first = apply(streaming(), event)
+      const duplicate = apply(first, event)
+      const secondAttempt = apply(duplicate, {
+        ...event,
+        data: { ...event.data, attempt: 2 },
+      })
+      expect(first[1]?.modelCalls).toHaveLength(1)
+      expect(duplicate[1]?.modelCalls).toHaveLength(1)
+      expect(secondAttempt[1]?.modelCalls).toHaveLength(2)
+      expect(duplicate[1]?.modelCalls?.[0]?.model).toBe("gpt-5")
+    })
+
     it("ignores tool argument deltas rather than writing them into the answer", () => {
       const messages = streaming().map((message) =>
         message.id === "local-2" ? { ...message, id: itemId } : message,

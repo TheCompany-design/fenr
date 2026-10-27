@@ -29,6 +29,7 @@ import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index
 import { Route as AppSettingsDangerIndexRouteImport } from './routes/_app/settings/danger/index'
 import { Route as AppSettingsMembersIndexRouteImport } from './routes/_app/settings/members/index'
 import { Route as AppSettingsProviderIndexRouteImport } from './routes/_app/settings/provider/index'
+import { Route as AppSettingsUsageIndexRouteImport } from './routes/_app/settings/usage/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -130,6 +131,11 @@ const AppSettingsProviderIndexRoute =
     path: '/provider/',
     getParentRoute: () => AppSettingsRouteRoute,
   } as any)
+const AppSettingsUsageIndexRoute = AppSettingsUsageIndexRouteImport.update({
+  id: '/usage/',
+  path: '/usage/',
+  getParentRoute: () => AppSettingsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -151,6 +157,7 @@ export interface FileRoutesByFullPath {
   '/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/settings/members/': typeof AppSettingsMembersIndexRoute
   '/settings/provider/': typeof AppSettingsProviderIndexRoute
+  '/settings/usage/': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -170,6 +177,7 @@ export interface FileRoutesByTo {
   '/settings/danger': typeof AppSettingsDangerIndexRoute
   '/settings/members': typeof AppSettingsMembersIndexRoute
   '/settings/provider': typeof AppSettingsProviderIndexRoute
+  '/settings/usage': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/_app/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/_app/settings/members/': typeof AppSettingsMembersIndexRoute
   '/_app/settings/provider/': typeof AppSettingsProviderIndexRoute
+  '/_app/settings/usage/': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/settings/danger/'
     | '/settings/members/'
     | '/settings/provider/'
+    | '/settings/usage/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/settings/danger'
     | '/settings/members'
     | '/settings/provider'
+    | '/settings/usage'
   id:
     | '__root__'
     | '/_app'
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | '/_app/settings/danger/'
     | '/_app/settings/members/'
     | '/_app/settings/provider/'
+    | '/_app/settings/usage/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -411,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsProviderIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
     }
+    '/_app/settings/usage/': {
+      id: '/_app/settings/usage/'
+      path: '/usage'
+      fullPath: '/settings/usage/'
+      preLoaderRoute: typeof AppSettingsUsageIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
   }
 }
 
@@ -419,6 +438,7 @@ interface AppSettingsRouteRouteChildren {
   AppSettingsDangerIndexRoute: typeof AppSettingsDangerIndexRoute
   AppSettingsMembersIndexRoute: typeof AppSettingsMembersIndexRoute
   AppSettingsProviderIndexRoute: typeof AppSettingsProviderIndexRoute
+  AppSettingsUsageIndexRoute: typeof AppSettingsUsageIndexRoute
 }
 
 const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
@@ -426,6 +446,7 @@ const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
   AppSettingsDangerIndexRoute: AppSettingsDangerIndexRoute,
   AppSettingsMembersIndexRoute: AppSettingsMembersIndexRoute,
   AppSettingsProviderIndexRoute: AppSettingsProviderIndexRoute,
+  AppSettingsUsageIndexRoute: AppSettingsUsageIndexRoute,
 }
 
 const AppSettingsRouteRouteWithChildren =

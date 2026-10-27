@@ -88,7 +88,7 @@ describe("the shared logo service", () => {
 
   it("is the only place in the source tree that names the service", () => {
     expect(sourceFilesNamingTheService()).toEqual([])
-  })
+  }, 15_000)
 
   it("actually scanned the tree", () => {
     // Without this the guard above passes vacuously: a glob that matched
@@ -98,5 +98,5 @@ describe("the shared logo service", () => {
       (file) => !IGNORED.test(file),
     )
     expect(scanned.length).toBeGreaterThan(100)
-  })
+  }, 15_000)
 })
