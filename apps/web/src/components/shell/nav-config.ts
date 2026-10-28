@@ -1,6 +1,7 @@
 import {
   AiChat02Icon,
   Doc01Icon,
+  GridViewIcon,
   Home01Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons"
@@ -19,6 +20,12 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { id: "home", title: "Home", icon: Home01Icon, to: "/" },
   { id: "chat", title: "Chat", icon: AiChat02Icon, to: "/chat" },
+  {
+    id: "integrations",
+    title: "Integrations",
+    icon: GridViewIcon,
+    to: "/integrations",
+  },
   {
     id: "settings",
     title: "Settings",

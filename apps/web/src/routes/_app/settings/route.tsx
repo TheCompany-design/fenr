@@ -2,6 +2,7 @@ import {
   Alert02Icon,
   Building01Icon,
   ChartHistogramIcon,
+  GridViewIcon,
   CloudServerIcon,
   CrownIcon,
   Shield01Icon,
@@ -36,6 +37,12 @@ const SETTINGS_SECTIONS = [
     label: "Model provider",
     icon: CloudServerIcon,
     to: "/settings/provider",
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    icon: GridViewIcon,
+    to: "/settings/integrations",
   },
   {
     id: "usage",

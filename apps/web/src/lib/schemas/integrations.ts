@@ -1,7 +1,5 @@
 import { z } from "zod"
 
-import type { JsonValue } from "@/lib/schemas/agent-stream"
-
 /**
  * Wire shapes for Nabu's `/api/v1/integrations/*` surface. Field names stay
  * in the runtime's snake_case so the BFF passes responses through without a
@@ -60,7 +58,8 @@ export const toolkitCardSchema = z.object({
   default_auth_scheme: z.string(),
   composio_managed_oauth: z.boolean(),
   compliance_tier: z.string(),
-  setup_parameters_schema: z.custom<JsonValue>(() => true),
+  setup_parameters_schema: z.any(),
+  preview_media: z.array(z.record(z.string(), z.any())),
   is_featured: z.boolean(),
   is_new: z.boolean(),
   is_beta: z.boolean(),
@@ -87,7 +86,7 @@ export const catalogToolViewSchema = z.object({
   description: z.string(),
   capability_class: z.string(),
   default_approval_mode: z.string(),
-  input_schema: z.custom<JsonValue>(() => true),
+  input_schema: z.any(),
   is_curated_primary: z.boolean(),
 })
 
