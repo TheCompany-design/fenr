@@ -20,9 +20,7 @@ export const integrationsCatalogQueryOptions = () =>
     retry: 1,
   })
 
-export const integrationToolkitDetailQueryOptions = (
-  toolkitSlug: string,
-) =>
+export const integrationToolkitDetailQueryOptions = (toolkitSlug: string) =>
   queryOptions({
     queryKey: integrationsKeys.toolkit(toolkitSlug),
     queryFn: () => getToolkitDetailFn({ data: { toolkitSlug } }),
@@ -31,14 +29,11 @@ export const integrationToolkitDetailQueryOptions = (
   })
 
 /** Derives each toolkit's aggregate connection state for the directory. */
-export type ToolkitConnectionState =
-  | "connected"
-  | "needs_action"
-  | "available"
+export type ToolkitConnectionState = "connected" | "needs_action" | "available"
 
-export function toolkitConnectionState(
-  toolkit: { connections: { status: string }[] },
-): ToolkitConnectionState {
+export function toolkitConnectionState(toolkit: {
+  connections: { status: string }[]
+}): ToolkitConnectionState {
   if (toolkit.connections.length === 0) {
     return "available"
   }

@@ -1,6 +1,6 @@
-import { useQueryState } from "nuqs"
-import { toast } from "sonner"
-
+import { Add01Icon } from "@hugeicons/core-free-icons"
+import { HugeiconsIcon } from "@hugeicons/react"
+import { useMutation } from "@tanstack/react-query"
 import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
@@ -16,11 +16,9 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Textarea } from "@workspace/ui/components/textarea"
-import { Add01Icon } from "@hugeicons/core-free-icons"
-import { HugeiconsIcon } from "@hugeicons/react"
-
-import { useMutation } from "@tanstack/react-query"
+import { useQueryState } from "nuqs"
 import { useState } from "react"
+import { toast } from "sonner"
 
 import { requestIntegrationFn } from "../api/integrations.functions"
 
@@ -31,7 +29,8 @@ export function RequestIntegrationDialog() {
   const [appName, setAppName] = useState("")
   const [appUrl, setAppUrl] = useState("")
   const [useCase, setUseCase] = useState("")
-  const [priority, setPriority] = useState<(typeof PRIORITIES)[number]>("normal")
+  const [priority, setPriority] =
+    useState<(typeof PRIORITIES)[number]>("normal")
 
   const request = useMutation({
     mutationFn: () =>

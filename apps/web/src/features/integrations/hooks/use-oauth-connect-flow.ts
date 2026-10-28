@@ -1,12 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { useCallback, useState } from "react"
 import { toast } from "sonner"
-
-import { integrationsKeys } from "../api/integrations-queries"
 import {
   initiateConnectionFn,
   reconnectConnectionFn,
 } from "../api/integrations.functions"
+import { integrationsKeys } from "../api/integrations-queries"
 
 const POPUP_FEATURES =
   "popup=yes,width=520,height=680,left=200,top=120,noopener,noreferrer"
@@ -46,7 +45,9 @@ function stashPendingSession(session: PendingSession) {
  */
 export function useOauthConnectFlow() {
   const queryClient = useQueryClient()
-  const [connectingToolkit, setConnectingToolkit] = useState<string | null>(null)
+  const [connectingToolkit, setConnectingToolkit] = useState<string | null>(
+    null,
+  )
 
   const connect = useCallback(
     async (options: ConnectFlowOptions) => {
@@ -75,7 +76,11 @@ export function useOauthConnectFlow() {
           createdAt: Date.now(),
         })
 
-        const popup = window.open(initiation.redirect_url, "fenr-oauth", POPUP_FEATURES)
+        const popup = window.open(
+          initiation.redirect_url,
+          "fenr-oauth",
+          POPUP_FEATURES,
+        )
         if (!popup) {
           toast.error(`Couldn't connect ${displayName}`, {
             description:
@@ -95,7 +100,8 @@ export function useOauthConnectFlow() {
         }
 
         toast.success(`${displayName} connected`, {
-          description: "Agents can now work across this app with your approvals.",
+          description:
+            "Agents can now work across this app with your approvals.",
         })
         await queryClient.invalidateQueries({ queryKey: integrationsKeys.all })
       } catch (error) {

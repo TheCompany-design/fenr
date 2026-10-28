@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Cancel01Icon,
   Delete02Icon,
@@ -7,9 +6,7 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { parseAsString, useQueryState } from "nuqs"
-import { toast } from "sonner"
-
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -24,11 +21,16 @@ import {
   SheetContent,
   SheetHeader,
 } from "@workspace/ui/components/sheet"
+import { parseAsString, useQueryState } from "nuqs"
+import { toast } from "sonner"
 import {
-  integrationToolkitDetailQueryOptions,
+  deleteConnectionFn,
+  putToolPolicyFn,
+} from "../../api/integrations.functions"
+import {
   integrationsCatalogQueryOptions,
+  integrationToolkitDetailQueryOptions,
 } from "../../api/integrations-queries"
-import { deleteConnectionFn, putToolPolicyFn } from "../../api/integrations.functions"
 import { useOauthConnectFlow } from "../../hooks/use-oauth-connect-flow"
 import { IntegrationBrandLogo } from "../integration-brand-logo"
 
@@ -48,10 +50,7 @@ const MODE_LABELS: Record<string, string> = {
 
 export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
   const [toolkitSlug, setToolkitSlug] = useQueryState("app")
-  const [, setSheetTab] = useQueryState(
-    "sheet_tab",
-    parseAsString,
-  )
+  const [, setSheetTab] = useQueryState("sheet_tab", parseAsString)
 
   const open = toolkitSlug !== null
   const { data: toolkit } = useQuery({
@@ -63,7 +62,8 @@ export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
   const queryClient = useQueryClient()
 
   const disconnect = useMutation({
-    mutationFn: (accountId: string) => deleteConnectionFn({ data: { accountId } }),
+    mutationFn: (accountId: string) =>
+      deleteConnectionFn({ data: { accountId } }),
     onSuccess: async () => {
       toast.success("Connection removed")
       await queryClient.invalidateQueries({
@@ -82,7 +82,10 @@ export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
       putToolPolicyFn({
         data: {
           toolSlug: input.toolSlug,
-          approvalMode: input.mode as "auto_approve" | "require_approval" | "deny",
+          approvalMode: input.mode as
+            | "auto_approve"
+            | "require_approval"
+            | "deny",
         },
       }),
     onSuccess: async () => {
@@ -121,9 +124,16 @@ export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
           }),
       }
     : healthyConnection
-      ? { label: "Configure", variant: "outline" as const, onClick: () => setSheetTab("accounts") }
+      ? {
+          label: "Configure",
+          variant: "outline" as const,
+          onClick: () => setSheetTab("accounts"),
+        }
       : {
-          label: toolkit?.supported_auth_schemes[0] === "API_KEY" ? "Configure" : "Connect",
+          label:
+            toolkit?.supported_auth_schemes[0] === "API_KEY"
+              ? "Configure"
+              : "Connect",
           variant: "default" as const,
           onClick: () =>
             toolkit &&
@@ -331,7 +341,9 @@ export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
                         {account.account_alias}{" "}
                         <Badge
                           variant={
-                            account.status === "active" ? "secondary" : "destructive"
+                            account.status === "active"
+                              ? "secondary"
+                              : "destructive"
                           }
                           className="ml-1 text-[10px]"
                         >
@@ -412,16 +424,18 @@ export function IntegrationDetailSheet({ isAdmin }: { isAdmin: boolean }) {
                             {MODE_LABELS[effectiveMode] ?? effectiveMode}
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {Object.entries(MODE_LABELS).map(([mode, label]) => (
-                              <DropdownMenuItem
-                                key={mode}
-                                onClick={() =>
-                                  policy.mutate({ toolSlug: tool.slug, mode })
-                                }
-                              >
-                                {label}
-                              </DropdownMenuItem>
-                            ))}
+                            {Object.entries(MODE_LABELS).map(
+                              ([mode, label]) => (
+                                <DropdownMenuItem
+                                  key={mode}
+                                  onClick={() =>
+                                    policy.mutate({ toolSlug: tool.slug, mode })
+                                  }
+                                >
+                                  {label}
+                                </DropdownMenuItem>
+                              ),
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

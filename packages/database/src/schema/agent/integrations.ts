@@ -13,9 +13,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
+import { user } from "../auth/user"
 import { idColumn } from "../id"
 import { organization } from "../organizations/organization"
-import { user } from "../auth/user"
 import { agentItems } from "./agent-items"
 import { agentThreads } from "./agent-threads"
 import { agentTurns } from "./agent-turns"
@@ -69,8 +69,13 @@ export const integrationCatalogToolkits = pgTable(
     composioManagedOauth: boolean("composio_managed_oauth")
       .default(true)
       .notNull(),
-    complianceTier: text("compliance_tier").default("tier_1_permissive").notNull(),
-    defaultOauthScopes: text("default_oauth_scopes").array().default([]).notNull(),
+    complianceTier: text("compliance_tier")
+      .default("tier_1_permissive")
+      .notNull(),
+    defaultOauthScopes: text("default_oauth_scopes")
+      .array()
+      .default([])
+      .notNull(),
     setupParametersSchema: jsonb("setup_parameters_schema")
       .$type<Record<string, unknown>>()
       .default({})
@@ -80,7 +85,9 @@ export const integrationCatalogToolkits = pgTable(
       .default([])
       .notNull(),
     platformAuthConfigId: text("platform_auth_config_id"),
-    pinnedToolkitVersion: text("pinned_toolkit_version").default("latest").notNull(),
+    pinnedToolkitVersion: text("pinned_toolkit_version")
+      .default("latest")
+      .notNull(),
     isFeatured: boolean("is_featured").default(false).notNull(),
     isNew: boolean("is_new").default(false).notNull(),
     isBeta: boolean("is_beta").default(false).notNull(),
@@ -105,8 +112,11 @@ export const integrationCatalogToolkits = pgTable(
       .notNull(),
   },
   (table) => [
-    index("integration_catalog_toolkits_category_sort_idx")
-      .on(table.primaryCategory, table.sortOrder, table.displayName),
+    index("integration_catalog_toolkits_category_sort_idx").on(
+      table.primaryCategory,
+      table.sortOrder,
+      table.displayName,
+    ),
   ],
 )
 
@@ -117,7 +127,9 @@ export const integrationCatalogTools = pgTable(
     slug: text("slug").primaryKey(),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "cascade" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "cascade",
+      }),
     displayName: text("display_name").notNull(),
     description: text("description").notNull(),
     toolkitVersion: text("toolkit_version").notNull(),
@@ -129,7 +141,9 @@ export const integrationCatalogTools = pgTable(
       .$type<Record<string, unknown>>()
       .default({})
       .notNull(),
-    capabilityClass: text("capability_class").default("standard_write").notNull(),
+    capabilityClass: text("capability_class")
+      .default("standard_write")
+      .notNull(),
     defaultApprovalMode: text("default_approval_mode")
       .default("require_approval")
       .notNull(),
@@ -153,8 +167,11 @@ export const integrationCatalogTools = pgTable(
       .notNull(),
   },
   (table) => [
-    index("integration_catalog_tools_toolkit_curated_idx")
-      .on(table.toolkitSlug, table.isCuratedPrimary, table.slug),
+    index("integration_catalog_tools_toolkit_curated_idx").on(
+      table.toolkitSlug,
+      table.isCuratedPrimary,
+      table.slug,
+    ),
   ],
 )
 
@@ -165,7 +182,9 @@ export const integrationCatalogTriggers = pgTable(
     slug: text("slug").primaryKey(),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "cascade" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "cascade",
+      }),
     displayName: text("display_name").notNull(),
     description: text("description").notNull(),
     deliveryMode: text("delivery_mode").default("webhook").notNull(),
@@ -193,8 +212,7 @@ export const integrationCatalogTriggers = pgTable(
       .notNull(),
   },
   (table) => [
-    index("integration_catalog_triggers_toolkit_idx")
-      .on(table.toolkitSlug),
+    index("integration_catalog_triggers_toolkit_idx").on(table.toolkitSlug),
   ],
 )
 
@@ -208,7 +226,9 @@ export const tenantIntegrationConfigs = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "restrict",
+      }),
     composioAuthConfigId: text("composio_auth_config_id").notNull(),
     authScheme: text("auth_scheme").default("OAUTH2").notNull(),
     connectionSharingMode: text("connection_sharing_mode")
@@ -272,7 +292,9 @@ export const integrationConnectedAccounts = pgTable(
     integrationConfigId: uuid("integration_config_id").notNull(),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "restrict",
+      }),
     composioConnectedAccountId: text("composio_connected_account_id")
       .notNull()
       .unique(),
@@ -293,7 +315,9 @@ export const integrationConnectedAccounts = pgTable(
     statusErrorCode: text("status_error_code"),
     statusErrorMessage: text("status_error_message"),
     grantedScopes: text("granted_scopes").array().default([]).notNull(),
-    connectedAssetsCount: integer("connected_assets_count").default(0).notNull(),
+    connectedAssetsCount: integer("connected_assets_count")
+      .default(0)
+      .notNull(),
     connectedAssetsLabel: text("connected_assets_label"),
     connectedAssetsSummary: jsonb("connected_assets_summary")
       .$type<ConnectedAssetSummaryItem[]>()
@@ -330,14 +354,22 @@ export const integrationConnectedAccounts = pgTable(
       table.tenantId,
     ),
     foreignKey({
-        name: "integration_connected_accounts_config_tenant_fkey",
-        columns: [table.integrationConfigId, table.tenantId],
-        foreignColumns: [tenantIntegrationConfigs.id, tenantIntegrationConfigs.tenantId],
-      }).onDelete("cascade"),
-    index("integration_connected_accounts_tenant_toolkit_status_idx")
-      .on(table.tenantId, table.toolkitSlug, table.status),
-    index("integration_connected_accounts_needs_action_idx")
-      .on(table.tenantId, table.statusChangedAt.desc()),
+      name: "integration_connected_accounts_config_tenant_fkey",
+      columns: [table.integrationConfigId, table.tenantId],
+      foreignColumns: [
+        tenantIntegrationConfigs.id,
+        tenantIntegrationConfigs.tenantId,
+      ],
+    }).onDelete("cascade"),
+    index("integration_connected_accounts_tenant_toolkit_status_idx").on(
+      table.tenantId,
+      table.toolkitSlug,
+      table.status,
+    ),
+    index("integration_connected_accounts_needs_action_idx").on(
+      table.tenantId,
+      table.statusChangedAt.desc(),
+    ),
   ],
 )
 
@@ -356,7 +388,9 @@ export const integrationOauthSessions = pgTable(
     connectedAccountId: uuid("connected_account_id"),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "restrict",
+      }),
     composioConnectedAccountId: text("composio_connected_account_id").notNull(),
     stateNonceSha256: bytea("state_nonce_sha256").notNull().unique(),
     ownerScope: text("owner_scope").notNull(),
@@ -367,8 +401,14 @@ export const integrationOauthSessions = pgTable(
     composioRedirectUrl: text("composio_redirect_url").notNull(),
     status: text("status").default("pending").notNull(),
     failureReason: text("failure_reason"),
-    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    expiresAt: timestamp("expires_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull(),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .defaultNow()
       .notNull(),
@@ -379,17 +419,22 @@ export const integrationOauthSessions = pgTable(
       table.tenantId,
     ),
     foreignKey({
-        name: "integration_oauth_sessions_config_tenant_fkey",
-        columns: [table.integrationConfigId, table.tenantId],
-        foreignColumns: [tenantIntegrationConfigs.id, tenantIntegrationConfigs.tenantId],
-      }).onDelete("cascade"),
+      name: "integration_oauth_sessions_config_tenant_fkey",
+      columns: [table.integrationConfigId, table.tenantId],
+      foreignColumns: [
+        tenantIntegrationConfigs.id,
+        tenantIntegrationConfigs.tenantId,
+      ],
+    }).onDelete("cascade"),
     foreignKey({
-        name: "integration_oauth_sessions_account_tenant_fkey",
-        columns: [table.connectedAccountId, table.tenantId],
-        foreignColumns: [integrationConnectedAccounts.id, integrationConnectedAccounts.tenantId],
-      }).onDelete("set null"),
-    index("integration_oauth_sessions_pending_expiry_idx")
-      .on(table.expiresAt),
+      name: "integration_oauth_sessions_account_tenant_fkey",
+      columns: [table.connectedAccountId, table.tenantId],
+      foreignColumns: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }).onDelete("set null"),
+    index("integration_oauth_sessions_pending_expiry_idx").on(table.expiresAt),
   ],
 )
 
@@ -403,14 +448,18 @@ export const tenantToolApprovalPolicies = pgTable(
       .references(() => organization.id, { onDelete: "cascade" }),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "cascade" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "cascade",
+      }),
     toolSlug: text("tool_slug")
       .notNull()
       .references(() => integrationCatalogTools.slug, { onDelete: "cascade" }),
     policyScope: text("policy_scope").default("organization").notNull(),
     userId: uuid("user_id").references(() => user.id, { onDelete: "cascade" }),
     approvalMode: text("approval_mode").notNull(),
-    maxAutoCallsPerTurn: smallint("max_auto_calls_per_turn").default(5).notNull(),
+    maxAutoCallsPerTurn: smallint("max_auto_calls_per_turn")
+      .default(5)
+      .notNull(),
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
@@ -427,10 +476,15 @@ export const tenantToolApprovalPolicies = pgTable(
       table.id,
       table.tenantId,
     ),
-    uniqueIndex("tenant_tool_approval_policies_org_unique_idx")
-      .on(table.tenantId, table.toolSlug),
-    uniqueIndex("tenant_tool_approval_policies_user_unique_idx")
-      .on(table.tenantId, table.userId, table.toolSlug),
+    uniqueIndex("tenant_tool_approval_policies_org_unique_idx").on(
+      table.tenantId,
+      table.toolSlug,
+    ),
+    uniqueIndex("tenant_tool_approval_policies_user_unique_idx").on(
+      table.tenantId,
+      table.userId,
+      table.toolSlug,
+    ),
   ],
 )
 
@@ -453,7 +507,9 @@ export const agentIntegrationToolExecutions = pgTable(
     callId: text("call_id").notNull(),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "restrict",
+      }),
     toolSlug: text("tool_slug")
       .notNull()
       .references(() => integrationCatalogTools.slug, { onDelete: "restrict" }),
@@ -471,7 +527,10 @@ export const agentIntegrationToolExecutions = pgTable(
     startedAt: timestamp("started_at", { withTimezone: true, mode: "date" })
       .defaultNow()
       .notNull(),
-    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+    completedAt: timestamp("completed_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
   },
   (table) => [
     uniqueIndex("uidx_agent_integration_tool_executions_id_tenant").on(
@@ -479,30 +538,33 @@ export const agentIntegrationToolExecutions = pgTable(
       table.tenantId,
     ),
     foreignKey({
-        name: "agent_integration_tool_executions_thread_tenant_fkey",
-        columns: [table.threadId, table.tenantId],
-        foreignColumns: [agentThreads.id, agentThreads.tenantId],
-      }).onDelete("cascade"),
+      name: "agent_integration_tool_executions_thread_tenant_fkey",
+      columns: [table.threadId, table.tenantId],
+      foreignColumns: [agentThreads.id, agentThreads.tenantId],
+    }).onDelete("cascade"),
     foreignKey({
-        name: "agent_integration_tool_executions_turn_tenant_fkey",
-        columns: [table.turnId, table.tenantId],
-        foreignColumns: [agentTurns.id, agentTurns.tenantId],
-      }).onDelete("cascade"),
+      name: "agent_integration_tool_executions_turn_tenant_fkey",
+      columns: [table.turnId, table.tenantId],
+      foreignColumns: [agentTurns.id, agentTurns.tenantId],
+    }).onDelete("cascade"),
     foreignKey({
-        name: "agent_integration_tool_executions_item_tenant_fkey",
-        columns: [table.toolCallItemId, table.tenantId],
-        foreignColumns: [agentItems.id, agentItems.tenantId],
-      }).onDelete("cascade"),
+      name: "agent_integration_tool_executions_item_tenant_fkey",
+      columns: [table.toolCallItemId, table.tenantId],
+      foreignColumns: [agentItems.id, agentItems.tenantId],
+    }).onDelete("cascade"),
     foreignKey({
-        name: "agent_integration_tool_executions_approval_item_tenant_fkey",
-        columns: [table.approvalItemId, table.tenantId],
-        foreignColumns: [agentItems.id, agentItems.tenantId],
-      }).onDelete("set null"),
+      name: "agent_integration_tool_executions_approval_item_tenant_fkey",
+      columns: [table.approvalItemId, table.tenantId],
+      foreignColumns: [agentItems.id, agentItems.tenantId],
+    }).onDelete("set null"),
     foreignKey({
-        name: "agent_integration_tool_executions_account_tenant_fkey",
-        columns: [table.connectedAccountId, table.tenantId],
-        foreignColumns: [integrationConnectedAccounts.id, integrationConnectedAccounts.tenantId],
-      }).onDelete("restrict"),
+      name: "agent_integration_tool_executions_account_tenant_fkey",
+      columns: [table.connectedAccountId, table.tenantId],
+      foreignColumns: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }).onDelete("restrict"),
     index("agent_integration_tool_executions_tenant_turn_idx").on(
       table.tenantId,
       table.turnId,
@@ -527,10 +589,14 @@ export const integrationTriggerSubscriptions = pgTable(
     connectedAccountId: uuid("connected_account_id").notNull(),
     toolkitSlug: text("toolkit_slug")
       .notNull()
-      .references(() => integrationCatalogToolkits.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogToolkits.slug, {
+        onDelete: "restrict",
+      }),
     triggerSlug: text("trigger_slug")
       .notNull()
-      .references(() => integrationCatalogTriggers.slug, { onDelete: "restrict" }),
+      .references(() => integrationCatalogTriggers.slug, {
+        onDelete: "restrict",
+      }),
     composioTriggerId: text("composio_trigger_id").notNull().unique(),
     triggerConfig: jsonb("trigger_config")
       .$type<Record<string, unknown>>()
@@ -541,7 +607,10 @@ export const integrationTriggerSubscriptions = pgTable(
     createdByUserId: uuid("created_by_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
-    lastEventAt: timestamp("last_event_at", { withTimezone: true, mode: "date" }),
+    lastEventAt: timestamp("last_event_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .defaultNow()
       .notNull(),
@@ -556,10 +625,13 @@ export const integrationTriggerSubscriptions = pgTable(
       table.tenantId,
     ),
     foreignKey({
-        name: "integration_trigger_subscriptions_account_tenant_fkey",
-        columns: [table.connectedAccountId, table.tenantId],
-        foreignColumns: [integrationConnectedAccounts.id, integrationConnectedAccounts.tenantId],
-      }).onDelete("cascade"),
+      name: "integration_trigger_subscriptions_account_tenant_fkey",
+      columns: [table.connectedAccountId, table.tenantId],
+      foreignColumns: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }).onDelete("cascade"),
     index("integration_trigger_subscriptions_tenant_status_idx").on(
       table.tenantId,
       table.status,

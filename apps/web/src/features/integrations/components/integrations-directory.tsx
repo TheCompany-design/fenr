@@ -1,4 +1,3 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Alert02Icon,
   CheckmarkBadge01Icon,
@@ -7,9 +6,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { parseAsString, useQueryState } from "nuqs"
-import { toast } from "sonner"
-
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
@@ -19,15 +16,16 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@workspace/ui/components/toggle-group"
-
-import {
-  integrationsCatalogQueryOptions,
-  toolkitConnectionState,
-} from "../api/integrations-queries"
+import { parseAsString, useQueryState } from "nuqs"
+import { toast } from "sonner"
 import {
   deleteConnectionFn,
   updateToolkitConfigFn,
 } from "../api/integrations.functions"
+import {
+  integrationsCatalogQueryOptions,
+  toolkitConnectionState,
+} from "../api/integrations-queries"
 import { useOauthConnectFlow } from "../hooks/use-oauth-connect-flow"
 import { IntegrationBrandLogo } from "./integration-brand-logo"
 import { RequestIntegrationDialog } from "./request-integration-dialog"
@@ -45,15 +43,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   automation: "Automation",
 }
 
-export function IntegrationsDirectory({
-  isAdmin,
-}: {
-  isAdmin: boolean
-}) {
-  const [tab, setTab] = useQueryState(
-    "tab",
-    parseAsString.withDefault("all"),
-  )
+export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
+  const [tab, setTab] = useQueryState("tab", parseAsString.withDefault("all"))
   const [kind] = useQueryState("kind", parseAsString.withDefault("all"))
   const [query, setQuery] = useQueryState("q", parseAsString)
   const [, setOpenApp] = useQueryState("app", parseAsString)
@@ -121,8 +112,8 @@ export function IntegrationsDirectory({
               Integrations
             </h1>
             <p className="text-sm text-muted-foreground">
-              Connect the tools your team already uses and work with them
-              right in the chat.
+              Connect the tools your team already uses and work with them right
+              in the chat.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -178,8 +169,7 @@ export function IntegrationsDirectory({
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {account.connected_assets_label ?? "1 account"} · Connected
-                    by{" "}
-                    {account.external_account_email ?? account.account_alias}
+                    by {account.external_account_email ?? account.account_alias}
                   </p>
                 </div>
                 <Button
@@ -189,8 +179,10 @@ export function IntegrationsDirectory({
                     event.stopPropagation()
                     void connect({
                       toolkitSlug: account.toolkit_slug,
-                      displayName:
-                        displayNameFor(account.toolkit_slug, catalog?.toolkits),
+                      displayName: displayNameFor(
+                        account.toolkit_slug,
+                        catalog?.toolkits,
+                      ),
                       surface: "sheet_configure",
                       reconnectAccountId: account.id,
                     })
@@ -261,8 +253,7 @@ export function IntegrationsDirectory({
                             {state === "available"
                               ? toolkit.tagline
                               : (toolkit.connections[0]
-                                  ?.connected_assets_label ??
-                                toolkit.tagline)}
+                                  ?.connected_assets_label ?? toolkit.tagline)}
                           </span>
                         </span>
                       </button>
@@ -358,5 +349,8 @@ function displayNameFor(
   toolkitSlug: string,
   toolkits: { slug: string; display_name: string }[] | undefined,
 ): string {
-  return toolkits?.find((toolkit) => toolkit.slug === toolkitSlug)?.display_name ?? toolkitSlug
+  return (
+    toolkits?.find((toolkit) => toolkit.slug === toolkitSlug)?.display_name ??
+    toolkitSlug
+  )
 }

@@ -166,7 +166,12 @@ export const initiateConnectionInputSchema = z.object({
     .regex(/^[a-zA-Z0-9/_?=&%.-]*$/)
     .optional(),
   initiateSurface: z
-    .enum(["integrations_page", "sheet_configure", "composer_mention", "turn_connection_gate"])
+    .enum([
+      "integrations_page",
+      "sheet_configure",
+      "composer_mention",
+      "turn_connection_gate",
+    ])
     .optional(),
   threadId: z.string().uuid().optional(),
   turnId: z.string().uuid().optional(),

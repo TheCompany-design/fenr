@@ -1,19 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshIcon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { toast } from "sonner"
-
-import { IntegrationBrandLogo } from "@/features/integrations/components/integration-brand-logo"
-import {
-  integrationsCatalogQueryOptions,
-  toolkitConnectionState,
-} from "@/features/integrations/api/integrations-queries"
-import { updateToolkitConfigFn } from "@/features/integrations/api/integrations.functions"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { Switch } from "@workspace/ui/components/switch"
+import { toast } from "sonner"
+import { updateToolkitConfigFn } from "@/features/integrations/api/integrations.functions"
+import {
+  integrationsCatalogQueryOptions,
+  toolkitConnectionState,
+} from "@/features/integrations/api/integrations-queries"
+import { IntegrationBrandLogo } from "@/features/integrations/components/integration-brand-logo"
 
 export const Route = createFileRoute("/_app/settings/integrations")({
   loader: async ({ context }) => {

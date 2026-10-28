@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router"
-
-import { IntegrationDetailSheet } from "@/features/integrations/components/sheet/integration-detail-sheet"
-import { IntegrationsDirectory } from "@/features/integrations/components/integrations-directory"
 import { integrationsCatalogQueryOptions } from "@/features/integrations/api/integrations-queries"
+import { IntegrationsDirectory } from "@/features/integrations/components/integrations-directory"
+import { IntegrationDetailSheet } from "@/features/integrations/components/sheet/integration-detail-sheet"
 
 export const Route = createFileRoute("/_app/integrations/")({
   loader: async ({ context }) => {

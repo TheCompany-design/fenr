@@ -1,6 +1,6 @@
 import { cn } from "@workspace/ui/lib/utils"
 
-const LOGO_BASE_URL = "https://logos.lndev.me/logos"
+import { logoUrl } from "@/lib/brand/logos"
 
 export interface IntegrationBrandLogoProps {
   slug: string
@@ -22,7 +22,7 @@ export function IntegrationBrandLogo({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`${LOGO_BASE_URL}/${slug}.svg`}
+      src={logoUrl(slug)}
       alt=""
       width={size}
       height={size}

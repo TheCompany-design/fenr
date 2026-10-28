@@ -5,11 +5,11 @@ import {
 } from "@/lib/schemas/dashboard"
 import {
   type CatalogResponse,
-  type InitiateConnectionResponse,
-  type ToolkitDetailResponse,
   catalogResponseSchema,
   connectionCallbackResponseSchema,
+  type InitiateConnectionResponse,
   initiateConnectionResponseSchema,
+  type ToolkitDetailResponse,
   toolkitDetailResponseSchema,
 } from "@/lib/schemas/integrations"
 import type { ProviderModelsResponse } from "@/lib/schemas/nabu"
@@ -397,10 +397,10 @@ export const nabuEndpoints = {
 
   updateToolkitConfig: defineAuthenticatedEndpoint<
     {
-      readonly toolkitSlug: string;
-      readonly enabled_for_agents: boolean;
-      readonly connection_sharing_mode?: string;
-      readonly workspace_approval_posture?: string;
+      readonly toolkitSlug: string
+      readonly enabled_for_agents: boolean
+      readonly connection_sharing_mode?: string
+      readonly workspace_approval_posture?: string
     },
     unknown
   >({
@@ -423,14 +423,14 @@ export const nabuEndpoints = {
 
   initiateConnection: defineAuthenticatedEndpoint<
     {
-      readonly toolkit_slug: string;
-      readonly owner_scope?: string;
-      readonly account_alias?: string;
-      readonly return_to_path?: string;
-      readonly initiate_surface?: string;
-      readonly callback_url: string;
-      readonly thread_id?: string;
-      readonly turn_id?: string;
+      readonly toolkit_slug: string
+      readonly owner_scope?: string
+      readonly account_alias?: string
+      readonly return_to_path?: string
+      readonly initiate_surface?: string
+      readonly callback_url: string
+      readonly thread_id?: string
+      readonly turn_id?: string
     },
     InitiateConnectionResponse
   >({
@@ -448,8 +448,8 @@ export const nabuEndpoints = {
 
   completeConnectionCallback: defineAuthenticatedEndpoint<
     {
-      readonly session_id: string;
-      readonly state_nonce: string;
+      readonly session_id: string
+      readonly state_nonce: string
     },
     { readonly status: string; readonly return_to_path: string }
   >({
@@ -483,10 +483,10 @@ export const nabuEndpoints = {
 
   patchConnection: defineAuthenticatedEndpoint<
     {
-      readonly account_id: string;
-      readonly account_alias?: string;
-      readonly is_default?: boolean;
-      readonly status?: string;
+      readonly account_id: string
+      readonly account_alias?: string
+      readonly is_default?: boolean
+      readonly status?: string
     },
     unknown
   >({
@@ -522,9 +522,9 @@ export const nabuEndpoints = {
 
   putToolPolicy: defineAuthenticatedEndpoint<
     {
-      readonly tool_slug: string;
-      readonly approval_mode: string;
-      readonly max_auto_calls_per_turn?: number;
+      readonly tool_slug: string
+      readonly approval_mode: string
+      readonly max_auto_calls_per_turn?: number
     },
     unknown
   >({
@@ -544,10 +544,10 @@ export const nabuEndpoints = {
 
   createIntegrationRequest: defineAuthenticatedEndpoint<
     {
-      readonly requested_app_name: string;
-      readonly requested_app_url?: string;
-      readonly use_case_description: string;
-      readonly priority?: string;
+      readonly requested_app_name: string
+      readonly requested_app_url?: string
+      readonly use_case_description: string
+      readonly priority?: string
     },
     unknown
   >({
@@ -562,7 +562,6 @@ export const nabuEndpoints = {
     description: "Submit a request for a new app integration.",
   }),
 } as const
-
 
 /**
  * Demo / Third-party Endpoints.

@@ -4,8 +4,8 @@ import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../index"
 import {
   agentApprovals,
-  agentItems,
   agentIntegrationToolExecutions,
+  agentItems,
   agentModelCalls,
   agentThreads,
   agentToolIntents,

@@ -1,7 +1,6 @@
-import { useEffect } from "react"
-
-import { completeConnectionCallbackFn } from "@/features/integrations/api/integrations.functions"
 import { createFileRoute } from "@tanstack/react-router"
+import { useEffect } from "react"
+import { completeConnectionCallbackFn } from "@/features/integrations/api/integrations.functions"
 
 const STORAGE_KEY = "fenr.oauth.pending-session"
 

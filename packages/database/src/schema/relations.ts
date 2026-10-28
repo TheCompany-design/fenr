@@ -257,20 +257,35 @@ export const agentIntegrationToolExecutionsRelations = relations(
       references: [organization.id],
     }),
     thread: one(agentThreads, {
-      fields: [agentIntegrationToolExecutions.threadId, agentIntegrationToolExecutions.tenantId],
+      fields: [
+        agentIntegrationToolExecutions.threadId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
       references: [agentThreads.id, agentThreads.tenantId],
     }),
     turn: one(agentTurns, {
-      fields: [agentIntegrationToolExecutions.turnId, agentIntegrationToolExecutions.tenantId],
+      fields: [
+        agentIntegrationToolExecutions.turnId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
       references: [agentTurns.id, agentTurns.tenantId],
     }),
     toolCallItem: one(agentItems, {
-      fields: [agentIntegrationToolExecutions.toolCallItemId, agentIntegrationToolExecutions.tenantId],
+      fields: [
+        agentIntegrationToolExecutions.toolCallItemId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
       references: [agentItems.id, agentItems.tenantId],
     }),
     connectedAccount: one(integrationConnectedAccounts, {
-      fields: [agentIntegrationToolExecutions.connectedAccountId, agentIntegrationToolExecutions.tenantId],
-      references: [integrationConnectedAccounts.id, integrationConnectedAccounts.tenantId],
+      fields: [
+        agentIntegrationToolExecutions.connectedAccountId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
+      references: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
     }),
   }),
 )
@@ -279,8 +294,14 @@ export const integrationTriggerSubscriptionsRelations = relations(
   integrationTriggerSubscriptions,
   ({ one }) => ({
     connectedAccount: one(integrationConnectedAccounts, {
-      fields: [integrationTriggerSubscriptions.connectedAccountId, integrationTriggerSubscriptions.tenantId],
-      references: [integrationConnectedAccounts.id, integrationConnectedAccounts.tenantId],
+      fields: [
+        integrationTriggerSubscriptions.connectedAccountId,
+        integrationTriggerSubscriptions.tenantId,
+      ],
+      references: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
     }),
     toolkit: one(integrationCatalogToolkits, {
       fields: [integrationTriggerSubscriptions.toolkitSlug],
