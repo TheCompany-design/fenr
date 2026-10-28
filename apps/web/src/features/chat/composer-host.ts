@@ -10,8 +10,13 @@ import {
   revokeAttachments,
   setCredentialStore,
   setProvidersSource,
+  setReferenceableItems,
   usePromptStore,
 } from "@/components/composer"
+import {
+  integrationsCatalogQueryOptions,
+  toolkitConnectionState,
+} from "@/features/integrations/api/integrations-queries"
 import { getNabuCapabilitiesFn } from "@/features/nabu/nabu.functions"
 import { tenantProvidersQueryOptions } from "@/features/nabu/queries"
 import {
@@ -83,6 +88,7 @@ export interface ComposerBridgeOptions {
     prompt: string,
     threadId?: string | null,
     options?: {
+      readonly pinnedToolkits?: string[]
       readonly providerConfigId?: string | null
       readonly modelId?: string | null
 
@@ -116,6 +122,24 @@ export function useComposerBridge(
     stop: stopTurn,
     onTurnStarted,
   } = options
+
+  const integrationsCatalog = useQuery(integrationsCatalogQueryOptions())
+  useEffect(() => {
+    const toolkits = integrationsCatalog.data?.toolkits ?? []
+    setReferenceableItems(
+      toolkits.slice(0, 12).map((toolkit) => ({
+        id: `integration:${toolkit.slug}`,
+        label: toolkit.display_name,
+        hint: toolkit.composer_action_hint,
+        insertText: `@${toolkit.display_name}`,
+        toolkitSlug: toolkit.slug,
+        connectionBadge:
+          toolkitConnectionState(toolkit) === "available"
+            ? ("not connected" as const)
+            : ("connected" as const),
+      })),
+    )
+  }, [integrationsCatalog.data])
 
   const seedRef = useRef<{
     promptTokens: number
@@ -179,6 +203,7 @@ export function useComposerBridge(
           const prompt = await flattenPrompt(payload.text, payload.attachments)
           revokeAttachments(payload.attachments)
           await sendTurn(prompt, threadIdRef.current, {
+            pinnedToolkits: payload.pinnedToolkits,
             providerConfigId: payload.providerId,
             modelId: payload.modelId,
             effort: payload.effort,

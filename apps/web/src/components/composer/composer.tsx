@@ -128,11 +128,18 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
         addMentions([
           {
             id: committed.item.id,
-            kind: item.id.startsWith("ref:") ? "file" : "file",
+            kind: item.id.startsWith("integration:")
+              ? "app"
+              : item.id.startsWith("ref:")
+                ? "file"
+                : "file",
             label: item.label,
             insertText: item.insertText,
             start: committed.start,
             end: committed.end,
+            toolkitSlug: item.id.startsWith("integration:")
+              ? item.id.slice("integration:".length)
+              : undefined,
           },
         ])
       }

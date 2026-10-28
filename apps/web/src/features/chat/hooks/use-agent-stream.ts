@@ -18,6 +18,9 @@ import type { ChatMessage } from "../types"
 export interface SendOptions {
   readonly onTurnStarted?: (threadId: string) => void | Promise<void>
 
+  /** Composio toolkit slugs the turn pins via `@app` mentions. */
+  readonly pinnedToolkits?: string[]
+
   readonly providerConfigId?: string | null
 
   readonly modelId?: string | null
@@ -218,6 +221,13 @@ export function useAgentStream(): UseAgentStreamReturn {
             provider_config_id: options?.providerConfigId ?? undefined,
             model: options?.modelId ?? undefined,
             effort: options?.effort ?? undefined,
+            integrations:
+              options?.pinnedToolkits && options.pinnedToolkits.length > 0
+                ? {
+                    pinned_toolkits: options.pinnedToolkits,
+                    allow_workspace_discovery: false,
+                  }
+                : undefined,
           }),
           signal: abortController.signal,
         })

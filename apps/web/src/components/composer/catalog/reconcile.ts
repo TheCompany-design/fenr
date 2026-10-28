@@ -19,12 +19,15 @@ const TOOL_KINDS: readonly ToolKind[] = [
 
 export type Mention = {
   id: string
-  kind: "file" | "folder" | "url" | "agent"
+  kind: "file" | "folder" | "url" | "agent" | "app"
   label: string
 
   insertText: string
   start: number
   end: number
+
+  /** Set when `kind` is `app`: the Composio toolkit the mention pins. */
+  toolkitSlug?: string
 }
 
 export type Selection = {

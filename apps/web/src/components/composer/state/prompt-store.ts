@@ -456,6 +456,15 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
 
       state.transport.send({
         text: state.text.trim(),
+        pinnedToolkits: [
+          ...new Set(
+            state.mentions
+              .filter(
+                (mention) => mention.kind === "app" && mention.toolkitSlug,
+              )
+              .map((mention) => mention.toolkitSlug as string),
+          ),
+        ],
         providerId: state.selection.providerId,
         modelId: state.selection.modelId,
         availabilityEpoch: runtimeOf(state.runtime, state.selection.providerId)
@@ -1044,6 +1053,8 @@ export type ComposerTransport = {
 
 export type SendPayload = {
   text: string
+  /** Composio toolkit slugs the turn pins via `@app` mentions. */
+  pinnedToolkits: string[]
   providerId: string
   modelId: string
   availabilityEpoch: number

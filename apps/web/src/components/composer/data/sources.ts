@@ -1,3 +1,4 @@
+import * as React from "react"
 import type { SuggestionItem, TriggerSource } from "../primitives/suggestion"
 import { usePromptStore } from "../state/prompt-store"
 
@@ -112,6 +113,10 @@ export type ReferenceableItem = {
   hint?: string
   insertText: string
   icon?: React.ReactNode
+  /** Composio toolkit slug: marks the item as an app integration. */
+  toolkitSlug?: string
+  /** Live connection status rendered as a pill in the `@` menu. */
+  connectionBadge?: "connected" | "not connected"
 }
 
 let extraReferences: ReferenceableItem[] = []
@@ -131,7 +136,26 @@ export function referenceItems(): SuggestionItem[] {
       hint: formatBytes(attachment.size),
     }),
   )
-  return [...fromAttachments, ...extraReferences]
+  const fromIntegrations: SuggestionItem[] = extraReferences
+    .filter((item) => item.toolkitSlug)
+    .map((item) => ({
+      id: `integration:${item.toolkitSlug}`,
+      insertText: item.insertText,
+      label: item.label,
+      hint: item.hint,
+      icon: item.icon,
+      trailing: item.connectionBadge
+        ? React.createElement(
+            "span",
+            {
+              className:
+                "inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground",
+            },
+            item.connectionBadge,
+          )
+        : undefined,
+    }))
+  return [...fromAttachments, ...fromIntegrations]
 }
 
 export function referenceSource(): TriggerSource {
