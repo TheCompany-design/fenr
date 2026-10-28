@@ -343,6 +343,9 @@ export function useAgentStream(): UseAgentStreamReturn {
                   // cancelled turn look like a hung request.
                   setIsStreaming(false)
                   void queryClient.invalidateQueries({
+                    queryKey: chatKeys.threads(),
+                  })
+                  void queryClient.invalidateQueries({
                     queryKey: chatKeys.thread(event.data.thread_id),
                   })
                   void queryClient.invalidateQueries({
