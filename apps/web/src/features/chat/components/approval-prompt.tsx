@@ -4,9 +4,13 @@ import {
   Loading03Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@workspace/ui/components/button"
 import { toast } from "sonner"
+import {
+  getApprovalToolFn,
+  putToolPolicyFn,
+} from "@/features/integrations/api/integrations.functions"
 import { decideApprovalFn } from "@/features/nabu"
 import type { ApprovalDecision } from "@/lib/schemas/agent-stream"
 import { chatKeys } from "../queries/chat-queries"
@@ -25,6 +29,39 @@ export function ApprovalPrompt({
   attempt,
 }: ApprovalPromptProps) {
   const queryClient = useQueryClient()
+
+  // A composio approval carries the tool it gates; that is what "always
+  // allow" writes a workspace policy for.
+  const approvalTool = useQuery({
+    queryKey: ["approval-tool", itemId],
+    queryFn: () => getApprovalToolFn({ data: { itemId } }),
+    staleTime: Number.POSITIVE_INFINITY,
+  })
+
+  const alwaysAllow = useMutation({
+    mutationFn: async (toolSlug: string) => {
+      await putToolPolicyFn({
+        data: { toolSlug, approvalMode: "auto_approve" },
+      })
+      await decideApprovalFn({
+        data: { turnId, itemId, decision: "approved" as const },
+      })
+    },
+    onSuccess: () => {
+      toast.success("Decision recorded", {
+        description:
+          "This action is now auto-approved for the whole workspace. Admins can change it under Integrations.",
+      })
+    },
+    onError: (error: unknown) => {
+      toast.error("The workspace rule was not saved", {
+        description:
+          error instanceof Error
+            ? error.message
+            : "The runtime did not accept the decision.",
+      })
+    },
+  })
 
   const decide = useMutation({
     mutationFn: (decision: ApprovalDecision) =>
@@ -97,7 +134,22 @@ export function ApprovalPrompt({
         >
           Deny
         </Button>
-        {decide.isPending ? (
+        {approvalTool.data?.toolSlug && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={
+              alwaysAllow.isPending || approvalTool.data.toolSlug === undefined
+            }
+            onClick={() =>
+              alwaysAllow.mutate(approvalTool.data?.toolSlug as string)
+            }
+          >
+            Always allow this action
+          </Button>
+        )}
+        {decide.isPending || alwaysAllow.isPending ? (
           <span className="text-[11px] text-muted-foreground">
             Recording your decision...
           </span>

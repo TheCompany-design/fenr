@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
+import { and, db, eq, schema } from "@workspace/database"
 import { z } from "zod"
 
 import { ensureSession } from "@/lib/auth/session"
@@ -193,10 +194,13 @@ export const reconnectConnectionFn = createServerFn({ method: "POST" })
         })
         return executeRequest(nabuEndpoints.reconnectConnection, {
           requestId,
-          input: { account_id: data.accountId, callback_url: oauthCallbackUrl() },
+          input: {
+            account_id: data.accountId,
+            callback_url: oauthCallbackUrl(),
+          },
         })
       },
-  )
+    )
   })
 
 export const patchConnectionFn = createServerFn({ method: "POST" })
@@ -293,6 +297,56 @@ export const requestIntegrationFn = createServerFn({ method: "POST" })
             priority: data.priority,
           },
         })
+      },
+    )
+  })
+
+/**
+ * Reads the composio tool slug behind an approval request item, so the chat
+ * surface can offer "always allow" for exactly that action. `null` when the
+ * item is not a composio approval.
+ */
+export const getApprovalToolFn = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ itemId: z.string().uuid() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "integrations",
+      "getApprovalTool",
+      async (setContext) => {
+        const session = await requireSession()
+        const organizationId = session.session.activeOrganizationId
+        if (!organizationId) {
+          throw new Error("No active workspace is selected")
+        }
+        setContext({
+          userId: session.user.id,
+          organizationId,
+          itemId: data.itemId,
+        })
+
+        const rows = await db
+          .select({ payload: schema.agentItems.payload })
+          .from(schema.agentItems)
+          .where(
+            and(
+              eq(schema.agentItems.id, data.itemId),
+              eq(schema.agentItems.tenantId, organizationId),
+            ),
+          )
+
+        const payload = rows[0]?.payload as
+          | { kind?: string; tool?: string }
+          | undefined
+        if (payload?.kind !== "approval_request") {
+          return null
+        }
+        const tool = typeof payload.tool === "string" ? payload.tool : null
+        if (!tool?.startsWith("composio-")) {
+          return null
+        }
+        return { toolSlug: tool.slice("composio-".length).toUpperCase() }
       },
     )
   })
