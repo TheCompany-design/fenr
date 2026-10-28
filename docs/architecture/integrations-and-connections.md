@@ -1,6 +1,6 @@
 # Tools, Connections & Integrations Architecture (`fenr`)
 
-> **Status:** Research & Architecture Specification (Pre-Implementation Plan)
+> **Status:** Implemented (schema mirrors in `packages/database`, surface in `apps/web/src/features/integrations` and `routes/_app/integrations`)
 > **Scope:** `@workspace/database`, `apps/web` (`/integrations`, `/settings/integrations`, App Detail `<Sheet />`, Prompt Composer `@`/`+` App Mentions, Chat Turn HITL Approvals)
 > **Companion Backend Specification:** `thebookofnabu/docs/tools/composio-integrations/README.md`
 
