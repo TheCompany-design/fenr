@@ -24,4 +24,13 @@ export interface ChatThread {
   readonly updatedAt: string
 }
 
+export interface ChatThreadSummary {
+  readonly id: string
+  readonly title?: string | null
+  readonly model?: string | null
+  readonly effort?: string | null
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
 export type { ActiveTurnProjection }

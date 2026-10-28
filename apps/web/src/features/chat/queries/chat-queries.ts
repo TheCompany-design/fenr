@@ -1,7 +1,11 @@
 import { queryOptions } from "@tanstack/react-query"
 import type { ThreadUsageResponse } from "@/lib/schemas/nabu"
-import { getThreadMessagesFn, getThreadUsageFn } from "../chat.functions"
-import type { ChatMessage } from "../types"
+import {
+  getChatThreadsFn,
+  getThreadMessagesFn,
+  getThreadUsageFn,
+} from "../chat.functions"
+import type { ChatMessage, ChatThreadSummary } from "../types"
 
 export const chatKeys = {
   all: ["chat"] as const,
@@ -37,6 +41,16 @@ export function threadUsageQueryOptions(threadId?: string | null) {
       return getThreadUsageFn({ data: { threadId } })
     },
     enabled: Boolean(threadId),
+    staleTime: 10_000,
+  })
+}
+
+export function chatThreadsQueryOptions(limit?: number) {
+  return queryOptions<ChatThreadSummary[]>({
+    queryKey: chatKeys.threads(),
+    queryFn: async () => {
+      return getChatThreadsFn({ data: limit ? { limit } : undefined })
+    },
     staleTime: 10_000,
   })
 }

@@ -3,7 +3,12 @@ import { z } from "zod"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
 import { getThreadUsage } from "../nabu/nabu.server"
-import { getThreadChoice, getThreadMessages } from "./server/chat.server"
+import {
+  deleteChatThread,
+  getChatThreads,
+  getThreadChoice,
+  getThreadMessages,
+} from "./server/chat.server"
 
 const getThreadMessagesInputSchema = z.object({
   threadId: z.string().uuid(),
@@ -81,5 +86,56 @@ export const getThreadUsageFn = createServerFn({ method: "GET" })
       })
 
       return getThreadUsage({ threadId: data.threadId })
+    })
+  })
+
+const getChatThreadsInputSchema = z
+  .object({
+    limit: z.number().int().min(1).max(100).optional(),
+  })
+  .optional()
+
+export const getChatThreadsFn = createServerFn({ method: "GET" })
+  .validator((input: unknown) => getChatThreadsInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    return withWideEvent("chat", "getChatThreads", async (setContext) => {
+      const session = await ensureSession()
+      const tenantId = session.session.activeOrganizationId
+
+      if (!tenantId) {
+        throw new Error("Active organization context is required")
+      }
+
+      setContext({
+        userId: session.user.id,
+        organizationId: tenantId,
+      })
+
+      return getChatThreads(tenantId, data?.limit)
+    })
+  })
+
+const deleteChatThreadInputSchema = z.object({
+  threadId: z.string().uuid(),
+})
+
+export const deleteChatThreadFn = createServerFn({ method: "POST" })
+  .validator((input: unknown) => deleteChatThreadInputSchema.parse(input))
+  .handler(async ({ data }) => {
+    return withWideEvent("chat", "deleteChatThread", async (setContext) => {
+      const session = await ensureSession()
+      const tenantId = session.session.activeOrganizationId
+
+      if (!tenantId) {
+        throw new Error("Active organization context is required")
+      }
+
+      setContext({
+        userId: session.user.id,
+        organizationId: tenantId,
+        threadId: data.threadId,
+      })
+
+      return deleteChatThread(data.threadId, tenantId)
     })
   })

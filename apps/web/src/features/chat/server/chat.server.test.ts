@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test"
 import { db, eq, schema } from "@workspace/database"
 import {
+  deleteChatThread,
+  getChatThreads,
   getThreadChoice,
   getThreadMessages,
   lastAgentMessageByTurn,
@@ -254,6 +256,131 @@ describe("transcript order", () => {
           .delete(schema.organization)
           .where(eq(schema.organization.id, tenantId))
       })
+    }
+  })
+})
+
+describe("getChatThreads and deleteChatThread", () => {
+  it("lists threads ordered by updatedAt desc and scoped strictly to tenant", async () => {
+    const tenantA = crypto.randomUUID()
+    const tenantB = crypto.randomUUID()
+    const threadA1 = crypto.randomUUID()
+    const threadA2 = crypto.randomUUID()
+    const threadB = crypto.randomUUID()
+
+    await seedOrganization(tenantA)
+    await seedOrganization(tenantB)
+
+    const t1 = new Date(Date.now() - 60_000)
+    const t2 = new Date(Date.now())
+
+    try {
+      await db.insert(schema.agentThreads).values([
+        {
+          id: threadA1,
+          tenantId: tenantA,
+          title: "First conversation",
+          model: "openai/gpt-5.2",
+          effort: "low",
+          createdAt: t1,
+          updatedAt: t1,
+        },
+        {
+          id: threadA2,
+          tenantId: tenantA,
+          title: "Second conversation",
+          model: "anthropic/claude-3-7-sonnet",
+          effort: "high",
+          createdAt: t2,
+          updatedAt: t2,
+        },
+        {
+          id: threadB,
+          tenantId: tenantB,
+          title: "Other tenant conversation",
+          model: "google/gemini-2.5-flash",
+          createdAt: t2,
+          updatedAt: t2,
+        },
+      ])
+
+      const threadsA = await getChatThreads(tenantA)
+      expect(threadsA).toHaveLength(2)
+      // Most recently updated first
+      expect(threadsA[0]?.id).toBe(threadA2)
+      expect(threadsA[0]?.title).toBe("Second conversation")
+      expect(threadsA[0]?.model).toBe("anthropic/claude-3-7-sonnet")
+      expect(threadsA[1]?.id).toBe(threadA1)
+      expect(threadsA[1]?.title).toBe("First conversation")
+
+      // Limit works
+      const limited = await getChatThreads(tenantA, 1)
+      expect(limited).toHaveLength(1)
+      expect(limited[0]?.id).toBe(threadA2)
+
+      // Tenant B sees only its own
+      const threadsB = await getChatThreads(tenantB)
+      expect(threadsB).toHaveLength(1)
+      expect(threadsB[0]?.id).toBe(threadB)
+    } finally {
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantA))
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantB))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantB))
+    }
+  })
+
+  it("deletes a thread within tenant bounds and prevents cross-tenant deletion", async () => {
+    const tenantA = crypto.randomUUID()
+    const tenantB = crypto.randomUUID()
+    const threadA = crypto.randomUUID()
+
+    await seedOrganization(tenantA)
+    await seedOrganization(tenantB)
+
+    try {
+      await db.insert(schema.agentThreads).values({
+        id: threadA,
+        tenantId: tenantA,
+        title: "Thread to delete",
+      })
+
+      // Tenant B attempting to delete Tenant A's thread fails safely
+      const deletedByB = await deleteChatThread(threadA, tenantB)
+      expect(deletedByB).toBe(false)
+
+      // Verify thread is still intact
+      const threadsBefore = await getChatThreads(tenantA)
+      expect(threadsBefore).toHaveLength(1)
+
+      // Tenant A deleting their own thread succeeds
+      const deletedByA = await deleteChatThread(threadA, tenantA)
+      expect(deletedByA).toBe(true)
+
+      // Verify thread is gone
+      const threadsAfter = await getChatThreads(tenantA)
+      expect(threadsAfter).toHaveLength(0)
+
+      // Deleting again returns false
+      expect(await deleteChatThread(threadA, tenantA)).toBe(false)
+    } finally {
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantB))
     }
   })
 })

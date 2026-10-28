@@ -1,7 +1,7 @@
-import { and, asc, db, eq, isNotNull, schema } from "@workspace/database"
+import { and, asc, db, desc, eq, isNotNull, schema } from "@workspace/database"
 import { moduleLogger } from "@/lib/logger"
 import type { ModelCallProjection } from "../state/stream-reducer"
-import type { ChatMessage } from "../types"
+import type { ChatMessage, ChatThreadSummary } from "../types"
 
 const log = moduleLogger("chat.server")
 
@@ -201,4 +201,51 @@ export async function getThreadChoice(
         effort: thread.effort,
       }
     : null
+}
+
+export async function getChatThreads(
+  tenantId: string,
+  limit = 50,
+): Promise<ChatThreadSummary[]> {
+  log.debug({ tenantId, limit }, "Fetching chat threads for tenant")
+  const threads = await db
+    .select({
+      id: schema.agentThreads.id,
+      title: schema.agentThreads.title,
+      model: schema.agentThreads.model,
+      effort: schema.agentThreads.effort,
+      createdAt: schema.agentThreads.createdAt,
+      updatedAt: schema.agentThreads.updatedAt,
+    })
+    .from(schema.agentThreads)
+    .where(eq(schema.agentThreads.tenantId, tenantId))
+    .orderBy(desc(schema.agentThreads.updatedAt))
+    .limit(limit)
+
+  return threads.map((thread) => ({
+    id: thread.id,
+    title: thread.title,
+    model: thread.model,
+    effort: thread.effort,
+    createdAt: thread.createdAt.toISOString(),
+    updatedAt: thread.updatedAt.toISOString(),
+  }))
+}
+
+export async function deleteChatThread(
+  threadId: string,
+  tenantId: string,
+): Promise<boolean> {
+  log.info({ threadId, tenantId }, "Deleting chat thread")
+  const deleted = await db
+    .delete(schema.agentThreads)
+    .where(
+      and(
+        eq(schema.agentThreads.id, threadId),
+        eq(schema.agentThreads.tenantId, tenantId),
+      ),
+    )
+    .returning({ id: schema.agentThreads.id })
+
+  return deleted.length > 0
 }
