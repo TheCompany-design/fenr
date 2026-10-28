@@ -3,6 +3,15 @@ import {
   type DashboardPost,
   dashboardPostsSchema,
 } from "@/lib/schemas/dashboard"
+import {
+  type CatalogResponse,
+  type InitiateConnectionResponse,
+  type ToolkitDetailResponse,
+  catalogResponseSchema,
+  connectionCallbackResponseSchema,
+  initiateConnectionResponseSchema,
+  toolkitDetailResponseSchema,
+} from "@/lib/schemas/integrations"
 import type { ProviderModelsResponse } from "@/lib/schemas/nabu"
 import {
   approvalDecisionInputSchema,
@@ -355,7 +364,205 @@ export const nabuEndpoints = {
     description:
       "Aggregate workspace model usage, daily spend trends, and actor attribution.",
   }),
+
+  // -------------------------------------------------------------------------
+  // Integrations (Composio): catalog, connections, policies, requests.
+  // -------------------------------------------------------------------------
+
+  integrationsCatalog: defineAuthenticatedEndpoint<void, CatalogResponse>({
+    id: "nabu.integrations-catalog",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: "/api/v1/integrations/catalog",
+    responseSchema: catalogResponseSchema,
+    timeoutMs: 15_000,
+    description:
+      "List the curated integration catalog merged with this workspace's installs, connections, and needs-action items.",
+  }),
+
+  integrationsToolkitDetail: defineAuthenticatedEndpoint<
+    { readonly toolkitSlug: string },
+    ToolkitDetailResponse
+  >({
+    id: "nabu.integrations-toolkit-detail",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "GET",
+    path: (input) => `/api/v1/integrations/catalog/${input.toolkitSlug}`,
+    responseSchema: toolkitDetailResponseSchema,
+    timeoutMs: 15_000,
+    description: "Read one toolkit's detail for the integrations sheet.",
+  }),
+
+  updateToolkitConfig: defineAuthenticatedEndpoint<
+    {
+      readonly toolkitSlug: string;
+      readonly enabled_for_agents: boolean;
+      readonly connection_sharing_mode?: string;
+      readonly workspace_approval_posture?: string;
+    },
+    unknown
+  >({
+    id: "nabu.integrations-update-toolkit-config",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "PUT",
+    path: (input) =>
+      `/api/v1/integrations/toolkits/${input.toolkitSlug}/config`,
+    body: (input) => ({
+      enabled_for_agents: input.enabled_for_agents,
+      connection_sharing_mode: input.connection_sharing_mode,
+      workspace_approval_posture: input.workspace_approval_posture,
+    }),
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 30_000,
+    description:
+      "Install a toolkit into the workspace or update its governance toggles.",
+  }),
+
+  initiateConnection: defineAuthenticatedEndpoint<
+    {
+      readonly toolkit_slug: string;
+      readonly owner_scope?: string;
+      readonly account_alias?: string;
+      readonly return_to_path?: string;
+      readonly initiate_surface?: string;
+      readonly callback_url: string;
+      readonly thread_id?: string;
+      readonly turn_id?: string;
+    },
+    InitiateConnectionResponse
+  >({
+    id: "nabu.integrations-initiate-connection",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: "/api/v1/integrations/connections/initiate",
+    body: (input) => input,
+    responseSchema: initiateConnectionResponseSchema,
+    timeoutMs: 30_000,
+    description:
+      "Start an OAuth connection: provisions the upstream auth config and returns the hosted connect link.",
+  }),
+
+  completeConnectionCallback: defineAuthenticatedEndpoint<
+    {
+      readonly session_id: string;
+      readonly state_nonce: string;
+    },
+    { readonly status: string; readonly return_to_path: string }
+  >({
+    id: "nabu.integrations-connection-callback",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: "/api/v1/integrations/connections/callback",
+    body: (input) => input,
+    responseSchema: connectionCallbackResponseSchema,
+    timeoutMs: 30_000,
+    description:
+      "Verify an OAuth callback's nonce, confirm the upstream account is active, and activate the connection.",
+  }),
+
+  reconnectConnection: defineAuthenticatedEndpoint<
+    { readonly account_id: string; readonly callback_url: string },
+    InitiateConnectionResponse
+  >({
+    id: "nabu.integrations-reconnect-connection",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: (input) =>
+      `/api/v1/integrations/connections/${input.account_id}/reconnect`,
+    body: (input) => ({ callback_url: input.callback_url }),
+    responseSchema: initiateConnectionResponseSchema,
+    timeoutMs: 30_000,
+    description: "Start a fresh connect link for a broken connection.",
+  }),
+
+  patchConnection: defineAuthenticatedEndpoint<
+    {
+      readonly account_id: string;
+      readonly account_alias?: string;
+      readonly is_default?: boolean;
+      readonly status?: string;
+    },
+    unknown
+  >({
+    id: "nabu.integrations-patch-connection",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "PATCH",
+    path: (input) => `/api/v1/integrations/connections/${input.account_id}`,
+    body: (input) => ({
+      account_alias: input.account_alias,
+      is_default: input.is_default,
+      status: input.status,
+    }),
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 15_000,
+    description: "Rename, re-default, or pause a connected account.",
+  }),
+
+  deleteConnection: defineAuthenticatedEndpoint<
+    { readonly account_id: string },
+    unknown
+  >({
+    id: "nabu.integrations-delete-connection",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "DELETE",
+    path: (input) => `/api/v1/integrations/connections/${input.account_id}`,
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 30_000,
+    description:
+      "Revoke a connected account upstream and mark it revoked locally.",
+  }),
+
+  putToolPolicy: defineAuthenticatedEndpoint<
+    {
+      readonly tool_slug: string;
+      readonly approval_mode: string;
+      readonly max_auto_calls_per_turn?: number;
+    },
+    unknown
+  >({
+    id: "nabu.integrations-put-tool-policy",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "PUT",
+    path: (input) => `/api/v1/integrations/policies/${input.tool_slug}`,
+    body: (input) => ({
+      approval_mode: input.approval_mode,
+      max_auto_calls_per_turn: input.max_auto_calls_per_turn,
+    }),
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 15_000,
+    description: "Upsert the workspace's approval rule for one action.",
+  }),
+
+  createIntegrationRequest: defineAuthenticatedEndpoint<
+    {
+      readonly requested_app_name: string;
+      readonly requested_app_url?: string;
+      readonly use_case_description: string;
+      readonly priority?: string;
+    },
+    unknown
+  >({
+    id: "nabu.integrations-create-request",
+    service: SERVICES.NABU,
+    audience: "nabu",
+    method: "POST",
+    path: "/api/v1/integrations/requests",
+    body: (input) => input,
+    responseSchema: emptyResponseSchema,
+    timeoutMs: 15_000,
+    description: "Submit a request for a new app integration.",
+  }),
 } as const
+
 
 /**
  * Demo / Third-party Endpoints.
