@@ -125,7 +125,11 @@ export function useComposerBridge(
 
   const integrationsCatalog = useQuery(integrationsCatalogQueryOptions())
   useEffect(() => {
-    const toolkits = integrationsCatalog.data?.toolkits ?? []
+    const catalogData =
+      integrationsCatalog.data && !("unavailable" in integrationsCatalog.data)
+        ? integrationsCatalog.data
+        : null
+    const toolkits = catalogData?.toolkits ?? []
     setReferenceableItems(
       toolkits.slice(0, 12).map((toolkit) => ({
         id: `integration:${toolkit.slug}`,

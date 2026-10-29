@@ -80,6 +80,18 @@ export const catalogResponseSchema = z.object({
 
 export type CatalogResponse = z.infer<typeof catalogResponseSchema>
 
+/**
+ * What reading the catalog yields. A deployment without the Composio gateway
+ * answers 501 and an unreachable runtime answers 503; both are normal
+ * operating states for the page, not crashes, so the BFF reports them as data.
+ */
+export type IntegrationsCatalogResult =
+  | CatalogResponse
+  | {
+      readonly unavailable: true
+      readonly reason: "not_configured" | "unreachable"
+    }
+
 export const catalogToolViewSchema = z.object({
   slug: z.string(),
   display_name: z.string(),

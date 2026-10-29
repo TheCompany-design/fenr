@@ -30,7 +30,8 @@ function SettingsIntegrationsPage() {
     context.activeOrganization?.role === "owner" ||
     context.activeOrganization?.role === "admin"
 
-  const installed = (catalog?.toolkits ?? []).filter(
+  const catalogData = catalog && !("unavailable" in catalog) ? catalog : null
+  const installed = (catalogData?.toolkits ?? []).filter(
     (toolkit) =>
       toolkit.config !== null &&
       toolkitConnectionState(toolkit) !== "available",

@@ -4,11 +4,12 @@ import { z } from "zod"
 
 import { ensureSession } from "@/lib/auth/session"
 import { serverEnv } from "@/lib/env"
-import { nabuEndpoints } from "@/lib/http"
+import { HttpClientError, nabuEndpoints } from "@/lib/http"
 import { executeRequest } from "@/lib/http/client.server"
 import { moduleLogger, withWideEvent } from "@/lib/logger"
 import {
   connectionCallbackInputSchema,
+  type IntegrationsCatalogResult,
   initiateConnectionInputSchema,
   patchConnectionInputSchema,
   putToolPolicyInputSchema,
@@ -53,17 +54,41 @@ async function roleOf(userId: string): Promise<string | null> {
 
 export const getIntegrationsCatalogFn = createServerFn({
   method: "GET",
-}).handler(async () => {
+}).handler(async (): Promise<IntegrationsCatalogResult> => {
   return withWideEvent(
     "integrations",
     "getCatalog",
-    async (setContext, requestId) => {
+    async (setContext, requestId): Promise<IntegrationsCatalogResult> => {
       const session = await requireSession()
       setContext({
         userId: session.user.id,
         organizationId: session.session.activeOrganizationId,
       })
-      return executeRequest(nabuEndpoints.integrationsCatalog, { requestId })
+
+      try {
+        return await executeRequest(nabuEndpoints.integrationsCatalog, {
+          requestId,
+        })
+      } catch (error) {
+        // A deployment without the gateway (501) or an unreachable runtime
+        // is a state the page renders, not a fault it crashes on.
+        if (error instanceof HttpClientError) {
+          const reason =
+            error.status === 501
+              ? ("not_configured" as const)
+              : error.code === "SERVICE_UNREACHABLE"
+                ? ("unreachable" as const)
+                : null
+          if (reason) {
+            log.warn(
+              { status: error.status, code: error.code },
+              "the integrations catalog is unavailable; rendering the degraded state",
+            )
+            return { unavailable: true, reason }
+          }
+        }
+        throw error
+      }
     },
   )
 })

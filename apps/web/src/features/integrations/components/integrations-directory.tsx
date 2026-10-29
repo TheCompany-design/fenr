@@ -53,6 +53,10 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
   const { connect, connectingToolkit } = useOauthConnectFlow()
   const queryClient = useQueryClient()
 
+  const unavailableCatalog =
+    catalog && "unavailable" in catalog ? catalog : null
+  const catalogData = catalog && !("unavailable" in catalog) ? catalog : null
+
   const disconnect = useMutation({
     mutationFn: (accountId: string) =>
       deleteConnectionFn({ data: { accountId } }),
@@ -69,8 +73,8 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
     },
   })
 
-  const needsAction = catalog?.needs_action ?? []
-  const toolkits = (catalog?.toolkits ?? []).filter((toolkit) => {
+  const needsAction = catalogData?.needs_action ?? []
+  const toolkits = (catalogData?.toolkits ?? []).filter((toolkit) => {
     if (kind === "apps" && toolkit.integration_kind === "source") {
       return false
     }
@@ -134,22 +138,37 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </header>
 
-        <ToggleGroup
-          value={tab === "all" ? [] : [tab]}
-          onValueChange={(value) => {
-            const next = value[value.length - 1]
-            setTab(next ?? "all")
-          }}
-          variant="outline"
-          size="sm"
-          className="w-fit"
-        >
-          <ToggleGroupItem value="all">All</ToggleGroupItem>
-          <ToggleGroupItem value="connected">Connected</ToggleGroupItem>
-          <ToggleGroupItem value="available">Available</ToggleGroupItem>
-        </ToggleGroup>
+        {unavailableCatalog && (
+          <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">
+              Integrations are not available on this deployment
+            </p>
+            <p className="mt-1 text-xs leading-relaxed">
+              {unavailableCatalog.reason === "not_configured"
+                ? "This runtime was started without the integration gateway (no Composio API key configured). Ask your administrator to set NABU_COMPOSIO_API_KEY to enable the directory."
+                : "The agent runtime could not be reached. It may still be starting up — try again in a moment."}
+            </p>
+          </div>
+        )}
 
-        {needsAction.length > 0 && (
+        {!unavailableCatalog && (
+          <ToggleGroup
+            value={tab === "all" ? [] : [tab]}
+            onValueChange={(value) => {
+              const next = value[value.length - 1]
+              setTab(next ?? "all")
+            }}
+            variant="outline"
+            size="sm"
+            className="w-fit"
+          >
+            <ToggleGroupItem value="all">All</ToggleGroupItem>
+            <ToggleGroupItem value="connected">Connected</ToggleGroupItem>
+            <ToggleGroupItem value="available">Available</ToggleGroupItem>
+          </ToggleGroup>
+        )}
+
+        {!unavailableCatalog && needsAction.length > 0 && (
           <section className="grid gap-3">
             <h2 className="flex items-center gap-2 text-sm font-medium text-destructive">
               <HugeiconsIcon icon={Alert02Icon} size={16} />
@@ -165,7 +184,10 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
                 <IntegrationBrandLogo slug={account.toolkit_slug} size={28} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
-                    {displayNameFor(account.toolkit_slug, catalog?.toolkits)}
+                    {displayNameFor(
+                      account.toolkit_slug,
+                      catalogData?.toolkits,
+                    )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {account.connected_assets_label ?? "1 account"} · Connected
@@ -181,7 +203,7 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
                       toolkitSlug: account.toolkit_slug,
                       displayName: displayNameFor(
                         account.toolkit_slug,
-                        catalog?.toolkits,
+                        catalogData?.toolkits,
                       ),
                       surface: "sheet_configure",
                       reconnectAccountId: account.id,
@@ -197,111 +219,113 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
         )}
 
         <div className="grid gap-10">
-          {[...grouped.entries()].map(([category, items]) => (
-            <section key={category} className="grid gap-3">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {CATEGORY_LABELS[category] ?? category}
-              </h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {items.map((toolkit) => {
-                  const state = toolkitConnectionState(toolkit)
-                  return (
-                    <div
-                      key={toolkit.slug}
-                      className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 transition-colors hover:bg-muted/40"
-                    >
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                        onClick={() => setOpenApp(toolkit.slug)}
+          {!unavailableCatalog &&
+            [...grouped.entries()].map(([category, items]) => (
+              <section key={category} className="grid gap-3">
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {CATEGORY_LABELS[category] ?? category}
+                </h2>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {items.map((toolkit) => {
+                    const state = toolkitConnectionState(toolkit)
+                    return (
+                      <div
+                        key={toolkit.slug}
+                        className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 transition-colors hover:bg-muted/40"
                       >
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
-                          <IntegrationBrandLogo
-                            slug={toolkit.logo_slug}
-                            monochrome={toolkit.logo_monochrome}
-                            size={22}
-                          />
-                        </span>
-                        <span className="grid min-w-0 gap-0.5">
-                          <span className="flex items-center gap-1.5 text-sm font-medium">
-                            {toolkit.display_name}
-                            {state === "connected" && (
-                              <HugeiconsIcon
-                                icon={CheckmarkBadge01Icon}
-                                size={14}
-                                className="text-primary"
-                              />
-                            )}
-                            {state === "needs_action" && (
-                              <Badge
-                                variant="destructive"
-                                className="h-4 px-1 text-[10px]"
-                              >
-                                action needed
-                              </Badge>
-                            )}
-                            {toolkit.is_beta && (
-                              <Badge
-                                variant="secondary"
-                                className="h-4 px-1 text-[10px]"
-                              >
-                                Beta
-                              </Badge>
-                            )}
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                          onClick={() => setOpenApp(toolkit.slug)}
+                        >
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40">
+                            <IntegrationBrandLogo
+                              slug={toolkit.logo_slug}
+                              monochrome={toolkit.logo_monochrome}
+                              size={22}
+                            />
                           </span>
-                          <span className="line-clamp-1 text-xs text-muted-foreground">
-                            {state === "available"
-                              ? toolkit.tagline
-                              : (toolkit.connections[0]
-                                  ?.connected_assets_label ?? toolkit.tagline)}
+                          <span className="grid min-w-0 gap-0.5">
+                            <span className="flex items-center gap-1.5 text-sm font-medium">
+                              {toolkit.display_name}
+                              {state === "connected" && (
+                                <HugeiconsIcon
+                                  icon={CheckmarkBadge01Icon}
+                                  size={14}
+                                  className="text-primary"
+                                />
+                              )}
+                              {state === "needs_action" && (
+                                <Badge
+                                  variant="destructive"
+                                  className="h-4 px-1 text-[10px]"
+                                >
+                                  action needed
+                                </Badge>
+                              )}
+                              {toolkit.is_beta && (
+                                <Badge
+                                  variant="secondary"
+                                  className="h-4 px-1 text-[10px]"
+                                >
+                                  Beta
+                                </Badge>
+                              )}
+                            </span>
+                            <span className="line-clamp-1 text-xs text-muted-foreground">
+                              {state === "available"
+                                ? toolkit.tagline
+                                : (toolkit.connections[0]
+                                    ?.connected_assets_label ??
+                                  toolkit.tagline)}
+                            </span>
                           </span>
-                        </span>
-                      </button>
-                      <div className="flex shrink-0 items-center gap-2 pt-1">
-                        {isAdmin && toolkit.config && (
-                          <ConfigToggle toolkitSlug={toolkit.slug} />
-                        )}
-                        {state === "available" && (
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            aria-label={`Connect ${toolkit.display_name}`}
-                            disabled={connectingToolkit === toolkit.slug}
-                            onClick={() =>
-                              void connect({
-                                toolkitSlug: toolkit.slug,
-                                displayName: toolkit.display_name,
-                                surface: "integrations_page",
-                              })
-                            }
-                          >
-                            <HugeiconsIcon icon={PlusSignIcon} size={16} />
-                          </Button>
-                        )}
-                        {state !== "available" && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`Disconnect ${toolkit.display_name}`}
-                            disabled={disconnect.isPending}
-                            onClick={() => {
-                              const account = toolkit.connections[0]
-                              if (account) {
-                                disconnect.mutate(account.id)
+                        </button>
+                        <div className="flex shrink-0 items-center gap-2 pt-1">
+                          {isAdmin && toolkit.config && (
+                            <ConfigToggle toolkitSlug={toolkit.slug} />
+                          )}
+                          {state === "available" && (
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              aria-label={`Connect ${toolkit.display_name}`}
+                              disabled={connectingToolkit === toolkit.slug}
+                              onClick={() =>
+                                void connect({
+                                  toolkitSlug: toolkit.slug,
+                                  displayName: toolkit.display_name,
+                                  surface: "integrations_page",
+                                })
                               }
-                            }}
-                          >
-                            <HugeiconsIcon icon={RefreshIcon} size={16} />
-                          </Button>
-                        )}
+                            >
+                              <HugeiconsIcon icon={PlusSignIcon} size={16} />
+                            </Button>
+                          )}
+                          {state !== "available" && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              aria-label={`Disconnect ${toolkit.display_name}`}
+                              disabled={disconnect.isPending}
+                              onClick={() => {
+                                const account = toolkit.connections[0]
+                                if (account) {
+                                  disconnect.mutate(account.id)
+                                }
+                              }}
+                            >
+                              <HugeiconsIcon icon={RefreshIcon} size={16} />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
-          {toolkits.length === 0 && (
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+          {!unavailableCatalog && toolkits.length === 0 && (
             <p className="py-12 text-center text-sm text-muted-foreground">
               No integrations match this filter yet.
             </p>
@@ -315,7 +339,10 @@ export function IntegrationsDirectory({ isAdmin }: { isAdmin: boolean }) {
 function ConfigToggle({ toolkitSlug }: { toolkitSlug: string }) {
   const queryClient = useQueryClient()
   const { data: catalog } = useQuery(integrationsCatalogQueryOptions())
-  const toolkit = catalog?.toolkits.find((entry) => entry.slug === toolkitSlug)
+  const catalogData = catalog && !("unavailable" in catalog) ? catalog : null
+  const toolkit = catalogData?.toolkits.find(
+    (entry) => entry.slug === toolkitSlug,
+  )
   const enabled = toolkit?.config?.enabled_for_agents ?? false
 
   const toggle = useMutation({
