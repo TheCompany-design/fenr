@@ -62,6 +62,7 @@ describe("assembleExtensions", () => {
       "textStyleKit",
       "color",
       "placeholder",
+      "slashMenu",
     ]) {
       expect(names).toContain(expected)
     }
@@ -72,19 +73,27 @@ describe("assembleExtensions", () => {
     expect(names).not.toContain("placeholder")
   })
 
+  it("omits the slash menu extension when disabled", () => {
+    const names = resolveExtensionNames({ slashMenu: false })
+    expect(names).not.toContain("slashMenu")
+  })
+
   it("derives heading and paragraph placeholder prompts", () => {
-    expect(resolvePlaceholderText({ type: { name: "heading" }, attrs: { level: 2 } }, false)).toBe(
-      "Heading 2",
-    )
+    expect(
+      resolvePlaceholderText(
+        { type: { name: "heading" }, attrs: { level: 2 } },
+        false,
+      ),
+    ).toBe("Heading 2")
     expect(
       resolvePlaceholderText({ type: { name: "paragraph" }, attrs: {} }, true),
     ).toBe("Write, press '/' for commands…")
     expect(
       resolvePlaceholderText({ type: { name: "paragraph" }, attrs: {} }, false),
     ).toBe("Type '/' for commands")
-    expect(resolvePlaceholderText({ type: { name: "heading" }, attrs: {} }, false)).toBe(
-      "Heading",
-    )
+    expect(
+      resolvePlaceholderText({ type: { name: "heading" }, attrs: {} }, false),
+    ).toBe("Heading")
   })
 
   it("registers exactly one code block implementation", () => {

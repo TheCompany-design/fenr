@@ -11,6 +11,7 @@ import { Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { common, createLowlight } from "lowlight"
+import { createSlashMenuExtension } from "../slash-menu/slash-menu-extension"
 import type { EditorCapabilities } from "./types"
 
 /**
@@ -139,6 +140,10 @@ export function assembleExtensions({
           resolvePlaceholderText(node, editor?.isEmpty ?? false),
       }),
     )
+  }
+
+  if (capabilities.slashMenu !== false) {
+    extensions.push(createSlashMenuExtension(capabilities))
   }
 
   extensions.push(...extraExtensions)

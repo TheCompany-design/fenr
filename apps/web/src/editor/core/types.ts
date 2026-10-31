@@ -39,6 +39,8 @@ export interface EditorCapabilities {
   codeBlocks?: boolean
   /** Ghost prompts on the active empty block ("Type '/' for commands") */
   placeholder?: boolean
+  /** The `/` slash command palette */
+  slashMenu?: boolean
 }
 
 export interface EditorConfig {
@@ -81,6 +83,7 @@ export const defaultDocumentDefinition = defineDocument({
     textColors: true,
     codeBlocks: true,
     placeholder: true,
+    slashMenu: true,
   },
 })
 
