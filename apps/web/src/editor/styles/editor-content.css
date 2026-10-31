@@ -69,6 +69,8 @@
   font-style: normal;
   font-weight: inherit;
   padding-left: 1rem;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
   color: inherit;
 }
 
@@ -105,10 +107,37 @@
 }
 
 .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
-  accent-color: var(--primary);
+  appearance: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 28%, transparent);
+  border-radius: 3.5px;
+  background: transparent;
   cursor: pointer;
-  height: 1em;
-  width: 1em;
+  vertical-align: middle;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:hover {
+  border-color: color-mix(in oklab, var(--foreground) 55%, transparent);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::before {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid var(--primary-foreground);
+  border-bottom: 2px solid var(--primary-foreground);
+  transform: rotate(45deg);
 }
 
 .ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
@@ -156,7 +185,7 @@
   transform: rotate(90deg);
 }
 
- biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
 .ProseMirror details > div {
   padding-left: 1.125rem;
   margin-top: 0.25rem;
@@ -234,14 +263,16 @@
   max-width: 100%;
   height: auto;
   border-radius: 6px;
-  margin-block: 0.75em;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
 }
 
 .ProseMirror div[data-youtube-video] {
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  margin-block: 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -261,9 +292,10 @@
   line-height: 1.5;
 }
 
- biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
 .ProseMirror p {
-  margin-block: 2px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 .ProseMirror h1,
@@ -303,37 +335,44 @@
 
 .ProseMirror ul,
 .ProseMirror ol {
-  margin-block: 4px;
+  margin-top: 4px;
+  margin-bottom: 4px;
   padding-left: 1.375rem;
 }
 
 .ProseMirror li {
-  margin-block: 2px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 .ProseMirror ul[data-type="taskList"] li {
-  margin-block: 4px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 .ProseMirror li > p {
-  margin-block: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 /* Callout body keeps the tight rhythm and aligns with the emoji chip */
 .ProseMirror div[data-callout] p {
-  margin-block: 2px;
+  margin-top: 2px;
+  margin-bottom: 2px;
 }
 
 /* Table cells: paragraphs must not inflate row height */
- biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
 .ProseMirror th p,
 .ProseMirror td p {
-  margin-block: 1px;
+  margin-top: 1px;
+  margin-bottom: 1px;
   line-height: 1.45;
 }
 
 .ProseMirror hr {
-  margin-block: 1.2em;
+  margin-top: 1.2em;
+  margin-bottom: 1.2em;
 }
 
 /* Code block: tighter surface + syntax token colors that hold in both modes */
