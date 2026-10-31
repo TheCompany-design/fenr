@@ -58,6 +58,11 @@ export interface DocumentDefinition {
   canvas?: CanvasConfig
   editor?: EditorConfig
   capabilities?: EditorCapabilities
+  /**
+   * Resolves picked, dropped, or pasted image files to persisted URLs.
+   * Without it, images fall back to session-local object URLs.
+   */
+  uploadImage?: (file: File) => Promise<string>
 }
 
 export function defineDocument(

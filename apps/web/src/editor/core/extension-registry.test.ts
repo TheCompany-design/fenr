@@ -67,6 +67,7 @@ describe("assembleExtensions", () => {
       "details",
       "detailsSummary",
       "detailsContent",
+      "imageUpload",
     ]) {
       expect(names).toContain(expected)
     }
@@ -139,6 +140,7 @@ describe("assembleExtensions", () => {
       "details",
       "detailsSummary",
       "detailsContent",
+      "imageUpload",
     ]) {
       expect(names).not.toContain(banned)
     }

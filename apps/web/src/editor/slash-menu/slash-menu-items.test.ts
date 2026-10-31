@@ -30,11 +30,13 @@ describe("SLASH_MENU_ITEMS registry", () => {
 
 describe("resolveSlashMenuItems", () => {
   it("shows everything under the default (opt-out) capabilities", () => {
-    expect(resolveSlashMenuItems({})).toEqual(SLASH_MENU_ITEMS)
+    expect(resolveSlashMenuItems(SLASH_MENU_ITEMS, {})).toEqual(
+      SLASH_MENU_ITEMS,
+    )
   })
 
   it("drops items whose required capabilities are disabled", () => {
-    const items = resolveSlashMenuItems({
+    const items = resolveSlashMenuItems(SLASH_MENU_ITEMS, {
       tables: false,
       images: false,
       mathematics: false,
@@ -49,7 +51,7 @@ describe("resolveSlashMenuItems", () => {
 })
 
 describe("filterSlashMenuItems", () => {
-  const items = resolveSlashMenuItems({})
+  const items = resolveSlashMenuItems(SLASH_MENU_ITEMS, {})
 
   it("returns everything for a blank query", () => {
     expect(filterSlashMenuItems(items, "")).toEqual(items)
@@ -104,8 +106,9 @@ describe("groupSlashMenuItems", () => {
   })
 
   it("skips groups filtered away entirely", () => {
-    const items = resolveSlashMenuItems({
+    const items = resolveSlashMenuItems(SLASH_MENU_ITEMS, {
       images: false,
+      embeds: false,
       tables: false,
       mathematics: false,
       callouts: false,

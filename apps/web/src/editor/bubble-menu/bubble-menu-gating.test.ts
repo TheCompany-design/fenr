@@ -81,19 +81,31 @@ describe("shouldShowTableToolbar", () => {
 
   it("shows for cell-spanning selections", () => {
     expect(
-      shouldShowTableToolbar({ ...visible, isEmptySelection: false, isCellSelection: true }),
+      shouldShowTableToolbar({
+        ...visible,
+        isEmptySelection: false,
+        isCellSelection: true,
+      }),
     ).toBe(true)
   })
 
   it("hides for text selections so the formatting toolbar takes over", () => {
     expect(
-      shouldShowTableToolbar({ ...visible, isEmptySelection: false, isCellSelection: false }),
+      shouldShowTableToolbar({
+        ...visible,
+        isEmptySelection: false,
+        isCellSelection: false,
+      }),
     ).toBe(false)
   })
 
   it("hides outside tables and in read-only editors", () => {
-    expect(shouldShowTableToolbar({ ...visible, isActiveTable: false })).toBe(false)
-    expect(shouldShowTableToolbar({ ...visible, isEditable: false })).toBe(false)
+    expect(shouldShowTableToolbar({ ...visible, isActiveTable: false })).toBe(
+      false,
+    )
+    expect(shouldShowTableToolbar({ ...visible, isEditable: false })).toBe(
+      false,
+    )
   })
 })
 

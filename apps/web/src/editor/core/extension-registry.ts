@@ -14,6 +14,7 @@ import { Youtube } from "@tiptap/extension-youtube"
 import { Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
+import { createImageUploadExtension } from "../images/image-upload"
 import { Callout } from "../nodes/callout"
 import { FenrCodeBlock } from "../nodes/code-block"
 import { createSlashMenuExtension } from "../slash-menu/slash-menu-extension"
@@ -31,6 +32,8 @@ export interface AssembleExtensionsOptions {
    * capability-driven baseline.
    */
   extraExtensions?: AnyExtension[]
+  /** Upload contract handed to image insert flows (slash, paste, drop) */
+  uploadImage?: import("../images/image-upload").ImageUploadHandler
 }
 
 /**
@@ -61,6 +64,7 @@ export function resolvePlaceholderText(
 export function assembleExtensions({
   capabilities,
   extraExtensions = [],
+  uploadImage,
 }: AssembleExtensionsOptions): AnyExtension[] {
   const extensions: AnyExtension[] = [
     StarterKit.configure({
@@ -104,6 +108,7 @@ export function assembleExtensions({
         allowBase64: true,
       }),
     )
+    extensions.push(createImageUploadExtension(uploadImage))
   }
 
   if (capabilities.embeds !== false) {
@@ -153,7 +158,7 @@ export function assembleExtensions({
   }
 
   if (capabilities.slashMenu !== false) {
-    extensions.push(createSlashMenuExtension(capabilities))
+    extensions.push(createSlashMenuExtension(capabilities, uploadImage))
   }
 
   extensions.push(...extraExtensions)

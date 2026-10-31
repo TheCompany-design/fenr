@@ -34,10 +34,15 @@ export function formatLanguageLabel(language: string): string {
  * Notion-style code block chrome: a language picker and copy button in a
  * header bar above the highlighted code surface.
  */
-export function CodeBlockView({ node, updateAttributes, selected }: CodeBlockViewProps) {
-  const language = typeof node.attrs.language === "string" && node.attrs.language
-    ? node.attrs.language
-    : "plaintext"
+export function CodeBlockView({
+  node,
+  updateAttributes,
+  selected,
+}: CodeBlockViewProps) {
+  const language =
+    typeof node.attrs.language === "string" && node.attrs.language
+      ? node.attrs.language
+      : "plaintext"
 
   const copy = async () => {
     try {
@@ -73,7 +78,10 @@ export function CodeBlockView({ node, updateAttributes, selected }: CodeBlockVie
               </Button>
             }
           />
-          <DropdownMenuContent align="start" className="max-h-72 w-44 overflow-hidden">
+          <DropdownMenuContent
+            align="start"
+            className="max-h-72 w-44 overflow-hidden"
+          >
             <ScrollArea className="max-h-64">
               {CODE_BLOCK_LANGUAGES.map((name) => (
                 <DropdownMenuItem

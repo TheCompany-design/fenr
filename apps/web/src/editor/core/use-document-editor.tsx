@@ -20,8 +20,9 @@ export const useDocumentEditor = ({
       assembleExtensions({
         capabilities,
         extraExtensions: editorConfig?.extensions,
+        uploadImage: definition.uploadImage,
       }),
-    [capabilities, editorConfig],
+    [capabilities, editorConfig, definition.uploadImage],
   )
 
   return useEditor({

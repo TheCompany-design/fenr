@@ -7,7 +7,11 @@ import {
   type SuggestionProps,
 } from "@tiptap/suggestion"
 import type { EditorCapabilities } from "../core/types"
-import { filterSlashMenuItems, resolveSlashMenuItems } from "./slash-menu-items"
+import {
+  buildSlashMenuItems,
+  filterSlashMenuItems,
+  resolveSlashMenuItems,
+} from "./slash-menu-items"
 import {
   SlashMenuPopup,
   type SlashMenuPopupHandle,
@@ -35,8 +39,12 @@ function isTextEntrySurface(editor: Editor): boolean {
  */
 export function createSlashMenuExtension(
   capabilities: EditorCapabilities,
+  uploadImage?: import("../images/image-upload").ImageUploadHandler,
 ): Extension {
-  const items = resolveSlashMenuItems(capabilities)
+  const items = resolveSlashMenuItems(
+    buildSlashMenuItems({ uploadImage }),
+    capabilities,
+  )
 
   return Extension.create({
     name: "slashMenu",

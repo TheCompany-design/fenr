@@ -13,7 +13,10 @@ const lowlight = createLowlight(common)
 /** Languages offered by the picker; `plaintext` leads the list. */
 export const CODE_BLOCK_LANGUAGES: string[] = [
   "plaintext",
-  ...lowlight.listLanguages().filter((name) => name !== "plaintext").sort(),
+  ...lowlight
+    .listLanguages()
+    .filter((name) => name !== "plaintext")
+    .sort(),
 ]
 
 /**

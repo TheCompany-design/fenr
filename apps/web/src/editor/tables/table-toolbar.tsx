@@ -64,7 +64,10 @@ export function TableToolbar({ editor: propEditor }: TableToolbarProps = {}) {
                       className="flex items-center gap-1.5"
                       aria-label="Table operations"
                     >
-                      <HugeiconsIcon icon={GridTableIcon} className="size-3.5" />
+                      <HugeiconsIcon
+                        icon={GridTableIcon}
+                        className="size-3.5"
+                      />
                       Table
                     </Button>
                   }
@@ -152,7 +155,9 @@ export function TableToolbar({ editor: propEditor }: TableToolbarProps = {}) {
                 size="icon"
                 className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 aria-label="Delete table"
-                onClick={() => run(() => editor.chain().focus().deleteTable().run())}
+                onClick={() =>
+                  run(() => editor.chain().focus().deleteTable().run())
+                }
                 type="button"
               >
                 <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
