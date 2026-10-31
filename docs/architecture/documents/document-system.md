@@ -215,6 +215,16 @@ export interface EditorCapabilities {
   tables?: boolean
   images?: boolean
   embeds?: boolean
+  dragHandle?: boolean
+  taskLists?: boolean
+  highlights?: boolean
+  textColors?: boolean
+  codeBlocks?: boolean
+  placeholder?: boolean
+  slashMenu?: boolean
+  callouts?: boolean
+  toggles?: boolean
+  characterCount?: boolean
 }
 
 export interface EditorConfig {
@@ -594,3 +604,38 @@ All tests can be executed at the root of the monorepo:
 bun test
 bun run check
 ```
+
+---
+
+## 8. Implementation Status & Module Map
+
+The engine has been built out to a full Notion-grade editing surface. Every
+feature below is capability-gated and ships with tests (`bun test`):
+
+| Module | Path | Responsibility |
+| :--- | :--- | :--- |
+| Extension registry | `editor/core/extension-registry.ts` | Pure capability → TipTap extension assembler; the single composition point for future document surfaces |
+| Slash command palette | `editor/slash-menu/` | `/` trigger via `@tiptap/suggestion` with managed mounting; capability-aware items; keyboard wrap-around selection |
+| Color chrome | `editor/bubble-menu/colors.ts`, `color-picker.tsx` | Notion's two-section palette (background highlights + text colors) as document-data values |
+| Floating chrome gating | `editor/bubble-menu/should-show.ts` | Pure predicates: formatting toolbar, link popover, and table toolbar never stack |
+| Link popover | `editor/link/link-popover.tsx` | Inline URL editing with guarded open action and unlink |
+| Callout node | `editor/nodes/callout.ts` | Custom node with a React NodeView and pickable emoji chip |
+| Toggle blocks | `@tiptap/extension-details` trio | Collapsible sections with CSS-drawn carets |
+| Code block chrome | `editor/nodes/code-block.ts` | Lowlight highlighting, language picker, copy action |
+| Image uploads | `editor/images/image-upload.ts` | Definition-level `uploadImage` contract shared by slash, paste, and drop flows; Sonner progress; object-URL fallback |
+| Table toolbar | `editor/tables/table-toolbar.tsx` | Row/column operations, header toggle, destructive deletes |
+| Document stats | `editor/state/atoms/stats.ts` | Word/character counts streamed through `documentStatsAtom` by the sync bridge |
+| Presets | `editor/definitions/presets.ts` | Invoice, proposal, and note definitions as pure configuration |
+
+**Composition rules that keep the engine reusable:**
+
+1. Capability flags are opt-out (absent = enabled) and resolved in one place —
+   the extension registry — never ad hoc in components.
+2. Chrome never reads ProseMirror directly: it consumes atoms projected by the
+   sync bridge, so any surface under an `EditorRoot` can render status or
+   toolbar state without owning an editor instance.
+3. Definitions carry behavior contracts (e.g. `uploadImage`) so the engine
+   stays storage-agnostic.
+4. Slash-menu items declare `requires` capability keys and are filtered at
+   assembly time; disabled capabilities remove both the extensions and their
+   insertion affordances.
