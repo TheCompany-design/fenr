@@ -13,12 +13,30 @@ export interface CanvasConfig {
   }
 }
 
+/**
+ * Declarative feature switches for an editor instance. Every capability is
+ * opt-out: an absent (or undefined) flag means enabled. Pass `false` to
+ * remove a feature's extensions, chrome, and slash-menu entries entirely.
+ */
 export interface EditorCapabilities {
+  /** LaTeX math via KaTeX (inline `$...$` and `$$...$$` blocks) */
   mathematics?: boolean
+  /** Grid tables with resizable columns and a floating table toolbar */
   tables?: boolean
+  /** Raster images with upload, drop, and paste flows */
   images?: boolean
+  /** Third-party rich embeds (YouTube) */
   embeds?: boolean
+  /** Left-gutter drag handle with block actions */
   dragHandle?: boolean
+  /** Interactive checkbox task lists */
+  taskLists?: boolean
+  /** Multicolor text highlights */
+  highlights?: boolean
+  /** Foreground text colors */
+  textColors?: boolean
+  /** Syntax-highlighted code blocks with a language picker */
+  codeBlocks?: boolean
 }
 
 export interface EditorConfig {
@@ -56,6 +74,10 @@ export const defaultDocumentDefinition = defineDocument({
     images: true,
     embeds: true,
     dragHandle: true,
+    taskLists: true,
+    highlights: true,
+    textColors: true,
+    codeBlocks: true,
   },
 })
 

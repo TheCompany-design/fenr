@@ -1,7 +1,6 @@
-import { Mathematics } from "@tiptap/extension-mathematics"
-import TextAlign from "@tiptap/extension-text-align"
-import { type AnyExtension, useEditor } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
+import { useEditor } from "@tiptap/react"
+import { useMemo } from "react"
+import { assembleExtensions } from "./extension-registry"
 import { type DocumentEditorProps, defaultDocumentDefinition } from "./types"
 
 export const useDocumentEditor = ({
@@ -14,20 +13,16 @@ export const useDocumentEditor = ({
     definition.capabilities ?? defaultDocumentDefinition.capabilities ?? {}
   const editorConfig = definition.editor
 
-  const extensions: AnyExtension[] = [
-    StarterKit,
-    TextAlign.configure({
-      types: ["heading", "paragraph"],
-    }),
-  ]
-
-  if (capabilities.mathematics !== false) {
-    extensions.push(Mathematics)
-  }
-
-  if (editorConfig?.extensions) {
-    extensions.push(...editorConfig.extensions)
-  }
+  // Memoized so a re-render with the same definition never hands useEditor a
+  // fresh extensions array identity.
+  const extensions = useMemo(
+    () =>
+      assembleExtensions({
+        capabilities,
+        extraExtensions: editorConfig?.extensions,
+      }),
+    [capabilities, editorConfig],
+  )
 
   return useEditor({
     extensions,
