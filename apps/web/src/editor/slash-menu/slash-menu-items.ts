@@ -3,11 +3,13 @@ import {
   Heading02Icon,
   Heading03Icon,
   Image01Icon,
+  Layers01Icon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
   MinusSignIcon,
   QuoteUpIcon,
   SourceCodeIcon,
+  StickyNoteIcon,
   Summation01Icon,
   TableIcon,
   Task01Icon,
@@ -227,6 +229,45 @@ export const SLASH_MENU_ITEMS: SlashMenuItem[] = [
     requires: ["images"],
     keywords: ["picture", "photo", "upload", "attachment"],
     command: insertLocalImage,
+  },
+  {
+    id: "callout",
+    label: "Callout",
+    description: "Tinted note with a pickable emoji",
+    icon: StickyNoteIcon,
+    group: "advanced",
+    requires: ["callouts"],
+    keywords: ["note", "info", "warning", "aside"],
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).clearNodes().setCallout().run()
+    },
+  },
+  {
+    id: "toggle",
+    label: "Toggle block",
+    description: "Collapsible section with a summary line",
+    icon: Layers01Icon,
+    group: "advanced",
+    requires: ["toggles"],
+    keywords: ["details", "collapse", "accordion", "summary"],
+    command: ({ editor, range }) => {
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .clearNodes()
+        .insertContent({
+          type: "details",
+          content: [
+            {
+              type: "detailsSummary",
+              content: [{ type: "text", text: "Toggle" }],
+            },
+            { type: "detailsContent", content: [{ type: "paragraph" }] },
+          ],
+        })
+        .run()
+    },
   },
   {
     id: "table",

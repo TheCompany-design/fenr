@@ -108,6 +108,8 @@ describe("groupSlashMenuItems", () => {
       images: false,
       tables: false,
       mathematics: false,
+      callouts: false,
+      toggles: false,
     })
     const sections = groupSlashMenuItems(items)
     expect(sections.some((s) => s.group.id === "media")).toBe(false)

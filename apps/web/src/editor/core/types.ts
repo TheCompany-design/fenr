@@ -41,6 +41,10 @@ export interface EditorCapabilities {
   placeholder?: boolean
   /** The `/` slash command palette */
   slashMenu?: boolean
+  /** Tinted emoji callout blocks */
+  callouts?: boolean
+  /** Collapsible toggle blocks (details/summary) */
+  toggles?: boolean
 }
 
 export interface EditorConfig {
@@ -84,6 +88,8 @@ export const defaultDocumentDefinition = defineDocument({
     codeBlocks: true,
     placeholder: true,
     slashMenu: true,
+    callouts: true,
+    toggles: true,
   },
 })
 

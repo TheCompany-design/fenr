@@ -119,3 +119,44 @@
 .ProseMirror li p {
   margin-block: 0.125em;
 }
+
+/* ---------------------------------------------------------------------------
+ * Details / toggle blocks
+ * ------------------------------------------------------------------------- */
+.ProseMirror details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-block: 0.75em;
+}
+
+.ProseMirror details > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+  min-height: 1.75em;
+}
+
+.ProseMirror details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ProseMirror details > summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--muted-foreground);
+  font-size: 0.8em;
+  transition: transform 150ms ease;
+}
+
+.ProseMirror details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.ProseMirror details > div {
+  padding-left: 1.125rem;
+  margin-top: 0.25rem;
+}

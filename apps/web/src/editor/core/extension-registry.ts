@@ -1,4 +1,9 @@
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight"
+import {
+  Details,
+  DetailsContent,
+  DetailsSummary,
+} from "@tiptap/extension-details"
 import { Highlight } from "@tiptap/extension-highlight"
 import { Image } from "@tiptap/extension-image"
 import { TaskItem, TaskList } from "@tiptap/extension-list"
@@ -11,6 +16,7 @@ import { Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { common, createLowlight } from "lowlight"
+import { Callout } from "../nodes/callout"
 import { createSlashMenuExtension } from "../slash-menu/slash-menu-extension"
 import type { EditorCapabilities } from "./types"
 
@@ -149,6 +155,14 @@ export function assembleExtensions({
           resolvePlaceholderText(node, editor?.isEmpty ?? false),
       }),
     )
+  }
+
+  if (capabilities.callouts !== false) {
+    extensions.push(Callout)
+  }
+
+  if (capabilities.toggles !== false) {
+    extensions.push(Details, DetailsSummary, DetailsContent)
   }
 
   if (capabilities.slashMenu !== false) {

@@ -63,6 +63,10 @@ describe("assembleExtensions", () => {
       "color",
       "placeholder",
       "slashMenu",
+      "callout",
+      "details",
+      "detailsSummary",
+      "detailsContent",
     ]) {
       expect(names).toContain(expected)
     }
@@ -114,6 +118,8 @@ describe("assembleExtensions", () => {
       textColors: false,
       taskLists: false,
       placeholder: false,
+      callouts: false,
+      toggles: false,
     })
 
     for (const banned of [
@@ -129,6 +135,10 @@ describe("assembleExtensions", () => {
       "taskList",
       "taskItem",
       "placeholder",
+      "callout",
+      "details",
+      "detailsSummary",
+      "detailsContent",
     ]) {
       expect(names).not.toContain(banned)
     }
