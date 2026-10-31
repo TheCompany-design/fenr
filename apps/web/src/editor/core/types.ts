@@ -1,12 +1,14 @@
 import type { EditorProps } from "@tiptap/pm/view"
 import type { AnyExtension, JSONContent } from "@tiptap/react"
-import type { HTMLAttributes } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 
 export type DocumentType = "proposal" | "invoice" | "quote" | "document"
 
 export interface CanvasConfig {
-  width?: number
-  minHeight?: number
+  /** Page width as pixels or any CSS unit string (e.g. "100%", "210mm") */
+  width?: number | string
+  /** Page minimum height as pixels or any CSS unit string */
+  minHeight?: number | string
   padding?: {
     x: number
     y: number
@@ -45,6 +47,8 @@ export interface EditorCapabilities {
   callouts?: boolean
   /** Collapsible toggle blocks (details/summary) */
   toggles?: boolean
+  /** Word/character counting for status surfaces */
+  characterCount?: boolean
 }
 
 export interface EditorConfig {
@@ -95,13 +99,14 @@ export const defaultDocumentDefinition = defineDocument({
     slashMenu: true,
     callouts: true,
     toggles: true,
+    characterCount: true,
   },
 })
 
 export interface DocumentCanvasProps extends HTMLAttributes<HTMLElement> {
   ref?: React.Ref<HTMLElement | null>
-  width?: number
-  minHeight?: number
+  width?: number | string
+  minHeight?: number | string
   padding?: {
     x: number
     y: number
@@ -114,4 +119,6 @@ export interface DocumentEditorProps {
   editable?: boolean
   onChange?: (content: JSONContent) => void
   className?: string
+  /** Chrome rendered inside the canvas, above the editable surface (e.g. a title) */
+  header?: ReactNode
 }

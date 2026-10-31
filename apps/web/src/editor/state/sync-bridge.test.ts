@@ -2,9 +2,11 @@ import { describe, expect, it } from "bun:test"
 import type { Editor } from "@tiptap/react"
 import { DEFAULT_FORMATTING_STATE, DEFAULT_SELECTION_STATE } from "./atoms"
 import {
+  areDocumentStatsStatesEqual,
   areFormattingStatesEqual,
   areSelectionStatesEqual,
   areStatesEqual,
+  deriveDocumentStats,
   deriveFormattingSnapshot,
   deriveSelectionSnapshot,
 } from "./sync-bridge"
@@ -14,12 +16,21 @@ const createMockEditor = (
   destroyed = false,
   selection = { from: 0, to: 0, empty: true },
   attributes: Record<string, Record<string, unknown>> = {},
+  stats: { words: number; characters: number } | null = null,
 ): Editor => {
   return {
     isDestroyed: destroyed,
     state: {
       selection,
     },
+    storage: stats
+      ? {
+          characterCount: {
+            words: () => stats.words,
+            characters: () => stats.characters,
+          },
+        }
+      : {},
     isActive: (name: unknown, attrs?: Record<string, unknown>) => {
       if (typeof name === "string") {
         if (attrs && "level" in attrs) {
@@ -162,5 +173,35 @@ describe("areStatesEqual and areSelectionStatesEqual", () => {
         { from: 1, to: 5, empty: false },
       ),
     ).toBe(false)
+  })
+})
+
+
+describe("deriveDocumentStats", () => {
+  it("reads word and character counts from the characterCount storage", () => {
+    const mock = createMockEditor(
+      {},
+      false,
+      { from: 0, to: 0, empty: true },
+      {},
+      { words: 42, characters: 231 },
+    )
+    expect(deriveDocumentStats(mock)).toEqual({ words: 42, characters: 231 })
+  })
+
+  it("falls back to zeroed stats without the storage contract", () => {
+    const mock = createMockEditor()
+    expect(deriveDocumentStats(mock)).toEqual({ words: 0, characters: 0 })
+  })
+
+  it("returns zeroed stats for null and destroyed editors", () => {
+    expect(deriveDocumentStats(null)).toEqual({ words: 0, characters: 0 })
+    const destroyed = createMockEditor({}, true)
+    expect(deriveDocumentStats(destroyed)).toEqual({ words: 0, characters: 0 })
+  })
+
+  it("compares stats shallowly", () => {
+    expect(areDocumentStatsStatesEqual({ words: 1, characters: 2 }, { words: 1, characters: 2 })).toBe(true)
+    expect(areDocumentStatsStatesEqual({ words: 1, characters: 2 }, { words: 2, characters: 2 })).toBe(false)
   })
 })

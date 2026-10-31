@@ -16,6 +16,7 @@ export function DocumentEditor({
   editable = true,
   onChange,
   className,
+  header,
 }: DocumentEditorProps) {
   const editor = useDocumentEditor({
     content,
@@ -48,6 +49,7 @@ export function DocumentEditor({
         padding={definition.canvas?.padding}
       >
         {showDragHandle ? <DragHandle editor={editor} /> : null}
+        {header}
         <EditorSurface editor={editor} />
       </DocumentCanvas>
     </div>

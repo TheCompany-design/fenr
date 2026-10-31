@@ -11,7 +11,7 @@ import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { TextStyleKit } from "@tiptap/extension-text-style"
 import { Youtube } from "@tiptap/extension-youtube"
-import { Placeholder } from "@tiptap/extensions"
+import { CharacterCount, Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { createImageUploadExtension } from "../images/image-upload"
@@ -147,6 +147,10 @@ export function assembleExtensions({
           resolvePlaceholderText(node, editor?.isEmpty ?? false),
       }),
     )
+  }
+
+  if (capabilities.characterCount !== false) {
+    extensions.push(CharacterCount)
   }
 
   if (capabilities.callouts !== false) {
