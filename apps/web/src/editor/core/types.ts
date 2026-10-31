@@ -37,6 +37,8 @@ export interface EditorCapabilities {
   textColors?: boolean
   /** Syntax-highlighted code blocks with a language picker */
   codeBlocks?: boolean
+  /** Ghost prompts on the active empty block ("Type '/' for commands") */
+  placeholder?: boolean
 }
 
 export interface EditorConfig {
@@ -78,6 +80,7 @@ export const defaultDocumentDefinition = defineDocument({
     highlights: true,
     textColors: true,
     codeBlocks: true,
+    placeholder: true,
   },
 })
 

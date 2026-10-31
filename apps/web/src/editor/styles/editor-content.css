@@ -1,0 +1,121 @@
+/*
+ * Notion-style content foundation for the document editor.
+ *
+ * Everything here targets the `.ProseMirror` root rendered by
+ * `<Tiptap.Content />` and uses theme tokens only, so it follows light/dark
+ * mode without component-side classes. Node chrome that needs a NodeView
+ * (code block header, table toolbar, callouts, details) lives with its block.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Placeholder prompts (Placeholder extension marks empty nodes with
+ * .is-empty / .is-editor-empty and a data-placeholder attribute)
+ * ------------------------------------------------------------------------- */
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Selection & focused atoms
+ * ------------------------------------------------------------------------- */
+.ProseMirror ::selection {
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.ProseMirror-selectednode {
+  outline: 2px solid color-mix(in oklab, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Typography refinements over the prose baseline
+ * ------------------------------------------------------------------------- */
+
+/* Links: quiet underline like Notion, never garish blue */
+.ProseMirror a {
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 35%,
+    transparent
+  );
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease;
+}
+
+.ProseMirror a:hover {
+  text-decoration-color: var(--foreground);
+}
+
+/* Inline code */
+.ProseMirror code {
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+  font-size: 0.875em;
+}
+
+/* Blockquote: calm left rule, no italic leaning */
+.ProseMirror blockquote {
+  border-left: 3px solid var(--border);
+  font-style: normal;
+  font-weight: inherit;
+  padding-left: 1rem;
+  color: inherit;
+}
+
+/* Horizontal rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin-block: 1.5em;
+}
+
+/* ---------------------------------------------------------------------------
+ * Task lists
+ * ------------------------------------------------------------------------- */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  user-select: none;
+  margin-top: 0.45em;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  accent-color: var(--primary);
+  cursor: pointer;
+  height: 1em;
+  width: 1em;
+}
+
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 0.25rem;
+}
+
+/* Nested paragraphs inside list items keep the tight Notion rhythm */
+.ProseMirror li p {
+  margin-block: 0.125em;
+}

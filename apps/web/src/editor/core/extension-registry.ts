@@ -7,6 +7,7 @@ import { TableKit } from "@tiptap/extension-table"
 import TextAlign from "@tiptap/extension-text-align"
 import { TextStyleKit } from "@tiptap/extension-text-style"
 import { Youtube } from "@tiptap/extension-youtube"
+import { Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import { common, createLowlight } from "lowlight"
@@ -31,6 +32,24 @@ export interface AssembleExtensionsOptions {
    * capability-driven baseline.
    */
   extraExtensions?: AnyExtension[]
+}
+
+/**
+ * Ghost prompts for the active empty block, Notion-style. Only the focused
+ * empty node shows a prompt, and headings name themselves so an empty
+ * outline is still readable.
+ */
+export function resolvePlaceholderText(
+  node: { type: { name: string }; attrs: Record<string, unknown> },
+  editorIsEmpty: boolean,
+): string {
+  if (node.type.name === "heading") {
+    const level = node.attrs.level
+    return typeof level === "number" ? `Heading ${level}` : "Heading"
+  }
+  return editorIsEmpty
+    ? "Write, press '/' for commands…"
+    : "Type '/' for commands"
 }
 
 /**
@@ -109,6 +128,15 @@ export function assembleExtensions({
       CodeBlockLowlight.configure({
         lowlight: sharedLowlight,
         defaultLanguage: "plaintext",
+      }),
+    )
+  }
+
+  if (capabilities.placeholder !== false) {
+    extensions.push(
+      Placeholder.configure({
+        placeholder: ({ editor, node }) =>
+          resolvePlaceholderText(node, editor?.isEmpty ?? false),
       }),
     )
   }

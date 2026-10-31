@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test"
 import { Editor, Extension } from "@tiptap/react"
-import { assembleExtensions } from "./extension-registry"
+import {
+  assembleExtensions,
+  resolvePlaceholderText,
+} from "./extension-registry"
 import { defaultDocumentDefinition } from "./types"
 
 /**
@@ -58,9 +61,30 @@ describe("assembleExtensions", () => {
       "highlight",
       "textStyleKit",
       "color",
+      "placeholder",
     ]) {
       expect(names).toContain(expected)
     }
+  })
+
+  it("omits the placeholder extension when disabled", () => {
+    const names = resolveExtensionNames({ placeholder: false })
+    expect(names).not.toContain("placeholder")
+  })
+
+  it("derives heading and paragraph placeholder prompts", () => {
+    expect(resolvePlaceholderText({ type: { name: "heading" }, attrs: { level: 2 } }, false)).toBe(
+      "Heading 2",
+    )
+    expect(
+      resolvePlaceholderText({ type: { name: "paragraph" }, attrs: {} }, true),
+    ).toBe("Write, press '/' for commands…")
+    expect(
+      resolvePlaceholderText({ type: { name: "paragraph" }, attrs: {} }, false),
+    ).toBe("Type '/' for commands")
+    expect(resolvePlaceholderText({ type: { name: "heading" }, attrs: {} }, false)).toBe(
+      "Heading",
+    )
   })
 
   it("registers exactly one code block implementation", () => {
@@ -80,6 +104,7 @@ describe("assembleExtensions", () => {
       highlights: false,
       textColors: false,
       taskLists: false,
+      placeholder: false,
     })
 
     for (const banned of [
@@ -94,6 +119,7 @@ describe("assembleExtensions", () => {
       "color",
       "taskList",
       "taskItem",
+      "placeholder",
     ]) {
       expect(names).not.toContain(banned)
     }
