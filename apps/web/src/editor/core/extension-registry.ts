@@ -71,6 +71,15 @@ export function assembleExtensions({
       ...(capabilities.codeBlocks === false
         ? {}
         : { codeBlock: false as const }),
+      // Links are edited through the inline link popover; clicking a link
+      // must not navigate away mid-edit. Rendered anchors open safely.
+      link: {
+        openOnClick: false,
+        HTMLAttributes: {
+          rel: "noopener noreferrer nofollow",
+          target: "_blank",
+        },
+      },
     }),
     TextAlign.configure({
       types: ["heading", "paragraph"],

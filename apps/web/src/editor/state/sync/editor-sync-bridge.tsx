@@ -33,6 +33,9 @@ export function deriveFormattingSnapshot(
     (editor.isActive({ textAlign: "left" }) ?? false) ||
     (!isAlignCenter && !isAlignRight && !isAlignJustify)
 
+  const highlightAttributes = editor.getAttributes("highlight")
+  const textStyleAttributes = editor.getAttributes("textStyle")
+
   return {
     isBold: editor.isActive("bold") ?? false,
     isItalic: editor.isActive("italic") ?? false,
@@ -49,6 +52,14 @@ export function deriveFormattingSnapshot(
     isBlockquote: editor.isActive("blockquote") ?? false,
     isMath:
       (editor.isActive("inlineMath") || editor.isActive("blockMath")) ?? false,
+    highlightColor:
+      typeof highlightAttributes.color === "string"
+        ? highlightAttributes.color
+        : null,
+    textColor:
+      typeof textStyleAttributes.color === "string"
+        ? textStyleAttributes.color
+        : null,
   }
 }
 
@@ -83,7 +94,9 @@ export function areStatesEqual(
     a.isCode === b.isCode &&
     a.isCodeBlock === b.isCodeBlock &&
     a.isBlockquote === b.isBlockquote &&
-    a.isMath === b.isMath
+    a.isMath === b.isMath &&
+    a.highlightColor === b.highlightColor &&
+    a.textColor === b.textColor
   )
 }
 

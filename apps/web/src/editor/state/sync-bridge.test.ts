@@ -13,6 +13,7 @@ const createMockEditor = (
   activeMap: Record<string, boolean> = {},
   destroyed = false,
   selection = { from: 0, to: 0, empty: true },
+  attributes: Record<string, Record<string, unknown>> = {},
 ): Editor => {
   return {
     isDestroyed: destroyed,
@@ -31,6 +32,12 @@ const createMockEditor = (
         return activeMap[`textAlign-${align}`] ?? false
       }
       return false
+    },
+    getAttributes: (name: string | Record<string, unknown>) => {
+      if (typeof name === "string") {
+        return attributes[name] ?? {}
+      }
+      return {}
     },
   } as unknown as Editor
 }

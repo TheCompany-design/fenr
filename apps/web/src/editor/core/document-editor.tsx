@@ -2,6 +2,7 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useRef } from "react"
 import { BubbleMenu } from "../bubble-menu"
 import { DragHandle, useDragHandleSync } from "../drag-handle"
+import { LinkPopover } from "../link/link-popover"
 import { EditorSyncBridge } from "../state/sync-bridge"
 import { DocumentCanvas } from "./document-canvas"
 import { EditorSurface } from "./editor-surface"
@@ -37,6 +38,7 @@ export function DocumentEditor({
     <div className={cn("relative w-full", className)}>
       <EditorSyncBridge editor={editor} />
       <BubbleMenu editor={editor} />
+      <LinkPopover editor={editor} />
       <DocumentCanvas
         ref={canvasRef}
         width={definition.canvas?.width}
