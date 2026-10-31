@@ -4,6 +4,7 @@ import { BubbleMenu } from "../bubble-menu"
 import { DragHandle, useDragHandleSync } from "../drag-handle"
 import { LinkPopover } from "../link/link-popover"
 import { EditorSyncBridge } from "../state/sync-bridge"
+import { TableToolbar } from "../tables/table-toolbar"
 import { DocumentCanvas } from "./document-canvas"
 import { EditorSurface } from "./editor-surface"
 import { type DocumentEditorProps, defaultDocumentDefinition } from "./types"
@@ -39,6 +40,7 @@ export function DocumentEditor({
       <EditorSyncBridge editor={editor} />
       <BubbleMenu editor={editor} />
       <LinkPopover editor={editor} />
+      <TableToolbar editor={editor} />
       <DocumentCanvas
         ref={canvasRef}
         width={definition.canvas?.width}

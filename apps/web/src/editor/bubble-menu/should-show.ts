@@ -36,3 +36,21 @@ export interface LinkPopoverContext {
 export function shouldShowLinkPopover(context: LinkPopoverContext): boolean {
   return context.isLinkActive
 }
+
+export interface TableToolbarContext {
+  isEditable: boolean
+  isActiveTable: boolean
+  isEmptySelection: boolean
+  /** Selection spans one or more whole cells (ProseMirror CellSelection) */
+  isCellSelection: boolean
+}
+
+/**
+ * The table toolbar shows for a collapsed cursor inside a table or a cell
+ * spanning selection. Text selections inside a single cell keep the
+ * formatting toolbar instead, so the two never stack.
+ */
+export function shouldShowTableToolbar(context: TableToolbarContext): boolean {
+  if (!context.isEditable || !context.isActiveTable) return false
+  return context.isEmptySelection || context.isCellSelection
+}

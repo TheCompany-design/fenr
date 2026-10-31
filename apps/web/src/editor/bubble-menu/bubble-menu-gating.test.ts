@@ -3,6 +3,7 @@ import { HIGHLIGHT_COLOR_SWATCHES, TEXT_COLOR_SWATCHES } from "./colors"
 import {
   shouldShowFormattingBubble,
   shouldShowLinkPopover,
+  shouldShowTableToolbar,
 } from "./should-show"
 
 describe("color palettes", () => {
@@ -63,6 +64,36 @@ describe("shouldShowFormattingBubble", () => {
     expect(shouldShowFormattingBubble({ ...visible, isLinkActive: true })).toBe(
       false,
     )
+  })
+})
+
+describe("shouldShowTableToolbar", () => {
+  const visible = {
+    isEditable: true,
+    isActiveTable: true,
+    isEmptySelection: true,
+    isCellSelection: false,
+  }
+
+  it("shows for a collapsed cursor inside a table", () => {
+    expect(shouldShowTableToolbar(visible)).toBe(true)
+  })
+
+  it("shows for cell-spanning selections", () => {
+    expect(
+      shouldShowTableToolbar({ ...visible, isEmptySelection: false, isCellSelection: true }),
+    ).toBe(true)
+  })
+
+  it("hides for text selections so the formatting toolbar takes over", () => {
+    expect(
+      shouldShowTableToolbar({ ...visible, isEmptySelection: false, isCellSelection: false }),
+    ).toBe(false)
+  })
+
+  it("hides outside tables and in read-only editors", () => {
+    expect(shouldShowTableToolbar({ ...visible, isActiveTable: false })).toBe(false)
+    expect(shouldShowTableToolbar({ ...visible, isEditable: false })).toBe(false)
   })
 })
 
