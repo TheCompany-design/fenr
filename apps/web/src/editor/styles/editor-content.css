@@ -156,6 +156,7 @@
   transform: rotate(90deg);
 }
 
+ biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
 .ProseMirror details > div {
   padding-left: 1.125rem;
   margin-top: 0.25rem;
@@ -249,4 +250,135 @@
   width: 100%;
   height: 100%;
   border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Notion rhythm overrides (typography scale, tracking, block spacing).
+ * Unlayered rules intentionally win over the prose utilities.
+ * ------------------------------------------------------------------------- */
+.ProseMirror {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+ biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
+.ProseMirror p {
+  margin-block: 2px;
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4 {
+  letter-spacing: -0.011em;
+  line-height: 1.3;
+}
+
+.ProseMirror h1 {
+  font-size: 1.875em;
+  font-weight: 700;
+  margin-top: 1.4em;
+  margin-bottom: 0.15em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.4em;
+  margin-bottom: 0.15em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.1em;
+}
+
+.ProseMirror > h1:first-child,
+.ProseMirror > h2:first-child,
+.ProseMirror > h3:first-child {
+  margin-top: 0.2em;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin-block: 4px;
+  padding-left: 1.375rem;
+}
+
+.ProseMirror li {
+  margin-block: 2px;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  margin-block: 4px;
+}
+
+.ProseMirror li > p {
+  margin-block: 0;
+}
+
+/* Callout body keeps the tight rhythm and aligns with the emoji chip */
+.ProseMirror div[data-callout] p {
+  margin-block: 2px;
+}
+
+/* Table cells: paragraphs must not inflate row height */
+ biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific
+.ProseMirror th p,
+.ProseMirror td p {
+  margin-block: 1px;
+  line-height: 1.45;
+}
+
+.ProseMirror hr {
+  margin-block: 1.2em;
+}
+
+/* Code block: tighter surface + syntax token colors that hold in both modes */
+.ProseMirror [data-code-block-wrapper] code {
+  padding: 0.6rem 0.9rem;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section {
+  color: #c678dd;
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-addition {
+  color: #98c379;
+}
+
+.hljs-title,
+.hljs-name,
+.hljs-function,
+.hljs-function .hljs-params {
+  color: #61afef;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #d19a66;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #7f848e;
+  font-style: italic;
+}
+
+.hljs-variable,
+.hljs-template-variable {
+  color: #e06c75;
+}
+
+.hljs-built_in,
+.hljs-type {
+  color: #e5c07b;
 }
