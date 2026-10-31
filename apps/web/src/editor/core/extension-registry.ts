@@ -1,4 +1,3 @@
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight"
 import {
   Details,
   DetailsContent,
@@ -15,17 +14,10 @@ import { Youtube } from "@tiptap/extension-youtube"
 import { Placeholder } from "@tiptap/extensions"
 import type { AnyExtension } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
-import { common, createLowlight } from "lowlight"
 import { Callout } from "../nodes/callout"
+import { FenrCodeBlock } from "../nodes/code-block"
 import { createSlashMenuExtension } from "../slash-menu/slash-menu-extension"
 import type { EditorCapabilities } from "./types"
-
-/**
- * Shared lowlight instance backing every code block. `lowlight` keeps a
- * language registry only — it holds no per-document state, so a single
- * instance is safely shared across concurrent editors.
- */
-const sharedLowlight = createLowlight(common)
 
 export interface AssembleExtensionsOptions {
   /**
@@ -140,12 +132,7 @@ export function assembleExtensions({
   }
 
   if (capabilities.codeBlocks !== false) {
-    extensions.push(
-      CodeBlockLowlight.configure({
-        lowlight: sharedLowlight,
-        defaultLanguage: "plaintext",
-      }),
-    )
+    extensions.push(FenrCodeBlock)
   }
 
   if (capabilities.placeholder !== false) {
