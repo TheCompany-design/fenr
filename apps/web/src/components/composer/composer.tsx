@@ -27,6 +27,7 @@ import {
   PromptInputTextarea,
   PromptInputTrail,
 } from "./primitives/prompt-input"
+import { PromptMentionLayer } from "./primitives/prompt-mention-layer"
 import {
   commitSuggestion,
   moveActive,
@@ -37,6 +38,8 @@ import {
 } from "./primitives/suggestion"
 import {
   type ComposerDensity,
+  DRAFT_TEXT_CLASSES,
+  draftBoxClasses,
   PANEL_EDITOR_MAX_HEIGHT_PX,
   resolveDensity,
 } from "./state/composer-density"
@@ -124,22 +127,22 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
         setText(committed.text)
         if (action) runCommand(action)
       } else {
+        const isIntegration = item.id.startsWith("integration:")
         setText(committed.text)
         addMentions([
           {
             id: committed.item.id,
-            kind: item.id.startsWith("integration:")
-              ? "app"
-              : item.id.startsWith("ref:")
-                ? "file"
-                : "file",
+            kind: isIntegration ? "app" : "file",
             label: item.label,
             insertText: item.insertText,
             start: committed.start,
             end: committed.end,
-            toolkitSlug: item.id.startsWith("integration:")
+            toolkitSlug: isIntegration
               ? item.id.slice("integration:".length)
               : undefined,
+            logoUrl: isIntegration ? item.logoUrl : undefined,
+            logoMonochrome: isIntegration ? item.logoMonochrome : undefined,
+            accentHex: isIntegration ? item.accentHex : undefined,
           },
         ])
       }
@@ -201,35 +204,45 @@ function PromptEditor({ density }: { density: ComposerDensity }) {
     [handleSelect, onSubmit, store],
   )
 
+  // Once an app mention is in the draft the textarea's own glyphs stand down
+  // and the mention layer paints the text, pills included; the caret and the
+  // selection stay the textarea's, drawn above the pills.
+  const hasAppMention = mentions.some((mention) => mention.kind === "app")
+
   return (
     <>
       <PromptInputEditor
         maxHeight={PANEL_EDITOR_MAX_HEIGHT_PX}
         onScroll={resyncAnchor}
       >
-        <PromptInputTextarea
-          placeholder="Ask anything, or use / for commands"
-          onKeyDown={handleKeyDown}
-          onChange={(event) => {
-            setText(event.target.value)
-            sync()
-          }}
-          onKeyUp={sync}
-          onClick={sync}
-          onSelect={sync}
-          onBlur={() => {
-            setTimeout(() => {
-              const state = store.get()
-              if (state.open) store.set({ ...state, open: false })
-            }, 120)
-          }}
-          className={cn(
-            "text-base leading-relaxed md:text-base",
-            density === "pill"
-              ? "max-h-[1lh] min-h-0 py-0 pl-[var(--pill-inset-left,0px)] pr-[var(--pill-inset-right,0px)]"
-              : "min-h-12 px-3 pt-3 pb-1",
-          )}
-        />
+        {/* The canvas is what the mention layer positions against, and what
+            carries the pill insets that both it and the textarea inherit. */}
+        <div data-slot="prompt-editor-canvas" className="relative">
+          <PromptMentionLayer density={density} mentions={mentions} />
+          <PromptInputTextarea
+            placeholder="Ask anything, or use / for commands"
+            onKeyDown={handleKeyDown}
+            onChange={(event) => {
+              setText(event.target.value)
+              sync()
+            }}
+            onKeyUp={sync}
+            onClick={sync}
+            onSelect={sync}
+            onBlur={() => {
+              setTimeout(() => {
+                const state = store.get()
+                if (state.open) store.set({ ...state, open: false })
+              }, 120)
+            }}
+            className={cn(
+              DRAFT_TEXT_CLASSES,
+              draftBoxClasses(density),
+              "relative",
+              hasAppMention && "text-transparent caret-foreground",
+            )}
+          />
+        </div>
       </PromptInputEditor>
       <PromptAutocomplete
         state={suggestion}
