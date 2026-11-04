@@ -189,6 +189,72 @@ describe("useAgentStream Hook", () => {
     expect(agentMsg?.status).toBe("completed")
   })
 
+  it("resumes a suspended turn via resume() and streams the continuation", async () => {
+    const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+    const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+    const approvalItemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e3"
+    const replyItemId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e4"
+
+    const initialSse = [
+      `data: {"type":"turn_started","data":{"thread_id":"${threadId}","turn_id":"${turnId}"}}\n\n`,
+      `data: {"type":"turn_suspended","data":{"thread_id":"${threadId}","turn_id":"${turnId}","item_id":"${approvalItemId}","attempt":1}}\n\n`,
+    ].join("")
+
+    const resumedSse = [
+      `data: {"type":"turn_resumed","data":{"thread_id":"${threadId}","turn_id":"${turnId}","item_id":"${approvalItemId}","decision":"approved","attempt":2}}\n\n`,
+      `data: {"type":"item_started","data":{"thread_id":"${threadId}","turn_id":"${turnId}","item_id":"${replyItemId}","kind":"agent_message"}}\n\n`,
+      `data: {"type":"item_delta","data":{"item_id":"${replyItemId}","delta":{"kind":"text_delta","text":"Approved tool ran successfully."}}}\n\n`,
+      `data: {"type":"turn_completed","data":{"thread_id":"${threadId}","turn_id":"${turnId}","status":"completed","usage":{"prompt_tokens":15,"completion_tokens":25,"total_tokens":40}}}\n\n`,
+    ].join("")
+
+    const sentPayloads: Record<string, unknown>[] = []
+    let callCount = 0
+
+    globalThis.fetch = mock(async (_url, init) => {
+      callCount += 1
+      if (init?.body) {
+        sentPayloads.push(JSON.parse(init.body as string))
+      }
+      const payload = callCount === 1 ? initialSse : resumedSse
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(payload))
+          controller.close()
+        },
+      })
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      })
+    }) as unknown as typeof fetch
+
+    const hook = renderStreamHook()
+
+    await act(async () => {
+      await hook.current.send("Run sensitive tool", threadId)
+    })
+
+    expect(hook.current.turn.status).toBe("suspended")
+    expect(hook.current.turn.awaitingApprovalItemId).toBe(approvalItemId)
+
+    await act(async () => {
+      await hook.current.resume(turnId, threadId)
+    })
+
+    expect(sentPayloads[1]).toEqual({
+      resume_turn_id: turnId,
+      thread_id: threadId,
+    })
+    expect(hook.current.turn.status).toBe("completed")
+    expect(hook.current.turn.awaitingApprovalItemId).toBeNull()
+
+    const cachedMessages = queryClient.getQueryData<ChatMessage[]>(
+      chatKeys.messages(threadId),
+    )
+    expect(cachedMessages).toHaveLength(2)
+    expect(cachedMessages?.[1]?.content).toBe("Approved tool ran successfully.")
+  })
+
   it("handles user stop() cancellation without triggering error toast", async () => {
     globalThis.fetch = mock(async (_url, init) => {
       let streamController: ReadableStreamDefaultController | null = null

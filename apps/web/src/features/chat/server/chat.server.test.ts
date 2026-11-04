@@ -5,6 +5,7 @@ import {
   getChatThreads,
   getThreadChoice,
   getThreadMessages,
+  getThreadPendingApproval,
   lastAgentMessageByTurn,
 } from "./chat.server"
 
@@ -98,6 +99,106 @@ describe("Chat Server Operations (Thread Messages)", () => {
 
     const result = await getThreadMessages(threadId, tenantB)
     expect(result).toBeNull()
+  })
+
+  it("returns pending approval for a suspended turn scoped strictly to tenant", async () => {
+    const tenantId = crypto.randomUUID()
+    const foreignTenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const itemId = crypto.randomUUID()
+    const now = new Date()
+
+    await seedOrganization(tenantId)
+    await seedOrganization(foreignTenantId)
+
+    await db.transaction(async (scoped) => {
+      await scoped.insert(schema.agentThreads).values({
+        id: threadId,
+        tenantId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await scoped.insert(schema.agentTurns).values({
+        id: turnId,
+        threadId,
+        tenantId,
+        turnIndex: 0,
+        status: "suspended",
+        attempt: 1,
+        createdAt: now,
+      })
+      await scoped.insert(schema.agentItems).values({
+        id: itemId,
+        threadId,
+        turnId,
+        tenantId,
+        kind: "approval_request",
+        payload: {
+          kind: "approval_request",
+          call_id: "call_1",
+          tool: "composio-github_create_issue",
+          arguments: { title: "Bug report" },
+        },
+        createdAt: now,
+        completedAt: now,
+      })
+      await scoped.insert(schema.agentApprovals).values({
+        itemId,
+        tenantId,
+        callId: "call_1",
+        tool: "composio-github_create_issue",
+        arguments: { title: "Bug report" },
+        decision: null,
+        requestedAt: now,
+      })
+    })
+
+    try {
+      const pending = await getThreadPendingApproval(threadId, tenantId)
+      expect(pending).toEqual({
+        turnId,
+        itemId,
+        attempt: 1,
+      })
+
+      // Foreign tenant cannot see the pending approval
+      expect(
+        await getThreadPendingApproval(threadId, foreignTenantId),
+      ).toBeNull()
+
+      // Once decided, pending approval returns null
+      await db
+        .update(schema.agentApprovals)
+        .set({
+          decision: "approved",
+          decidedBy: crypto.randomUUID(),
+          decidedAt: new Date(),
+        })
+        .where(eq(schema.agentApprovals.itemId, itemId))
+      expect(await getThreadPendingApproval(threadId, tenantId)).toBeNull()
+    } finally {
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentApprovals)
+          .where(eq(schema.agentApprovals.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, foreignTenantId))
+      })
+    }
   })
 })
 
@@ -335,6 +436,74 @@ describe("getChatThreads and deleteChatThread", () => {
       await db
         .delete(schema.organization)
         .where(eq(schema.organization.id, tenantB))
+    }
+  })
+
+  it("derives and backfills a fallback title from the first user message when agent_threads.title is null", async () => {
+    const tenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const now = new Date()
+
+    await seedOrganization(tenantId)
+
+    try {
+      await db.transaction(async (scoped) => {
+        await scoped.insert(schema.agentThreads).values({
+          id: threadId,
+          tenantId,
+          title: null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await scoped.insert(schema.agentTurns).values({
+          id: turnId,
+          threadId,
+          tenantId,
+          turnIndex: 0,
+          status: "completed",
+          createdAt: now,
+          completedAt: now,
+        })
+        await scoped.insert(schema.agentItems).values({
+          threadId,
+          turnId,
+          tenantId,
+          kind: "user_message",
+          payload: {
+            kind: "user_message",
+            content: "Audit our Q3 cloud infrastructure spend",
+          },
+          createdAt: now,
+          completedAt: now,
+        })
+      })
+
+      const threads = await getChatThreads(tenantId)
+      expect(threads).toHaveLength(1)
+      expect(threads[0]?.id).toBe(threadId)
+      expect(threads[0]?.title).toBe("Audit our Q3 cloud infrastructure spend")
+
+      const [persisted] = await db
+        .select({ title: schema.agentThreads.title })
+        .from(schema.agentThreads)
+        .where(eq(schema.agentThreads.id, threadId))
+      expect(persisted?.title).toBe("Audit our Q3 cloud infrastructure spend")
+    } finally {
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
+      })
     }
   })
 

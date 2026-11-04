@@ -8,6 +8,7 @@ import {
   getChatThreads,
   getThreadChoice,
   getThreadMessages,
+  getThreadPendingApproval,
 } from "./server/chat.server"
 
 const getThreadMessagesInputSchema = z.object({
@@ -35,6 +36,37 @@ export const getThreadMessagesFn = createServerFn({ method: "GET" })
         })
 
         return getThreadMessages(data.threadId, tenantId, { requestId })
+      },
+    )
+  })
+
+const getThreadPendingApprovalInputSchema = z.object({
+  threadId: z.string().uuid(),
+})
+
+export const getThreadPendingApprovalFn = createServerFn({ method: "GET" })
+  .validator((input: unknown) =>
+    getThreadPendingApprovalInputSchema.parse(input),
+  )
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "chat",
+      "getThreadPendingApproval",
+      async (setContext) => {
+        const session = await ensureSession()
+        const tenantId = session.session.activeOrganizationId
+
+        if (!tenantId) {
+          throw new Error("Active organization context is required")
+        }
+
+        setContext({
+          userId: session.user.id,
+          organizationId: tenantId,
+          threadId: data.threadId,
+        })
+
+        return getThreadPendingApproval(data.threadId, tenantId)
       },
     )
   })

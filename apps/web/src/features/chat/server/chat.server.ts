@@ -1,7 +1,22 @@
-import { and, asc, db, desc, eq, isNotNull, schema } from "@workspace/database"
+import {
+  and,
+  asc,
+  db,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  schema,
+} from "@workspace/database"
 import { moduleLogger } from "@/lib/logger"
+import { formatPromptTitle } from "../components/format-chat-title"
 import type { ModelCallProjection } from "../state/stream-reducer"
-import type { ChatMessage, ChatThreadSummary } from "../types"
+import type {
+  ChatMessage,
+  ChatThreadSummary,
+  ThreadPendingApproval,
+} from "../types"
 
 const log = moduleLogger("chat.server")
 
@@ -171,6 +186,45 @@ export async function getThreadMessages(
     })
 }
 
+export async function getThreadPendingApproval(
+  threadId: string,
+  tenantId: string,
+): Promise<ThreadPendingApproval | null> {
+  const [row] = await db
+    .select({
+      turnId: schema.agentTurns.id,
+      attempt: schema.agentTurns.attempt,
+      itemId: schema.agentApprovals.itemId,
+    })
+    .from(schema.agentTurns)
+    .innerJoin(
+      schema.agentItems,
+      and(
+        eq(schema.agentItems.turnId, schema.agentTurns.id),
+        eq(schema.agentItems.tenantId, schema.agentTurns.tenantId),
+      ),
+    )
+    .innerJoin(
+      schema.agentApprovals,
+      and(
+        eq(schema.agentApprovals.itemId, schema.agentItems.id),
+        eq(schema.agentApprovals.tenantId, schema.agentItems.tenantId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.agentTurns.threadId, threadId),
+        eq(schema.agentTurns.tenantId, tenantId),
+        eq(schema.agentTurns.status, "suspended"),
+        isNull(schema.agentApprovals.decision),
+      ),
+    )
+    .orderBy(desc(schema.agentApprovals.requestedAt))
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function getThreadChoice(
   threadId: string,
   tenantId: string,
@@ -222,9 +276,66 @@ export async function getChatThreads(
     .orderBy(desc(schema.agentThreads.updatedAt))
     .limit(limit)
 
+  const untitledThreadIds = threads
+    .filter((thread) => !thread.title?.trim())
+    .map((thread) => thread.id)
+
+  const fallbackTitles = new Map<string, string>()
+
+  if (untitledThreadIds.length > 0) {
+    const userItems = await db
+      .select({
+        threadId: schema.agentItems.threadId,
+        payload: schema.agentItems.payload,
+      })
+      .from(schema.agentItems)
+      .where(
+        and(
+          eq(schema.agentItems.tenantId, tenantId),
+          inArray(schema.agentItems.threadId, untitledThreadIds),
+          eq(schema.agentItems.kind, "user_message"),
+        ),
+      )
+      .orderBy(asc(schema.agentItems.createdAt), asc(schema.agentItems.id))
+
+    for (const item of userItems) {
+      if (fallbackTitles.has(item.threadId)) continue
+      const payload = item.payload as Record<string, unknown> | null
+      const content =
+        typeof payload?.content === "string" ? payload.content : ""
+      const derived = formatPromptTitle(content)
+      if (derived) {
+        fallbackTitles.set(item.threadId, derived)
+      }
+    }
+
+    if (fallbackTitles.size > 0) {
+      await Promise.all(
+        Array.from(fallbackTitles.entries()).map(([threadId, derivedTitle]) =>
+          db
+            .update(schema.agentThreads)
+            .set({ title: derivedTitle })
+            .where(
+              and(
+                eq(schema.agentThreads.id, threadId),
+                eq(schema.agentThreads.tenantId, tenantId),
+                isNull(schema.agentThreads.title),
+              ),
+            )
+            .catch((error: unknown) => {
+              log.warn(
+                { threadId, tenantId, error },
+                "Failed to backfill derived thread title",
+              )
+            }),
+        ),
+      )
+    }
+  }
+
   return threads.map((thread) => ({
     id: thread.id,
-    title: thread.title,
+    title: thread.title?.trim() || fallbackTitles.get(thread.id) || null,
     model: thread.model,
     effort: thread.effort,
     createdAt: thread.createdAt.toISOString(),

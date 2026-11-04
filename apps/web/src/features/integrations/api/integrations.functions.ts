@@ -52,6 +52,36 @@ async function roleOf(userId: string): Promise<string | null> {
   return getActiveOrganizationRole(userId)
 }
 
+function humanizeToolName(raw: string): string {
+  const withoutPrefix = raw.startsWith("composio-")
+    ? raw.slice("composio-".length)
+    : raw
+  return withoutPrefix
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ")
+}
+
+export type ApprovalToolJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ApprovalToolJsonValue[]
+  | { [key: string]: ApprovalToolJsonValue }
+
+export interface ApprovalToolMetadata {
+  readonly tool: string
+  readonly callId: string | null
+  readonly toolSlug: string | null
+  readonly toolkitSlug: string | null
+  readonly displayName: string
+  readonly description: string | null
+  readonly capabilityClass: string | null
+  readonly arguments: Record<string, ApprovalToolJsonValue>
+}
+
 export const getIntegrationsCatalogFn = createServerFn({
   method: "GET",
 }).handler(async (): Promise<IntegrationsCatalogResult> => {
@@ -327,15 +357,14 @@ export const requestIntegrationFn = createServerFn({ method: "POST" })
   })
 
 /**
- * Reads the composio tool slug behind an approval request item, so the chat
- * surface can offer "always allow" for exactly that action. `null` when the
- * item is not a composio approval.
+ * Reads the approval request details and optional Composio catalog metadata for
+ * a suspended turn's `approval_request` item.
  */
 export const getApprovalToolFn = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z.object({ itemId: z.string().uuid() }).parse(input),
   )
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<ApprovalToolMetadata | null> => {
     return withWideEvent(
       "integrations",
       "getApprovalTool",
@@ -360,18 +389,71 @@ export const getApprovalToolFn = createServerFn({ method: "POST" })
               eq(schema.agentItems.tenantId, organizationId),
             ),
           )
+          .limit(1)
 
         const payload = rows[0]?.payload as
-          | { kind?: string; tool?: string }
+          | {
+              kind?: string
+              tool?: string
+              call_id?: string
+              arguments?: unknown
+            }
           | undefined
         if (payload?.kind !== "approval_request") {
           return null
         }
-        const tool = typeof payload.tool === "string" ? payload.tool : null
-        if (!tool?.startsWith("composio-")) {
-          return null
+
+        const tool =
+          typeof payload.tool === "string" && payload.tool.trim()
+            ? payload.tool
+            : "unknown_tool"
+        const callId =
+          typeof payload.call_id === "string" ? payload.call_id : null
+        const rawArguments =
+          payload.arguments &&
+          typeof payload.arguments === "object" &&
+          !Array.isArray(payload.arguments)
+            ? (payload.arguments as Record<string, ApprovalToolJsonValue>)
+            : {}
+
+        const toolSlug = tool.startsWith("composio-")
+          ? tool.slice("composio-".length).toUpperCase()
+          : null
+
+        if (!toolSlug) {
+          return {
+            tool,
+            callId,
+            toolSlug: null,
+            toolkitSlug: null,
+            displayName: humanizeToolName(tool),
+            description: null,
+            capabilityClass: null,
+            arguments: rawArguments,
+          }
         }
-        return { toolSlug: tool.slice("composio-".length).toUpperCase() }
+
+        const [catalogTool] = await db
+          .select({
+            displayName: schema.integrationCatalogTools.displayName,
+            description: schema.integrationCatalogTools.description,
+            toolkitSlug: schema.integrationCatalogTools.toolkitSlug,
+            capabilityClass: schema.integrationCatalogTools.capabilityClass,
+          })
+          .from(schema.integrationCatalogTools)
+          .where(eq(schema.integrationCatalogTools.slug, toolSlug))
+          .limit(1)
+
+        return {
+          tool,
+          callId,
+          toolSlug,
+          toolkitSlug: catalogTool?.toolkitSlug ?? null,
+          displayName: catalogTool?.displayName ?? humanizeToolName(tool),
+          description: catalogTool?.description ?? null,
+          capabilityClass: catalogTool?.capabilityClass ?? null,
+          arguments: rawArguments,
+        }
       },
     )
   })
