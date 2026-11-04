@@ -5,15 +5,47 @@ import {
   Layers01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { useQuery } from "@tanstack/react-query"
+import { Citations } from "@workspace/ui/components/citations"
 import { cn } from "@workspace/ui/lib/utils"
 import { useAtom } from "jotai"
+import { useMemo } from "react"
 import { toast } from "sonner"
+import { integrationsCatalogQueryOptions } from "@/features/integrations/api/integrations-queries"
+import { logoUrl as brandLogoUrl } from "@/lib/brand/logos"
 import { OpenUiRenderer } from "../genui/openui-renderer"
 import { extractOpenUiProgram } from "../genui/openui-response"
+import { extractCitationsFromMarkdown } from "../lib/extract-citations"
 import { copiedMessageIdAtom } from "../state/chat-atoms"
-import { type ChatTurn, turnText, turnThinking } from "../state/chat-turns"
+import {
+  type ChatTurn,
+  turnCitations,
+  turnText,
+  turnThinking,
+} from "../state/chat-turns"
+import type { AppMentionApp } from "./app-mention-pill"
 import { formatTimestamp } from "./format-timestamp"
+import { MessageMarkdown } from "./message-markdown"
 import { ThinkingTrace } from "./thinking-trace"
+
+/**
+ * The workspace's integrations, flattened to what a mention pill draws.
+ * A deployment without the Composio gateway answers an empty registry, and
+ * user messages simply keep their plain `@Name` text.
+ */
+function useAppMentionApps(): readonly AppMentionApp[] {
+  const { data } = useQuery(integrationsCatalogQueryOptions())
+  return useMemo(() => {
+    const catalog = data && !("unavailable" in data) ? data : null
+    return (catalog?.toolkits ?? []).map((toolkit) => ({
+      slug: toolkit.slug,
+      name: toolkit.display_name,
+      logoUrl: brandLogoUrl(toolkit.logo_slug),
+      accentHex: toolkit.brand_accent_hex,
+      monochrome: toolkit.logo_monochrome,
+    }))
+  }, [data])
+}
 
 export interface ChatTurnBlockProps {
   readonly turn: ChatTurn
@@ -28,16 +60,28 @@ export function ChatTurnBlock({
 }: ChatTurnBlockProps) {
   const [copiedId, setCopiedId] = useAtom(copiedMessageIdAtom)
   const isUser = turn.isUser
+  const appMentionApps = useAppMentionApps()
 
   if (isUser) {
     const message = turn.messages[0]
     if (!message) return null
 
     return (
-      <div className="flex w-full justify-end px-2 py-1.5">
+      <div
+        data-slot="message"
+        data-from="user"
+        className="flex w-full justify-end px-2 py-1.5"
+      >
         <div className="flex max-w-[85%] sm:max-w-[75%]">
-          <div className="rounded-2xl bg-muted px-4 py-2.5 text-[13px] leading-relaxed text-foreground shadow-xs">
-            <p className="whitespace-pre-wrap">{message.content}</p>
+          <div
+            data-slot="message-bubble-content"
+            className="min-w-0 rounded-2xl bg-muted px-4 py-2.5 text-[13px] leading-relaxed text-foreground shadow-xs"
+          >
+            <MessageMarkdown
+              content={message.content}
+              variant="user"
+              appMentions={appMentionApps}
+            />
           </div>
         </div>
       </div>
@@ -48,10 +92,17 @@ export function ChatTurnBlock({
   const text = turnText(turn.messages)
   const hasOpenUi = extractOpenUiProgram(text) !== null
 
+  const turnId = turn.messages.find((message) => message.turnId)?.turnId
   const startedAt = turn.messages.find(
     (message) => message.createdAt,
   )?.createdAt
-  const turnId = turn.messages.find((message) => message.turnId)?.turnId
+
+  const messageCitations = turnCitations(turn.messages)
+  const citations = useMemo(() => {
+    if (messageCitations.length > 0) return messageCitations
+    return extractCitationsFromMarkdown(text)
+  }, [messageCitations, text])
+  const citationPrefix = `citation-${turnId ?? turn.messages[0]?.id ?? "turn"}`
   const modelCalls = turn.messages.flatMap(
     (message) => message.modelCalls ?? [],
   )
@@ -93,7 +144,11 @@ export function ChatTurnBlock({
   }
 
   return (
-    <div className="flex w-full justify-start px-2 py-2">
+    <div
+      data-slot="message"
+      data-from="assistant"
+      className="flex w-full justify-start px-2 py-2"
+    >
       <div className="flex w-full max-w-[95%] flex-col sm:max-w-[90%]">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           {thinking && (
@@ -104,24 +159,32 @@ export function ChatTurnBlock({
           )}
 
           {text && hasOpenUi ? (
-            <OpenUiRenderer
-              content={text}
-              isStreaming={turn.isStreaming}
-              onContinue={onContinue ?? (() => {})}
-            />
+            <div data-slot="message-content">
+              <OpenUiRenderer
+                content={text}
+                isStreaming={turn.isStreaming}
+                onContinue={onContinue ?? (() => {})}
+              />
+            </div>
           ) : text ? (
-            <div className="text-[13px] leading-relaxed text-foreground">
-              <p className="whitespace-pre-wrap">
-                {text}
-                {turn.isStreaming && (
-                  <span
-                    aria-hidden
-                    className="ml-1 inline-block h-3.5 w-1 translate-y-0.5 rounded-full bg-foreground animate-pulse"
-                  />
-                )}
-              </p>
+            <div
+              data-slot="message-bubble-content"
+              className="min-w-0 text-[13px] leading-relaxed text-foreground"
+            >
+              <MessageMarkdown
+                content={text}
+                isStreaming={turn.isStreaming}
+                variant="assistant"
+                citationIdPrefix={citationPrefix}
+              />
             </div>
           ) : null}
+
+          {citations.length > 0 && (
+            <div className="mt-2">
+              <Citations citations={citations} idPrefix={citationPrefix} />
+            </div>
+          )}
 
           {latestCall && (modelCalls.length > 0 || totalInput > 0) && (
             <button
@@ -181,7 +244,6 @@ export function ChatTurnBlock({
             </button>
           )}
 
-          {}
           {(text || startedAt) && (
             <div className="mt-1.5 flex min-h-5 items-center justify-between gap-2">
               <div className="flex items-center gap-1">
