@@ -171,6 +171,8 @@ export function streamReducer(
     case "turn_suspended":
       return {
         ...state,
+        threadId: event.data.thread_id,
+        turnId: event.data.turn_id,
         status: "suspended",
         awaitingApprovalItemId: event.data.item_id,
         approvalAttempt: event.data.attempt,
@@ -250,6 +252,8 @@ export function streamReducer(
     case "turn_resumed":
       return {
         ...state,
+        threadId: event.data.thread_id,
+        turnId: event.data.turn_id,
         status: "streaming",
         awaitingApprovalItemId: null,
         approvalAttempt: null,

@@ -3,6 +3,13 @@ import type {
   ModelCallProjection,
 } from "./state/stream-reducer"
 
+export interface ChatCitationItem {
+  readonly id: string
+  readonly title: string
+  readonly domain?: string
+  readonly url?: string
+}
+
 export interface ChatMessage {
   readonly id: string
   readonly role: "user" | "agent"
@@ -12,6 +19,7 @@ export interface ChatMessage {
   readonly createdAt?: string
   readonly turnId?: string
   readonly modelCalls?: readonly ModelCallProjection[]
+  readonly citations?: readonly ChatCitationItem[]
 
   readonly unclaimed?: boolean
 }
@@ -31,6 +39,12 @@ export interface ChatThreadSummary {
   readonly effort?: string | null
   readonly createdAt: string
   readonly updatedAt: string
+}
+
+export interface ThreadPendingApproval {
+  readonly turnId: string
+  readonly itemId: string
+  readonly attempt: number
 }
 
 export type { ActiveTurnProjection }

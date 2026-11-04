@@ -46,8 +46,9 @@ function reduceAgentEvent(
       const claimable =
         lastIdx >= 0 &&
         current?.role === "agent" &&
-        current.status === "streaming" &&
-        current.unclaimed === true
+        current.unclaimed === true &&
+        (current.status === "streaming" ||
+          (current.content === "" && (current.thinking ?? "") === ""))
 
       if (claimable && current) {
         const { unclaimed: _claimed, ...claimed } = current
@@ -56,6 +57,7 @@ function reduceAgentEvent(
           ...claimed,
           id: item_id,
           turnId: event.data.turn_id,
+          status: "streaming" as const,
         }
         return updated
       }
