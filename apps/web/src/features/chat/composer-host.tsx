@@ -17,12 +17,14 @@ import {
   integrationsCatalogQueryOptions,
   toolkitConnectionState,
 } from "@/features/integrations/api/integrations-queries"
+import { IntegrationBrandLogo } from "@/features/integrations/components/integration-brand-logo"
 import { getNabuCapabilitiesFn } from "@/features/nabu/nabu.functions"
 import { tenantProvidersQueryOptions } from "@/features/nabu/queries"
 import {
   getTenantProvidersFn,
   savedProviderModelsFn,
 } from "@/features/nabu/tenant-provider.functions"
+import { logoUrl as brandLogoUrl } from "@/lib/brand/logos"
 import { moduleLogger } from "@/lib/logger"
 import type { UsageReport } from "@/lib/schemas/agent-stream"
 import type { TenantProviderSummary } from "@/lib/schemas/nabu"
@@ -141,6 +143,18 @@ export function useComposerBridge(
           toolkitConnectionState(toolkit) === "available"
             ? ("not connected" as const)
             : ("connected" as const),
+        icon: (
+          <IntegrationBrandLogo
+            slug={toolkit.logo_slug}
+            monochrome={toolkit.logo_monochrome}
+            size={22}
+          />
+        ),
+        // The draft draws the mention pill itself from this data; the mark
+        // comes resolved from the one logo service the repo names.
+        logoUrl: brandLogoUrl(toolkit.logo_slug),
+        logoMonochrome: toolkit.logo_monochrome,
+        accentHex: toolkit.brand_accent_hex,
       })),
     )
   }, [integrationsCatalog.data])
