@@ -136,14 +136,15 @@ describe("chat header title", () => {
     expect(headerText()).toContain("Reconcile the Q3 ledger")
   })
 
-  it("fills the header in as soon as the first prompt is sent", () => {
+  it("fills the header in as soon as the first prompt is sent", async () => {
     render(createElement(ChatContainer, {}))
     expect(headerText()).not.toContain("New conversation")
 
-    act(() => {
+    await act(async () => {
       queryClient.setQueryData(chatKeys.messages(null), [
         userMessage("Reconcile the Q3 ledger"),
       ])
+      await new Promise((resolve) => setTimeout(resolve, 10))
     })
 
     expect(headerText()).toContain("Reconcile the Q3 ledger")
@@ -216,5 +217,29 @@ describe("chat header title", () => {
     expect(heading?.textContent?.endsWith("…")).toBe(true)
 
     expect(heading?.getAttribute("title")).toBe(heading?.textContent)
+  })
+
+  it("prefers the persisted AI thread title once available over the raw prompt fallback", () => {
+    queryClient.setQueryData(chatKeys.messages(THREAD_ID), [
+      userMessage("Can you help me reconcile the Q3 ledger entries today?"),
+      { id: "agent-1", role: "agent", content: "On it.", status: "completed" },
+    ])
+    queryClient.setQueryData(chatKeys.threads(), [
+      {
+        id: THREAD_ID,
+        title: "Q3 Ledger Reconciliation",
+        model: "openai/gpt-5.2",
+        effort: "medium",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    render(createElement(ChatContainer, { threadId: THREAD_ID }))
+
+    expect(headerText()).toContain("Q3 Ledger Reconciliation")
+    expect(headerText()).not.toContain(
+      "Can you help me reconcile the Q3 ledger entries today?",
+    )
   })
 })

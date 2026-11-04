@@ -4,6 +4,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query"
+import type { ReactElement } from "react"
 import { toast } from "sonner"
 import { chatKeys } from "../queries/chat-queries"
 import type { ChatMessage } from "../types"
@@ -65,10 +66,18 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
     }
   })
 
+  /** Every turn block reads the integrations catalog, so renders ride
+   *  inside the same QueryClientProvider the app mounts them under. */
+  function render(element: ReactElement) {
+    root?.render(
+      createElement(QueryClientProvider, { client: queryClient }, element),
+    )
+  }
+
   describe("ThinkingTrace", () => {
     it("renders streaming thinking state with shimmer and disclosure", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(ThinkingTrace, {
             thinking: "Analyzing bank reconciliation...",
             isStreaming: true,
@@ -85,7 +94,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("renders settled thinking trace and toggles disclosure on click", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(ThinkingTrace, {
             thinking: "Checked 14 transactions.",
             isStreaming: false,
@@ -117,9 +126,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       expect(container?.textContent).toContain("no avatar here")
@@ -135,9 +142,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       expect(container?.textContent).toContain("What is my ledger balance?")
@@ -151,9 +156,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       expect(container?.textContent).toContain("no badge here")
@@ -172,9 +175,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       expect(container?.textContent).not.toContain(at.toISOString())
@@ -196,9 +197,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       }
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       expect(container?.textContent).toContain("Your balance is $5,240.00")
@@ -228,9 +227,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       toast.success = toastSuccessSpy as unknown as typeof toast.success
 
       act(() => {
-        root?.render(
-          createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }),
-        )
+        render(createElement(ChatTurnBlock, { turn: groupIntoTurns([msg])[0] }))
       })
 
       const copyBtn = container?.querySelector(
@@ -250,7 +247,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   describe("ChatMessages", () => {
     it("renders empty state illustration when no messages are present", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages: [],
           }),
@@ -267,7 +264,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ]
 
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages,
           }),
@@ -285,7 +282,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ]
 
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages,
           }),
@@ -293,7 +290,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       })
 
       const viewport = container?.querySelector(
-        '[data-slot="scroll-area-viewport"]',
+        '[data-slot="message-scroller-viewport"]',
       ) as HTMLDivElement
       expect(viewport).toBeDefined()
 
@@ -352,7 +349,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ]
 
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages,
           }),
@@ -360,7 +357,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       })
 
       const viewport = container?.querySelector(
-        '[data-slot="scroll-area-viewport"]',
+        '[data-slot="message-scroller-viewport"]',
       ) as HTMLDivElement
       expect(viewport).toBeDefined()
 
@@ -393,7 +390,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ]
 
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages: updatedMessages,
           }),
@@ -415,7 +412,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
       ]
 
       act(() => {
-        root?.render(
+        render(
           createElement(ChatMessages, {
             messages,
           }),
@@ -431,7 +428,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
   describe("ChatContainer", () => {
     it("keeps the composer the only full-width layer over the conversation", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },
@@ -467,7 +464,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("renders message feed and composer inside query provider, with no header of its own", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },
@@ -484,7 +481,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("opens on a greeting and a question, with no icon above the input", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },
@@ -503,7 +500,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("names the send control for what it does", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },
@@ -526,7 +523,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("sends with a circular action in the input's corner", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },
@@ -543,7 +540,7 @@ describe("Chat Components (Beautiful UI Adapted Primitives)", () => {
 
     it("docks the composer once the conversation has started", () => {
       act(() => {
-        root?.render(
+        render(
           createElement(
             QueryClientProvider,
             { client: queryClient },

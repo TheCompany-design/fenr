@@ -1,12 +1,17 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
+import type { ApprovalCardAnswers } from "@workspace/ui/components/approval-card"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { ComposerMount, useComposerEvent } from "@/components/composer"
 import { HeaderPortal } from "@/components/shell/header-portal"
 import { getThreadChoiceFn } from "../chat.functions"
 import { useComposerBridge, useComposerHostData } from "../composer-host"
 import { useAgentStream } from "../hooks/use-agent-stream"
-import { chatKeys, threadMessagesQueryOptions } from "../queries/chat-queries"
+import {
+  chatKeys,
+  threadMessagesQueryOptions,
+  threadPendingApprovalQueryOptions,
+} from "../queries/chat-queries"
 import { ApprovalPrompt } from "./approval-prompt"
 import { ChatHeaderTitle } from "./chat-header-title"
 import { ChatMessages } from "./chat-messages"
@@ -26,7 +31,7 @@ export interface ChatContainerProps {
 
 export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
   const queryClient = useQueryClient()
-  const { send, stop, isStreaming, turn } = useAgentStream()
+  const { send, resume, stop, isStreaming, turn } = useAgentStream()
   const { savedProviders } = useComposerHostData()
   const [statsSheetOpen, setStatsSheetOpen] = useState(false)
   const [selectedTurnId, setSelectedTurnId] = useState<string | null>(null)
@@ -61,6 +66,10 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
 
   const { data: messages } = useQuery(threadMessagesQueryOptions(threadId))
   const safeMessages = messages ?? []
+
+  const { data: persistedPendingApproval } = useQuery(
+    threadPendingApprovalQueryOptions(threadId),
+  )
 
   const { data: threadChoice } = useQuery({
     queryKey: ["chat", "thread-choice", threadId],
@@ -118,14 +127,80 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
     ],
   )
 
+  const handleResumeTurn = useCallback(
+    async (resumedTurnId: string, resumedThreadId?: string) => {
+      await resume(resumedTurnId, resumedThreadId ?? threadId)
+    },
+    [resume, threadId],
+  )
+
+  const handleRequestChanges = useCallback(
+    async (feedback: string) => {
+      const trimmed = feedback.trim()
+      if (!trimmed) return
+      await send(
+        `Please revise the previous tool action with the following changes:\n${trimmed}`,
+        threadId,
+        {
+          providerConfigId: threadChoice?.providerConfigId,
+          modelId: threadChoice?.model,
+          effort: threadChoice?.effort,
+        },
+      )
+    },
+    [
+      send,
+      threadChoice?.effort,
+      threadChoice?.model,
+      threadChoice?.providerConfigId,
+      threadId,
+    ],
+  )
+
+  const handleSubmitQuestions = useCallback(
+    async (answers: ApprovalCardAnswers) => {
+      const formatted = Object.entries(answers)
+        .map(([key, answer]) => {
+          const parts = [
+            ...answer.selected,
+            ...(answer.custom?.trim() ? [answer.custom.trim()] : []),
+          ]
+          return parts.length > 0 ? `- ${key}: ${parts.join(", ")}` : null
+        })
+        .filter((line): line is string => line !== null)
+        .join("\n")
+      if (!formatted) return
+      await send(`Here are my answers:\n${formatted}`, threadId, {
+        providerConfigId: threadChoice?.providerConfigId,
+        modelId: threadChoice?.model,
+        effort: threadChoice?.effort,
+      })
+    },
+    [
+      send,
+      threadChoice?.effort,
+      threadChoice?.model,
+      threadChoice?.providerConfigId,
+      threadId,
+    ],
+  )
+
   const hasStarted = Boolean(threadId) || safeMessages.length > 0 || isStreaming
 
-  const awaitingApproval =
+  const liveApproval =
     turn.status === "suspended" &&
     turn.turnId !== null &&
-    turn.awaitingApprovalItemId !== null
-      ? { turnId: turn.turnId, itemId: turn.awaitingApprovalItemId }
+    turn.awaitingApprovalItemId !== null &&
+    (!threadId || !turn.threadId || turn.threadId === threadId)
+      ? {
+          turnId: turn.turnId,
+          itemId: turn.awaitingApprovalItemId,
+          attempt: turn.approvalAttempt ?? 1,
+        }
       : null
+
+  const awaitingApproval =
+    liveApproval ?? (!isStreaming ? (persistedPendingApproval ?? null) : null)
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -164,9 +239,14 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
         {awaitingApproval ? (
           <div className="pointer-events-auto absolute inset-x-0 bottom-28 z-20 px-4 sm:px-8">
             <ApprovalPrompt
+              key={awaitingApproval.itemId}
               turnId={awaitingApproval.turnId}
               itemId={awaitingApproval.itemId}
-              attempt={turn.approvalAttempt ?? 1}
+              attempt={awaitingApproval.attempt}
+              threadId={threadId}
+              onResume={handleResumeTurn}
+              onRequestChanges={handleRequestChanges}
+              onSubmitQuestions={handleSubmitQuestions}
             />
           </div>
         ) : null}
@@ -190,12 +270,6 @@ export function ChatContainer({ threadId, onNavigate }: ChatContainerProps) {
                   : "mb-4 max-h-96 translate-y-0 scale-100 opacity-100"
               }`}
             >
-              {/*
-               * A greeting line and a question, nothing else. No logo, no badge,
-               * no paragraph explaining the product: the composer beneath it
-               * already shows what this screen is for, and a card of icons above
-               * a prompt box is decoration pretending to be an affordance.
-               */}
               <p className="text-sm text-muted-foreground">Hi, I’m Nabu 👋</p>
               <h2 className="mt-2 text-balance text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 What are we working on today?

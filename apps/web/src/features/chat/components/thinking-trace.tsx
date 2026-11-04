@@ -1,6 +1,7 @@
 import { AiBrain01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { useState } from "react"
+import { MessageMarkdown } from "./message-markdown"
 
 export interface ThinkingTraceProps {
   readonly thinking: string
@@ -46,9 +47,10 @@ export function ThinkingTrace({
 
       {expanded && (
         <div className="relative ml-2 border-l border-border pl-3 pt-0.5 text-xs leading-relaxed text-muted-foreground">
-          <p className="whitespace-pre-wrap font-sans text-[12.5px] text-muted-foreground/90">
-            {thinking || (isStreaming ? "Synthesizing request..." : "")}
-          </p>
+          <MessageMarkdown
+            content={thinking || (isStreaming ? "Synthesizing request..." : "")}
+            variant="thinking"
+          />
         </div>
       )}
     </div>
