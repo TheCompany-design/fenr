@@ -1,3 +1,4 @@
+import { ScrollArea } from "@workspace/ui/components/scroll-area"
 import { cn } from "@workspace/ui/lib/utils"
 import * as React from "react"
 import type { SuggestionItem, SuggestionState } from "./suggestion"
@@ -70,20 +71,24 @@ export function PromptAutocomplete({
       aria-label="Suggestions"
       style={{ top, bottom }}
       className={cn(
-        "animate-in fade-in-0 zoom-in-95 absolute left-0 z-50 max-h-80 w-[min(22rem,calc(100vw-2rem))] origin-(--transform-origin) overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
+        "animate-in fade-in-0 zoom-in-95 absolute left-0 z-50 w-[min(22rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg outline-none",
         flip?.flipped ? "slide-in-from-bottom-2" : "slide-in-from-top-2",
         className,
       )}
     >
-      {items.map((item, index) => (
-        <AutocompleteRow
-          key={item.id}
-          item={item}
-          active={index === activeIndex}
-          onSelect={() => onSelect(item)}
-          onHover={() => onActiveIndexChange?.(index)}
-        />
-      ))}
+      {/* The one scrollbar language is ScrollArea's; a native scrollbar here
+          would be the only one in the composer. */}
+      <ScrollArea className="max-h-80">
+        {items.map((item, index) => (
+          <AutocompleteRow
+            key={item.id}
+            item={item}
+            active={index === activeIndex}
+            onSelect={() => onSelect(item)}
+            onHover={() => onActiveIndexChange?.(index)}
+          />
+        ))}
+      </ScrollArea>
     </div>
   )
 }
@@ -116,7 +121,7 @@ function AutocompleteRow({
       )}
     >
       {item.icon ? (
-        <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center">
+        <span className="flex size-6 shrink-0 items-center justify-center">
           {item.icon}
         </span>
       ) : null}

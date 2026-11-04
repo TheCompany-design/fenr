@@ -62,8 +62,12 @@ export function ComposerDensityProbe({
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-    textarea.style.setProperty("--pill-inset-left", insets.left)
-    textarea.style.setProperty("--pill-inset-right", insets.right)
+    // The insets live on the textarea's canvas rather than the textarea so
+    // the mention layer rendered beside it inherits the same variables — the
+    // two have to pad identically or the pills drift off their `@`.
+    const canvas = textarea.parentElement ?? textarea
+    canvas.style.setProperty("--pill-inset-left", insets.left)
+    canvas.style.setProperty("--pill-inset-right", insets.right)
   }, [insets, textareaRef])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `text` is the signal this effect waits on, not an input it reads. In the pill the box is clamped to one line, so nothing about the element changes as the draft passes that line — only a re-run of this measurement can notice. Dropping the dependency leaves a pill that never grows.

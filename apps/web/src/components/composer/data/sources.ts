@@ -117,6 +117,16 @@ export type ReferenceableItem = {
   toolkitSlug?: string
   /** Live connection status rendered as a pill in the `@` menu. */
   connectionBadge?: "connected" | "not connected"
+  /**
+   * The brand mark's resolved URL, drawn inside the mention pill in the
+   * draft. The host resolves it against its own logo service; the composer
+   * never names one.
+   */
+  logoUrl?: string
+  /** Monochrome marks invert in dark mode. */
+  logoMonochrome?: boolean
+  /** Brand accent that tints the mention pill when the host supplies one. */
+  accentHex?: string | null
 }
 
 let extraReferences: ReferenceableItem[] = []
@@ -144,12 +154,15 @@ export function referenceItems(): SuggestionItem[] {
       label: item.label,
       hint: item.hint,
       icon: item.icon,
+      logoUrl: item.logoUrl,
+      logoMonochrome: item.logoMonochrome,
+      accentHex: item.accentHex,
       trailing: item.connectionBadge
         ? React.createElement(
             "span",
             {
               className:
-                "inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground",
+                "inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] leading-4 text-muted-foreground",
             },
             item.connectionBadge,
           )

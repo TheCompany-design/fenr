@@ -28,6 +28,7 @@ import {
   type ComposerState,
   type Mention,
   type Notice,
+  reanchorMentions,
   reconcile,
   type Selection,
   toolKindOf,
@@ -349,11 +350,13 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
     setText: (text) => {
       const state = get()
 
-      const mentions = state.mentions.filter(
-        (mention) =>
-          text.slice(mention.start, mention.end) === mention.insertText,
-      )
-      applyLocal({ text, mentions })
+      applyLocal({
+        text,
+        // Spans are re-anchored across the edit, so a mention survives
+        // typing elsewhere in the draft and only dies when its own text
+        // changes.
+        mentions: reanchorMentions(state.text, text, state.mentions),
+      })
     },
 
     addMentions: (incoming) => {

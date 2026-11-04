@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test"
 import type { ReasoningLevel, ResolvedCaps } from "./capabilities"
-import { type ComposerState, reconcile } from "./reconcile"
+import type { Mention } from "./reconcile"
+import { type ComposerState, reanchorMentions, reconcile } from "./reconcile"
 
 const ANTHROPIC = [
   { id: "low", label: "Low" },
@@ -131,5 +132,101 @@ describe("reconcile: effort", () => {
         expect(ids).toContain(result.state.effort ?? "__settled_to_nothing__")
       }
     }
+  })
+})
+
+describe("reanchorMentions", () => {
+  const MENTION: Mention = {
+    id: "m1",
+    kind: "app",
+    label: "GitHub",
+    insertText: "@GitHub",
+    start: 17,
+    end: 24,
+    toolkitSlug: "github",
+  }
+  const DRAFT = "file an issue on @GitHub"
+
+  function mentions(...overrides: Partial<Mention>[]): Mention[] {
+    return overrides.length > 0
+      ? overrides.map((override) => ({ ...MENTION, ...override }))
+      : [MENTION]
+  }
+
+  it("keeps a mention that an edit merely shifts", () => {
+    const next = "please file an issue on @GitHub"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([
+      { ...MENTION, start: 24, end: 31 },
+    ])
+  })
+
+  it("keeps it when the edit only deletes text before it", () => {
+    const next = "file an issue on @GitHub".slice(1)
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([
+      { ...MENTION, start: 16, end: 23 },
+    ])
+  })
+
+  it("drops a mention whose own text was edited", () => {
+    const next = "file an issue on @GitHu"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([])
+  })
+
+  it("treats an insertion inside the span as an edit of the mention", () => {
+    const next = "file an issue on @XGitHub"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([])
+  })
+
+  it("treats an insertion at the span's start as belonging before it", () => {
+    const next = "file an issue on x@GitHub"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([
+      { ...MENTION, start: 18, end: 25 },
+    ])
+  })
+
+  it("treats an insertion at the span's end as belonging after it", () => {
+    const next = "file an issue on @GitHubx"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([
+      { ...MENTION, start: 17, end: 24 },
+    ])
+  })
+
+  it("re-anchors each mention around an edit between them", () => {
+    const first = {
+      ...MENTION,
+      id: "a",
+      insertText: "@Slack",
+      start: 0,
+      end: 6,
+    }
+    const second = { ...MENTION, id: "b", start: 12, end: 19 }
+    const previous = "@Slack then @GitHub"
+    const next = "@Slack or @GitHub"
+
+    expect(reanchorMentions(previous, next, [first, second])).toEqual([
+      first,
+      { ...second, start: 10, end: 17 },
+    ])
+  })
+
+  it("keeps a mention when a replacement ends right at its start", () => {
+    const next = "file an issue o@GitHub"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([
+      { ...MENTION, start: 15, end: 22 },
+    ])
+  })
+
+  it("drops a replacement that reaches into the span", () => {
+    const next = "file an issue on xub"
+    expect(reanchorMentions(DRAFT, next, mentions())).toEqual([])
+  })
+
+  it("self-heals a span that no longer names its mention", () => {
+    const stale = { ...MENTION, start: 0, end: 7 }
+    expect(reanchorMentions(DRAFT, DRAFT, [stale])).toEqual([])
+  })
+
+  it("answers empty when there is nothing to anchor", () => {
+    expect(reanchorMentions(DRAFT, "new draft", [])).toEqual([])
   })
 })
