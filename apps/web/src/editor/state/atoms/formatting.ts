@@ -17,6 +17,10 @@ export interface FormattingState {
   isCodeBlock: boolean
   isBlockquote: boolean
   isMath: boolean
+  /** Active highlight mark color, null when no highlight is set */
+  highlightColor: string | null
+  /** Active text style color, null when inherited */
+  textColor: string | null
 }
 
 export const DEFAULT_FORMATTING_STATE: FormattingState = {
@@ -34,6 +38,8 @@ export const DEFAULT_FORMATTING_STATE: FormattingState = {
   isCodeBlock: false,
   isBlockquote: false,
   isMath: false,
+  highlightColor: null,
+  textColor: null,
 }
 
 export const formattingAtom = atom<FormattingState>(DEFAULT_FORMATTING_STATE)
@@ -60,6 +66,10 @@ export const isCodeAtom = atom((get) => get(formattingAtom).isCode)
 export const isCodeBlockAtom = atom((get) => get(formattingAtom).isCodeBlock)
 export const isBlockquoteAtom = atom((get) => get(formattingAtom).isBlockquote)
 export const isMathAtom = atom((get) => get(formattingAtom).isMath)
+export const highlightColorAtom = atom(
+  (get) => get(formattingAtom).highlightColor,
+)
+export const textColorAtom = atom((get) => get(formattingAtom).textColor)
 
 export type BubbleMenuFormattingState = FormattingState
 export const DEFAULT_BUBBLE_MENU_FORMATTING = DEFAULT_FORMATTING_STATE

@@ -18,12 +18,23 @@ import type { ChatMessage } from "../types"
 export interface SendOptions {
   readonly onTurnStarted?: (threadId: string) => void | Promise<void>
 
+  /** Composio toolkit slugs the turn pins via `@app` mentions. */
+  readonly pinnedToolkits?: string[]
+
   readonly providerConfigId?: string | null
 
   readonly modelId?: string | null
 
   readonly effort?: string | null
 
+  readonly onModelCallRecorded?: (call: {
+    savedConfigId: string | null
+    modelId: string
+    errorCode: string | null
+  }) => void
+}
+
+export interface ResumeOptions {
   readonly onModelCallRecorded?: (call: {
     savedConfigId: string | null
     modelId: string
@@ -39,6 +50,11 @@ export interface UseAgentStreamReturn {
     prompt: string,
     threadId?: string | null,
     options?: SendOptions,
+  ) => Promise<void>
+  readonly resume: (
+    turnId: string,
+    threadId?: string | null,
+    options?: ResumeOptions,
   ) => Promise<void>
   readonly stop: () => void
   readonly isStreaming: boolean
@@ -76,23 +92,6 @@ export function describeStreamError(
       : message
 }
 
-/**
- * What to call a turn that could not run.
- *
- * Most failures are "Agent error", which is honest and unhelpful in equal measure.
- * Two codes are the user having a problem this interface can point at, so they get
- * a title that names the problem rather than the subsystem:
- *
- * - `tenant_provider_unconfigured` is the workspace having nobody set its model
- *   endpoint up yet. It is the first thing every new workspace meets, and calling
- *   it an agent error sends the reader looking in the wrong place.
- * - `tenant_provider_endpoint_blocked` is a deployment-level refusal to dial an
- *   address. Nothing about the user's key or message is wrong, and the title says
- *   so — otherwise it reads as though their input caused it.
- *
- * Anything unrecognised falls through to the generic title, which is also what
- * makes adding a code here optional rather than required.
- */
 export function streamErrorTitle(code: string): string {
   switch (code) {
     case "tenant_provider_unconfigured":
@@ -110,20 +109,6 @@ export function streamErrorTitle(code: string): string {
   }
 }
 
-/**
- * The one stream this tab is running, and the cache key it writes into.
- *
- * Module scope on purpose. There is only ever one active stream, and the
- * connection outlives the component that started it: navigating from a
- * streaming chat remounts `ChatContainer`, so a controller held in that
- * component's `useRef` goes with it. Any later `stop()` — from the new chat's
- * own composer, which renders as active because the streaming flag is a global
- * atom — then found nothing to abort and silently did nothing, leaving an
- * orphaned fetch writing to the cache with no way left to cancel it.
- *
- * Same reason the stream flags are global atoms: the run belongs to the tab,
- * not to whichever component happens to be mounted.
- */
 let activeAbortController: AbortController | null = null
 let activeMessagesKey: readonly string[] = chatKeys.messages(null)
 
@@ -140,9 +125,6 @@ export function useAgentStream(): UseAgentStreamReturn {
       setIsStreaming(false)
       setTurn((previous) => ({
         ...previous,
-        // A client-side stop ends the connection, not necessarily the turn: the
-        // runtime may keep working and be read back from its transcript. So the
-        // turn is left identified, and only marked as not streaming here.
         status: previous.status === "suspended" ? previous.status : "idle",
         activeItemId: null,
         streamingText: "",
@@ -157,52 +139,20 @@ export function useAgentStream(): UseAgentStreamReturn {
     }
   }, [setIsStreaming, queryClient])
 
-  const send = useCallback(
-    async (prompt: string, threadId?: string | null, options?: SendOptions) => {
-      stop()
-
-      const trimmedPrompt = prompt.trim()
-      if (!trimmedPrompt) {
-        return
-      }
-
-      const abortController = new AbortController()
-      activeAbortController = abortController
-      setIsStreaming(true)
-      // A new turn starts from nothing: carrying the previous turn's text or
-      // approval item across would attribute them to this one.
-      setTurn(initialTurnProjection)
-
+  const consumeAgentStream = useCallback(
+    async ({
+      body,
+      threadId,
+      abortController,
+      options,
+    }: {
+      body: Record<string, unknown>
+      threadId?: string | null
+      abortController: AbortController
+      options?: SendOptions
+    }) => {
       let currentKey: readonly string[] = chatKeys.messages(threadId)
       activeMessagesKey = currentKey
-
-      // Optimistically append user message and in-flight streaming placeholder
-      const userMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: trimmedPrompt,
-        status: "completed",
-        createdAt: new Date().toISOString(),
-      }
-      const agentPlaceholder: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "agent",
-        content: "",
-        thinking: "",
-        status: "streaming",
-        createdAt: new Date().toISOString(),
-        // Until the runtime names this bubble, the first assistant item claims
-        // it. Every later item gets its own bubble instead.
-        unclaimed: true,
-      }
-
-      queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
-        chatMessagesReducer(old, {
-          type: "client_send",
-          payload: { userMessage, agentMessage: agentPlaceholder },
-        }),
-      )
-
       let activeRequestId: string | null = null
 
       try {
@@ -212,13 +162,7 @@ export function useAgentStream(): UseAgentStreamReturn {
             "Content-Type": "application/json",
             Accept: "text/event-stream",
           },
-          body: JSON.stringify({
-            prompt: trimmedPrompt,
-            thread_id: threadId ?? undefined,
-            provider_config_id: options?.providerConfigId ?? undefined,
-            model: options?.modelId ?? undefined,
-            effort: options?.effort ?? undefined,
-          }),
+          body: JSON.stringify(body),
           signal: abortController.signal,
         })
 
@@ -263,11 +207,6 @@ export function useAgentStream(): UseAgentStreamReturn {
                 const validation = parseAgentStreamEvent(parsed)
 
                 if (!validation.ok) {
-                  // The server adds capability as new event types precisely so
-                  // an older client keeps working. Dropping the frame quietly is
-                  // how a suspended turn turns into an unexplained spinner, so
-                  // it is recorded, the projection is left alone, and the
-                  // stream continues.
                   const detail = describeUnmodelledFrame(parsed)
                   setTurn((previous) =>
                     applyStreamFrame(previous, parsed, (unmodelled) =>
@@ -296,7 +235,6 @@ export function useAgentStream(): UseAgentStreamReturn {
                 if (event.type === "turn_started") {
                   const serverThreadId = event.data.thread_id
                   if (!threadId) {
-                    // Migrate cache data from draft key to newly minted server thread key
                     const draftData =
                       queryClient.getQueryData<ChatMessage[]>(currentKey) ?? []
                     currentKey = chatKeys.messages(serverThreadId)
@@ -304,6 +242,9 @@ export function useAgentStream(): UseAgentStreamReturn {
                     queryClient.setQueryData(currentKey, draftData)
                     queryClient.removeQueries({
                       queryKey: chatKeys.messages(null),
+                    })
+                    void queryClient.invalidateQueries({
+                      queryKey: chatKeys.threads(),
                     })
                   }
 
@@ -316,7 +257,14 @@ export function useAgentStream(): UseAgentStreamReturn {
                   }
                 }
 
-                // Dispatch event directly into the query cache via pure reducer
+                if (event.type === "turn_resumed") {
+                  const serverThreadId = event.data.thread_id
+                  if (!threadId && serverThreadId) {
+                    currentKey = chatKeys.messages(serverThreadId)
+                    activeMessagesKey = currentKey
+                  }
+                }
+
                 queryClient.setQueryData<ChatMessage[]>(
                   currentKey,
                   (old = []) =>
@@ -327,24 +275,39 @@ export function useAgentStream(): UseAgentStreamReturn {
                 )
 
                 if (event.type === "turn_suspended") {
-                  // The turn is parked on a human decision. The stream stays
-                  // open, but the composer must not be blocked by a turn that
-                  // is no longer running.
-                  setIsStreaming(false)
-                }
-
-                if (event.type === "turn_resumed") {
-                  setIsStreaming(true)
-                }
-
-                if (event.type === "turn_completed") {
-                  // Every terminal status ends the turn, including a cancelled
-                  // one: leaving the composer disabled here is what made a
-                  // cancelled turn look like a hung request.
                   setIsStreaming(false)
                   void queryClient.invalidateQueries({
                     queryKey: chatKeys.thread(event.data.thread_id),
                   })
+                }
+
+                if (event.type === "turn_resumed") {
+                  setIsStreaming(true)
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.thread(event.data.thread_id),
+                  })
+                }
+
+                if (event.type === "turn_completed") {
+                  setIsStreaming(false)
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.threads(),
+                  })
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.thread(event.data.thread_id),
+                  })
+                  void queryClient.invalidateQueries({
+                    queryKey: chatKeys.usage(event.data.thread_id),
+                  })
+                  if (!threadId) {
+                    for (const delayMs of [2000, 5000]) {
+                      setTimeout(() => {
+                        void queryClient.invalidateQueries({
+                          queryKey: chatKeys.threads(),
+                        })
+                      }, delayMs)
+                    }
+                  }
                 }
 
                 if (event.type === "stream_error") {
@@ -392,22 +355,125 @@ export function useAgentStream(): UseAgentStreamReturn {
           }),
         )
       } finally {
-        // Both of these belong to *this* run only. A send started while this one
-        // was in flight owns the flag now, and un-flagging it here would leave
-        // its composer showing Send while the stream is still streaming.
         if (activeAbortController === abortController) {
           activeAbortController = null
           setIsStreaming(false)
         }
       }
     },
-    [stop, setLastRequestId, setIsStreaming, queryClient],
+    [setLastRequestId, setIsStreaming, queryClient],
+  )
+
+  const send = useCallback(
+    async (prompt: string, threadId?: string | null, options?: SendOptions) => {
+      stop()
+
+      const trimmedPrompt = prompt.trim()
+      if (!trimmedPrompt) {
+        return
+      }
+
+      const abortController = new AbortController()
+      activeAbortController = abortController
+      setIsStreaming(true)
+      setTurn(initialTurnProjection)
+
+      const currentKey = chatKeys.messages(threadId)
+      activeMessagesKey = currentKey
+
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: trimmedPrompt,
+        status: "completed",
+        createdAt: new Date().toISOString(),
+      }
+      const agentPlaceholder: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "agent",
+        content: "",
+        thinking: "",
+        status: "streaming",
+        createdAt: new Date().toISOString(),
+        unclaimed: true,
+      }
+
+      queryClient.setQueryData<ChatMessage[]>(currentKey, (old = []) =>
+        chatMessagesReducer(old, {
+          type: "client_send",
+          payload: { userMessage, agentMessage: agentPlaceholder },
+        }),
+      )
+
+      await consumeAgentStream({
+        body: {
+          prompt: trimmedPrompt,
+          thread_id: threadId ?? undefined,
+          provider_config_id: options?.providerConfigId ?? undefined,
+          model: options?.modelId ?? undefined,
+          effort: options?.effort ?? undefined,
+          integrations:
+            options?.pinnedToolkits && options.pinnedToolkits.length > 0
+              ? {
+                  pinned_toolkits: options.pinnedToolkits,
+                  allow_workspace_discovery: false,
+                }
+              : undefined,
+        },
+        threadId,
+        abortController,
+        options,
+      })
+    },
+    [stop, setIsStreaming, queryClient, consumeAgentStream],
+  )
+
+  const resume = useCallback(
+    async (
+      turnId: string,
+      threadId?: string | null,
+      options?: ResumeOptions,
+    ) => {
+      stop()
+
+      const trimmedTurnId = turnId.trim()
+      if (!trimmedTurnId) {
+        return
+      }
+
+      const abortController = new AbortController()
+      activeAbortController = abortController
+      setIsStreaming(true)
+      setTurn((previous) => ({
+        ...previous,
+        threadId: threadId ?? previous.threadId,
+        turnId: trimmedTurnId,
+        status: "streaming",
+        awaitingApprovalItemId: null,
+        approvalAttempt: null,
+        activeItemId: null,
+        error: null,
+        errorCode: null,
+      }))
+
+      await consumeAgentStream({
+        body: {
+          resume_turn_id: trimmedTurnId,
+          thread_id: threadId ?? undefined,
+        },
+        threadId,
+        abortController,
+        options,
+      })
+    },
+    [stop, setIsStreaming, consumeAgentStream],
   )
 
   return {
     lastRequestId,
     turn,
     send,
+    resume,
     stop,
     isStreaming,
   }

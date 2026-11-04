@@ -1,0 +1,423 @@
+/*
+ * Notion-style content foundation for the document editor.
+ *
+ * Everything here targets the `.ProseMirror` root rendered by
+ * `<Tiptap.Content />` and uses theme tokens only, so it follows light/dark
+ * mode without component-side classes. Node chrome that needs a NodeView
+ * (code block header, table toolbar, callouts, details) lives with its block.
+ */
+
+/* ---------------------------------------------------------------------------
+ * Placeholder prompts (Placeholder extension marks empty nodes with
+ * .is-empty / .is-editor-empty and a data-placeholder attribute)
+ * ------------------------------------------------------------------------- */
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Selection & focused atoms
+ * ------------------------------------------------------------------------- */
+.ProseMirror ::selection {
+  background: color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.ProseMirror-selectednode {
+  outline: 2px solid color-mix(in oklab, var(--primary) 45%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Typography refinements over the prose baseline
+ * ------------------------------------------------------------------------- */
+
+/* Links: quiet underline like Notion, never garish blue */
+.ProseMirror a {
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 35%,
+    transparent
+  );
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms ease;
+}
+
+.ProseMirror a:hover {
+  text-decoration-color: var(--foreground);
+}
+
+/* Inline code */
+.ProseMirror code {
+  background: var(--muted);
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+  font-size: 0.875em;
+}
+
+/* Blockquote: calm left rule, no italic leaning */
+.ProseMirror blockquote {
+  border-left: 3px solid var(--border);
+  font-style: normal;
+  font-weight: inherit;
+  padding-left: 1rem;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  color: inherit;
+}
+
+/* Horizontal rule */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin-block: 1.5em;
+}
+
+/* ---------------------------------------------------------------------------
+ * Task lists
+ * ------------------------------------------------------------------------- */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  user-select: none;
+  margin-top: 0.45em;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 28%, transparent);
+  border-radius: 3.5px;
+  background: transparent;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:hover {
+  border-color: color-mix(in oklab, var(--foreground) 55%, transparent);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.ProseMirror ul[data-type="taskList"] input[type="checkbox"]:checked::before {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid var(--primary-foreground);
+  border-bottom: 2px solid var(--primary-foreground);
+  transform: rotate(45deg);
+}
+
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  margin-top: 0.25rem;
+}
+
+/* Nested paragraphs inside list items keep the tight Notion rhythm */
+.ProseMirror li p {
+  margin-block: 0.125em;
+}
+
+/* ---------------------------------------------------------------------------
+ * Details / toggle blocks
+ * ------------------------------------------------------------------------- */
+.ProseMirror details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-block: 0.75em;
+}
+
+.ProseMirror details > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+  min-height: 1.75em;
+}
+
+.ProseMirror details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ProseMirror details > summary::before {
+  content: "▸";
+  display: inline-block;
+  color: var(--muted-foreground);
+  font-size: 0.8em;
+  transition: transform 150ms ease;
+}
+
+.ProseMirror details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
+.ProseMirror details > div {
+  padding-left: 1.125rem;
+  margin-top: 0.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Code blocks (NodeView chrome lives in code-block-view.tsx)
+ * ------------------------------------------------------------------------- */
+.ProseMirror [data-code-block-wrapper] pre {
+  margin: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 0.875em;
+}
+
+.ProseMirror [data-code-block-wrapper] code {
+  background: transparent;
+  padding: 0.75rem 1rem;
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tables
+ * ------------------------------------------------------------------------- */
+.ProseMirror table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin-block: 1em;
+  overflow: hidden;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.65rem;
+  vertical-align: top;
+  position: relative;
+  min-width: 4rem;
+}
+
+.ProseMirror th {
+  background: color-mix(in oklab, var(--muted) 55%, transparent);
+  font-weight: 600;
+  text-align: left;
+}
+
+.ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in oklab, var(--primary) 14%, transparent);
+  pointer-events: none;
+}
+
+.ProseMirror .column-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -2px;
+  width: 4px;
+  background: color-mix(in oklab, var(--primary) 55%, transparent);
+  pointer-events: none;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* ---------------------------------------------------------------------------
+ * Images & video embeds
+ * ------------------------------------------------------------------------- */
+.ProseMirror img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+.ProseMirror div[data-youtube-video] {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.ProseMirror div[data-youtube-video] iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Notion rhythm overrides (typography scale, tracking, block spacing).
+ * Unlayered rules intentionally win over the prose utilities.
+ * ------------------------------------------------------------------------- */
+.ProseMirror {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
+.ProseMirror p {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4 {
+  letter-spacing: -0.011em;
+  line-height: 1.3;
+}
+
+.ProseMirror h1 {
+  font-size: 1.875em;
+  font-weight: 700;
+  margin-top: 1.4em;
+  margin-bottom: 0.15em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-top: 1.4em;
+  margin-bottom: 0.15em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-top: 1.2em;
+  margin-bottom: 0.1em;
+}
+
+.ProseMirror > h1:first-child,
+.ProseMirror > h2:first-child,
+.ProseMirror > h3:first-child {
+  margin-top: 0.2em;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin-top: 4px;
+  margin-bottom: 4px;
+  padding-left: 1.375rem;
+}
+
+.ProseMirror li {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.ProseMirror li > p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Callout body keeps the tight rhythm and aligns with the emoji chip */
+.ProseMirror div[data-callout] p {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+/* Table cells: paragraphs must not inflate row height */
+/* biome-ignore lint/style/noDescendingSpecificity: the override sheet is deliberately ordered generic-to-specific */
+.ProseMirror th p,
+.ProseMirror td p {
+  margin-top: 1px;
+  margin-bottom: 1px;
+  line-height: 1.45;
+}
+
+.ProseMirror hr {
+  margin-top: 1.2em;
+  margin-bottom: 1.2em;
+}
+
+/* Code block: tighter surface + syntax token colors that hold in both modes */
+.ProseMirror [data-code-block-wrapper] code {
+  padding: 0.6rem 0.9rem;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section {
+  color: #c678dd;
+}
+
+.hljs-string,
+.hljs-attr,
+.hljs-addition {
+  color: #98c379;
+}
+
+.hljs-title,
+.hljs-name,
+.hljs-function,
+.hljs-function .hljs-params {
+  color: #61afef;
+}
+
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #d19a66;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: #7f848e;
+  font-style: italic;
+}
+
+.hljs-variable,
+.hljs-template-variable {
+  color: #e06c75;
+}
+
+.hljs-built_in,
+.hljs-type {
+  color: #e5c07b;
+}

@@ -28,6 +28,7 @@ import {
   type ComposerState,
   type Mention,
   type Notice,
+  reanchorMentions,
   reconcile,
   type Selection,
   toolKindOf,
@@ -349,11 +350,13 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
     setText: (text) => {
       const state = get()
 
-      const mentions = state.mentions.filter(
-        (mention) =>
-          text.slice(mention.start, mention.end) === mention.insertText,
-      )
-      applyLocal({ text, mentions })
+      applyLocal({
+        text,
+        // Spans are re-anchored across the edit, so a mention survives
+        // typing elsewhere in the draft and only dies when its own text
+        // changes.
+        mentions: reanchorMentions(state.text, text, state.mentions),
+      })
     },
 
     addMentions: (incoming) => {
@@ -456,6 +459,15 @@ export const usePromptStore = create<PromptStore>()((set, get) => {
 
       state.transport.send({
         text: state.text.trim(),
+        pinnedToolkits: [
+          ...new Set(
+            state.mentions
+              .filter(
+                (mention) => mention.kind === "app" && mention.toolkitSlug,
+              )
+              .map((mention) => mention.toolkitSlug as string),
+          ),
+        ],
         providerId: state.selection.providerId,
         modelId: state.selection.modelId,
         availabilityEpoch: runtimeOf(state.runtime, state.selection.providerId)
@@ -1044,6 +1056,8 @@ export type ComposerTransport = {
 
 export type SendPayload = {
   text: string
+  /** Composio toolkit slugs the turn pins via `@app` mentions. */
+  pinnedToolkits: string[]
   providerId: string
   modelId: string
   availabilityEpoch: number

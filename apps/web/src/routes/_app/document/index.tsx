@@ -1,34 +1,39 @@
 import { createFileRoute } from "@tanstack/react-router"
 import type { JSONContent } from "@tiptap/react"
-import { useAtomValue } from "jotai"
 import { useState } from "react"
-import { defaultEditorContent } from "@/editor/core/content"
+import { DocumentStatusBar } from "@/editor/chrome/status-bar"
 import { DocumentEditor } from "@/editor/core/document-editor"
+import { defaultEditorContent } from "@/editor/core/content"
 import { EditorRoot } from "@/editor/root"
-import { selectionAtom } from "@/editor/state/atoms"
 
 export const Route = createFileRoute("/_app/document/")({
   component: RouteComponent,
 })
 
-const SelectionLiveBadge = () => {
-  const selection = useAtomValue(selectionAtom)
-  return (
-    <div className="mb-4 rounded border bg-card p-2 text-xs font-mono">
-      <span>From: {selection.from}</span> | <span>To: {selection.to}</span> |{" "}
-      <span>Highlighted: {selection.empty ? "No" : "Yes"}</span>
-    </div>
-  )
-}
-
 function RouteComponent() {
   const [editorContent, setEditorContent] =
     useState<JSONContent>(defaultEditorContent)
+  const [title, setTitle] = useState("")
+
   return (
     <div className="min-h-screen bg-muted/20 p-8">
       <EditorRoot>
-        <SelectionLiveBadge />
-        <DocumentEditor content={editorContent} onChange={setEditorContent} />
+        <div className="mx-auto max-w-[816px]">
+          <DocumentEditor
+            content={editorContent}
+            onChange={setEditorContent}
+            header={
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Untitled"
+                aria-label="Document title"
+                className="mb-4 w-full bg-transparent text-4xl font-bold text-foreground outline-none placeholder:text-muted-foreground/40"
+              />
+            }
+          />
+          <DocumentStatusBar className="mt-3" />
+        </div>
       </EditorRoot>
     </div>
   )

@@ -1,8 +1,10 @@
 import {
   Alert02Icon,
   Building01Icon,
+  ChartHistogramIcon,
   CloudServerIcon,
   CrownIcon,
+  GridViewIcon,
   Shield01Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
@@ -35,6 +37,18 @@ const SETTINGS_SECTIONS = [
     label: "Model provider",
     icon: CloudServerIcon,
     to: "/settings/provider",
+  },
+  {
+    id: "integrations",
+    label: "Integrations",
+    icon: GridViewIcon,
+    to: "/settings/integrations",
+  },
+  {
+    id: "usage",
+    label: "Usage & cost",
+    icon: ChartHistogramIcon,
+    to: "/settings/usage",
   },
   {
     id: "members",

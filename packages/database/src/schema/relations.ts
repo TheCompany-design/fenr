@@ -3,6 +3,18 @@ import { agentApprovals } from "./agent/agent-approvals"
 import { agentItems } from "./agent/agent-items"
 import { agentThreads } from "./agent/agent-threads"
 import { agentTurns } from "./agent/agent-turns"
+import {
+  agentIntegrationToolExecutions,
+  integrationCatalogToolkits,
+  integrationCatalogTools,
+  integrationCatalogTriggers,
+  integrationConnectedAccounts,
+  integrationOauthSessions,
+  integrationRequests,
+  integrationTriggerSubscriptions,
+  tenantIntegrationConfigs,
+  tenantToolApprovalPolicies,
+} from "./agent/integrations"
 import { account } from "./auth/account"
 import { session } from "./auth/session"
 import { user } from "./auth/user"
@@ -115,3 +127,203 @@ export const agentItemsRelations = relations(agentItems, ({ one }) => ({
     references: [agentTurns.id],
   }),
 }))
+
+export const integrationCatalogToolkitsRelations = relations(
+  integrationCatalogToolkits,
+  ({ many }) => ({
+    tools: many(integrationCatalogTools),
+    triggers: many(integrationCatalogTriggers),
+    configs: many(tenantIntegrationConfigs),
+    connectedAccounts: many(integrationConnectedAccounts),
+  }),
+)
+
+export const integrationCatalogToolsRelations = relations(
+  integrationCatalogTools,
+  ({ one, many }) => ({
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [integrationCatalogTools.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+    policies: many(tenantToolApprovalPolicies),
+  }),
+)
+
+export const integrationCatalogTriggersRelations = relations(
+  integrationCatalogTriggers,
+  ({ one }) => ({
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [integrationCatalogTriggers.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+  }),
+)
+
+export const tenantIntegrationConfigsRelations = relations(
+  tenantIntegrationConfigs,
+  ({ one, many }) => ({
+    organization: one(organization, {
+      fields: [tenantIntegrationConfigs.tenantId],
+      references: [organization.id],
+    }),
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [tenantIntegrationConfigs.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+    connectedAccounts: many(integrationConnectedAccounts),
+    oauthSessions: many(integrationOauthSessions),
+  }),
+)
+
+export const integrationConnectedAccountsRelations = relations(
+  integrationConnectedAccounts,
+  ({ one, many }) => ({
+    organization: one(organization, {
+      fields: [integrationConnectedAccounts.tenantId],
+      references: [organization.id],
+    }),
+    config: one(tenantIntegrationConfigs, {
+      fields: [
+        integrationConnectedAccounts.integrationConfigId,
+        integrationConnectedAccounts.tenantId,
+      ],
+      references: [
+        tenantIntegrationConfigs.id,
+        tenantIntegrationConfigs.tenantId,
+      ],
+    }),
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [integrationConnectedAccounts.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+    executions: many(agentIntegrationToolExecutions),
+    triggerSubscriptions: many(integrationTriggerSubscriptions),
+  }),
+)
+
+export const integrationOauthSessionsRelations = relations(
+  integrationOauthSessions,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [integrationOauthSessions.tenantId],
+      references: [organization.id],
+    }),
+    config: one(tenantIntegrationConfigs, {
+      fields: [
+        integrationOauthSessions.integrationConfigId,
+        integrationOauthSessions.tenantId,
+      ],
+      references: [
+        tenantIntegrationConfigs.id,
+        tenantIntegrationConfigs.tenantId,
+      ],
+    }),
+    connectedAccount: one(integrationConnectedAccounts, {
+      fields: [
+        integrationOauthSessions.connectedAccountId,
+        integrationOauthSessions.tenantId,
+      ],
+      references: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }),
+  }),
+)
+
+export const tenantToolApprovalPoliciesRelations = relations(
+  tenantToolApprovalPolicies,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [tenantToolApprovalPolicies.tenantId],
+      references: [organization.id],
+    }),
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [tenantToolApprovalPolicies.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+    tool: one(integrationCatalogTools, {
+      fields: [tenantToolApprovalPolicies.toolSlug],
+      references: [integrationCatalogTools.slug],
+    }),
+  }),
+)
+
+export const agentIntegrationToolExecutionsRelations = relations(
+  agentIntegrationToolExecutions,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [agentIntegrationToolExecutions.tenantId],
+      references: [organization.id],
+    }),
+    thread: one(agentThreads, {
+      fields: [
+        agentIntegrationToolExecutions.threadId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
+      references: [agentThreads.id, agentThreads.tenantId],
+    }),
+    turn: one(agentTurns, {
+      fields: [
+        agentIntegrationToolExecutions.turnId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
+      references: [agentTurns.id, agentTurns.tenantId],
+    }),
+    toolCallItem: one(agentItems, {
+      fields: [
+        agentIntegrationToolExecutions.toolCallItemId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
+      references: [agentItems.id, agentItems.tenantId],
+    }),
+    connectedAccount: one(integrationConnectedAccounts, {
+      fields: [
+        agentIntegrationToolExecutions.connectedAccountId,
+        agentIntegrationToolExecutions.tenantId,
+      ],
+      references: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }),
+  }),
+)
+
+export const integrationTriggerSubscriptionsRelations = relations(
+  integrationTriggerSubscriptions,
+  ({ one }) => ({
+    connectedAccount: one(integrationConnectedAccounts, {
+      fields: [
+        integrationTriggerSubscriptions.connectedAccountId,
+        integrationTriggerSubscriptions.tenantId,
+      ],
+      references: [
+        integrationConnectedAccounts.id,
+        integrationConnectedAccounts.tenantId,
+      ],
+    }),
+    toolkit: one(integrationCatalogToolkits, {
+      fields: [integrationTriggerSubscriptions.toolkitSlug],
+      references: [integrationCatalogToolkits.slug],
+    }),
+    trigger: one(integrationCatalogTriggers, {
+      fields: [integrationTriggerSubscriptions.triggerSlug],
+      references: [integrationCatalogTriggers.slug],
+    }),
+  }),
+)
+
+export const integrationRequestsRelations = relations(
+  integrationRequests,
+  ({ one }) => ({
+    organization: one(organization, {
+      fields: [integrationRequests.tenantId],
+      references: [organization.id],
+    }),
+    requestedBy: one(user, {
+      fields: [integrationRequests.requestedByUserId],
+      references: [user.id],
+    }),
+  }),
+)

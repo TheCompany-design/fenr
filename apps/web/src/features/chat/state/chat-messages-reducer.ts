@@ -3,6 +3,7 @@ import {
   isMessageItemKind,
 } from "@/lib/schemas/agent-stream"
 import type { ChatMessage } from "../types"
+import type { ModelCallProjection } from "./stream-reducer"
 
 export type ClientChatAction =
   | {
@@ -45,13 +46,19 @@ function reduceAgentEvent(
       const claimable =
         lastIdx >= 0 &&
         current?.role === "agent" &&
-        current.status === "streaming" &&
-        current.unclaimed === true
+        current.unclaimed === true &&
+        (current.status === "streaming" ||
+          (current.content === "" && (current.thinking ?? "") === ""))
 
       if (claimable && current) {
         const { unclaimed: _claimed, ...claimed } = current
         const updated = [...messages]
-        updated[lastIdx] = { ...claimed, id: item_id }
+        updated[lastIdx] = {
+          ...claimed,
+          id: item_id,
+          turnId: event.data.turn_id,
+          status: "streaming" as const,
+        }
         return updated
       }
 
@@ -64,6 +71,7 @@ function reduceAgentEvent(
         ...settled,
         {
           id: item_id,
+          turnId: event.data.turn_id,
           role: "agent" as const,
           content: "",
           thinking: "",
@@ -142,7 +150,44 @@ function reduceAgentEvent(
     }
 
     case "model_call_recorded": {
-      return [...messages]
+      let targetIndex = -1
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        const message = messages[index]
+        if (message?.role === "agent" && message.status === "streaming") {
+          targetIndex = index
+          break
+        }
+      }
+      if (targetIndex < 0) return [...messages]
+
+      const current = messages[targetIndex]
+      if (!current) return [...messages]
+      const call: ModelCallProjection = {
+        callId: null,
+        status: event.data.error_code === null ? "succeeded" : "failed",
+        attempt: event.data.attempt,
+        step: event.data.step,
+        provider: event.data.provider,
+        model: event.data.model,
+        effort: event.data.effort ?? null,
+        usage: event.data.usage,
+        durationMs: event.data.duration_ms,
+        ttftMs: event.data.ttft_ms,
+        finishReason: event.data.finish_reason,
+        errorCode: event.data.error_code,
+      }
+      const modelCalls = [
+        ...(current.modelCalls ?? []).filter(
+          (existing) =>
+            existing.attempt !== call.attempt || existing.step !== call.step,
+        ),
+        call,
+      ].sort(
+        (left, right) => left.attempt - right.attempt || left.step - right.step,
+      )
+      const updated = [...messages]
+      updated[targetIndex] = { ...current, modelCalls }
+      return updated
     }
 
     case "turn_suspended": {

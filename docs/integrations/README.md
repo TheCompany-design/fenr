@@ -2,6 +2,10 @@
 
 This documentation directory contains comprehensive technical specifications, API scopes, endpoints, rate limits, and verification requirements for all 25 core third-party integrations planned for the **Fenr** platform and **Nabu** agent runtime.
 
+> **Unified Platform Architecture & Implementation Plans:**
+> - **Frontend, UI (`<Sheet />`, `/integrations`, Composer `@` Mentions) & Drizzle Schema:** [`docs/architecture/integrations-and-connections.md`](../architecture/integrations-and-connections.md)
+> - **Backend Runtime (`thebookofnabu`), Composio v3.1 Deep Dive, HITL & PostgreSQL 18 DDL (`0014`):** `/home/muchiri/dev/bag/atelier/thebookofnabu/docs/tools/composio-integrations/README.md`
+
 ---
 
 ## The Compliance & Audit Spectrum

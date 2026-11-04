@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
+import { getActiveOrganizationRole } from "@/features/organizations/operations/organization-role.server"
 import { ensureSession } from "@/lib/auth/session"
 import { withWideEvent } from "@/lib/logger"
 import { approvalDecisionSchema } from "@/lib/schemas/agent-stream"
@@ -10,6 +11,7 @@ import {
   getNabuCapabilities,
   getNabuSystemStatus,
   getTurnItems,
+  getUsageSummary,
   OrganizationRequiredError,
   resumeTurn,
 } from "./nabu.server"
@@ -159,6 +161,39 @@ export const resumeTurnFn = createServerFn({ method: "POST" })
         })
         await resumeTurn({ turnId: data.turnId }, { requestId })
         return { resumed: true as const }
+      },
+    )
+  })
+
+const usageSummaryInputSchema = z.object({
+  days: z.number().int().min(1).max(90).optional(),
+})
+
+export const getUsageSummaryFn = createServerFn({ method: "GET" })
+  .validator((input: unknown) => usageSummaryInputSchema.parse(input ?? {}))
+  .handler(async ({ data }) => {
+    return withWideEvent(
+      "nabu",
+      "getUsageSummary",
+      async (setContext, requestId) => {
+        const session = await ensureSession()
+        const orgId = session.session.activeOrganizationId
+        if (!orgId) {
+          throw new OrganizationRequiredError()
+        }
+        const tenantRole = await getActiveOrganizationRole(
+          session.user.id,
+          orgId,
+        )
+        setContext({
+          userId: session.user.id,
+          organizationId: orgId,
+          ...(tenantRole ? { tenantRole } : {}),
+        })
+        return getUsageSummary(data, {
+          requestId,
+          ...(tenantRole ? { tenantRole } : {}),
+        })
       },
     )
   })

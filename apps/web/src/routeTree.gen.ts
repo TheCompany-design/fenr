@@ -14,21 +14,26 @@ import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as ChooseOrganizationRouteImport } from './routes/choose-organization'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppChatRouteRouteImport } from './routes/_app/chat/route'
 import { Route as AppSettingsRouteRouteImport } from './routes/_app/settings/route'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as InvitationsAcceptRouteImport } from './routes/invitations/accept'
 import { Route as AppChatIndexRouteImport } from './routes/_app/chat/index'
 import { Route as AppChatThreadIdRouteImport } from './routes/_app/chat/$threadId'
 import { Route as AppDocumentIndexRouteImport } from './routes/_app/document/index'
+import { Route as AppIntegrationsIndexRouteImport } from './routes/_app/integrations/index'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsIntegrationsRouteImport } from './routes/_app/settings/integrations'
 import { Route as ApiAgentStreamRouteImport } from './routes/api/agent/stream'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthCheckEmailIndexRouteImport } from './routes/auth/check-email/index'
 import { Route as AuthSignInIndexRouteImport } from './routes/auth/sign-in/index'
 import { Route as AuthSignUpIndexRouteImport } from './routes/auth/sign-up/index'
+import { Route as AppIntegrationsOauthCallbackRouteImport } from './routes/_app/integrations/oauth.callback'
 import { Route as AppSettingsDangerIndexRouteImport } from './routes/_app/settings/danger/index'
 import { Route as AppSettingsMembersIndexRouteImport } from './routes/_app/settings/members/index'
 import { Route as AppSettingsProviderIndexRouteImport } from './routes/_app/settings/provider/index'
+import { Route as AppSettingsUsageIndexRouteImport } from './routes/_app/settings/usage/index'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -54,6 +59,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppChatRouteRoute = AppChatRouteRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppSettingsRouteRoute = AppSettingsRouteRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -70,23 +80,33 @@ const InvitationsAcceptRoute = InvitationsAcceptRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppChatIndexRoute = AppChatIndexRouteImport.update({
-  id: '/chat/',
-  path: '/chat/',
-  getParentRoute: () => AppRouteRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppChatRouteRoute,
 } as any)
 const AppChatThreadIdRoute = AppChatThreadIdRouteImport.update({
-  id: '/chat/$threadId',
-  path: '/chat/$threadId',
-  getParentRoute: () => AppRouteRoute,
+  id: '/$threadId',
+  path: '/$threadId',
+  getParentRoute: () => AppChatRouteRoute,
 } as any)
 const AppDocumentIndexRoute = AppDocumentIndexRouteImport.update({
   id: '/document/',
   path: '/document/',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppIntegrationsIndexRoute = AppIntegrationsIndexRouteImport.update({
+  id: '/integrations/',
+  path: '/integrations/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppSettingsRouteRoute,
+} as any)
+const AppSettingsIntegrationsRoute = AppSettingsIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
   getParentRoute: () => AppSettingsRouteRoute,
 } as any)
 const ApiAgentStreamRoute = ApiAgentStreamRouteImport.update({
@@ -114,6 +134,12 @@ const AuthSignUpIndexRoute = AuthSignUpIndexRouteImport.update({
   path: '/sign-up/',
   getParentRoute: () => AuthRouteRoute,
 } as any)
+const AppIntegrationsOauthCallbackRoute =
+  AppIntegrationsOauthCallbackRouteImport.update({
+    id: '/integrations/oauth/callback',
+    path: '/integrations/oauth/callback',
+    getParentRoute: () => AppRouteRoute,
+  } as any)
 const AppSettingsDangerIndexRoute = AppSettingsDangerIndexRouteImport.update({
   id: '/danger/',
   path: '/danger/',
@@ -130,27 +156,37 @@ const AppSettingsProviderIndexRoute =
     path: '/provider/',
     getParentRoute: () => AppSettingsRouteRoute,
   } as any)
+const AppSettingsUsageIndexRoute = AppSettingsUsageIndexRouteImport.update({
+  id: '/usage/',
+  path: '/usage/',
+  getParentRoute: () => AppSettingsRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
+  '/chat': typeof AppChatRouteRouteWithChildren
   '/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/auth/': typeof AuthIndexRoute
   '/chat/$threadId': typeof AppChatThreadIdRoute
+  '/settings/integrations': typeof AppSettingsIntegrationsRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/chat/': typeof AppChatIndexRoute
   '/document/': typeof AppDocumentIndexRoute
+  '/integrations/': typeof AppIntegrationsIndexRoute
   '/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in/': typeof AuthSignInIndexRoute
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
+  '/integrations/oauth/callback': typeof AppIntegrationsOauthCallbackRoute
   '/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/settings/members/': typeof AppSettingsMembersIndexRoute
   '/settings/provider/': typeof AppSettingsProviderIndexRoute
+  '/settings/usage/': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRoutesByTo {
   '/choose-organization': typeof ChooseOrganizationRoute
@@ -159,17 +195,21 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/auth': typeof AuthIndexRoute
   '/chat/$threadId': typeof AppChatThreadIdRoute
+  '/settings/integrations': typeof AppSettingsIntegrationsRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/chat': typeof AppChatIndexRoute
   '/document': typeof AppDocumentIndexRoute
+  '/integrations': typeof AppIntegrationsIndexRoute
   '/settings': typeof AppSettingsIndexRoute
   '/auth/check-email': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in': typeof AuthSignInIndexRoute
   '/auth/sign-up': typeof AuthSignUpIndexRoute
+  '/integrations/oauth/callback': typeof AppIntegrationsOauthCallbackRoute
   '/settings/danger': typeof AppSettingsDangerIndexRoute
   '/settings/members': typeof AppSettingsMembersIndexRoute
   '/settings/provider': typeof AppSettingsProviderIndexRoute
+  '/settings/usage': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -177,22 +217,27 @@ export interface FileRoutesById {
   '/auth': typeof AuthRouteRouteWithChildren
   '/choose-organization': typeof ChooseOrganizationRoute
   '/onboarding': typeof OnboardingRoute
+  '/_app/chat': typeof AppChatRouteRouteWithChildren
   '/_app/settings': typeof AppSettingsRouteRouteWithChildren
   '/invitations/accept': typeof InvitationsAcceptRoute
   '/_app/': typeof AppIndexRoute
   '/auth/': typeof AuthIndexRoute
   '/_app/chat/$threadId': typeof AppChatThreadIdRoute
+  '/_app/settings/integrations': typeof AppSettingsIntegrationsRoute
   '/api/agent/stream': typeof ApiAgentStreamRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_app/chat/': typeof AppChatIndexRoute
   '/_app/document/': typeof AppDocumentIndexRoute
+  '/_app/integrations/': typeof AppIntegrationsIndexRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/auth/check-email/': typeof AuthCheckEmailIndexRoute
   '/auth/sign-in/': typeof AuthSignInIndexRoute
   '/auth/sign-up/': typeof AuthSignUpIndexRoute
+  '/_app/integrations/oauth/callback': typeof AppIntegrationsOauthCallbackRoute
   '/_app/settings/danger/': typeof AppSettingsDangerIndexRoute
   '/_app/settings/members/': typeof AppSettingsMembersIndexRoute
   '/_app/settings/provider/': typeof AppSettingsProviderIndexRoute
+  '/_app/settings/usage/': typeof AppSettingsUsageIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -201,21 +246,26 @@ export interface FileRouteTypes {
     | '/auth'
     | '/choose-organization'
     | '/onboarding'
+    | '/chat'
     | '/settings'
     | '/invitations/accept'
     | '/auth/'
     | '/chat/$threadId'
+    | '/settings/integrations'
     | '/api/agent/stream'
     | '/api/auth/$'
     | '/chat/'
     | '/document/'
+    | '/integrations/'
     | '/settings/'
     | '/auth/check-email/'
     | '/auth/sign-in/'
     | '/auth/sign-up/'
+    | '/integrations/oauth/callback'
     | '/settings/danger/'
     | '/settings/members/'
     | '/settings/provider/'
+    | '/settings/usage/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/choose-organization'
@@ -224,39 +274,48 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/chat/$threadId'
+    | '/settings/integrations'
     | '/api/agent/stream'
     | '/api/auth/$'
     | '/chat'
     | '/document'
+    | '/integrations'
     | '/settings'
     | '/auth/check-email'
     | '/auth/sign-in'
     | '/auth/sign-up'
+    | '/integrations/oauth/callback'
     | '/settings/danger'
     | '/settings/members'
     | '/settings/provider'
+    | '/settings/usage'
   id:
     | '__root__'
     | '/_app'
     | '/auth'
     | '/choose-organization'
     | '/onboarding'
+    | '/_app/chat'
     | '/_app/settings'
     | '/invitations/accept'
     | '/_app/'
     | '/auth/'
     | '/_app/chat/$threadId'
+    | '/_app/settings/integrations'
     | '/api/agent/stream'
     | '/api/auth/$'
     | '/_app/chat/'
     | '/_app/document/'
+    | '/_app/integrations/'
     | '/_app/settings/'
     | '/auth/check-email/'
     | '/auth/sign-in/'
     | '/auth/sign-up/'
+    | '/_app/integrations/oauth/callback'
     | '/_app/settings/danger/'
     | '/_app/settings/members/'
     | '/_app/settings/provider/'
+    | '/_app/settings/usage/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -306,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/chat': {
+      id: '/_app/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AppChatRouteRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/settings': {
       id: '/_app/settings'
       path: '/settings'
@@ -329,17 +395,17 @@ declare module '@tanstack/react-router' {
     }
     '/_app/chat/': {
       id: '/_app/chat/'
-      path: '/chat'
+      path: '/'
       fullPath: '/chat/'
       preLoaderRoute: typeof AppChatIndexRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppChatRouteRoute
     }
     '/_app/chat/$threadId': {
       id: '/_app/chat/$threadId'
-      path: '/chat/$threadId'
+      path: '/$threadId'
       fullPath: '/chat/$threadId'
       preLoaderRoute: typeof AppChatThreadIdRouteImport
-      parentRoute: typeof AppRouteRoute
+      parentRoute: typeof AppChatRouteRoute
     }
     '/_app/document/': {
       id: '/_app/document/'
@@ -348,11 +414,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDocumentIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/integrations/': {
+      id: '/_app/integrations/'
+      path: '/integrations'
+      fullPath: '/integrations/'
+      preLoaderRoute: typeof AppIntegrationsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/settings/': {
       id: '/_app/settings/'
       path: '/'
       fullPath: '/settings/'
       preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
+    '/_app/settings/integrations': {
+      id: '/_app/settings/integrations'
+      path: '/integrations'
+      fullPath: '/settings/integrations'
+      preLoaderRoute: typeof AppSettingsIntegrationsRouteImport
       parentRoute: typeof AppSettingsRouteRoute
     }
     '/api/agent/stream': {
@@ -390,6 +470,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSignUpIndexRouteImport
       parentRoute: typeof AuthRouteRoute
     }
+    '/_app/integrations/oauth/callback': {
+      id: '/_app/integrations/oauth/callback'
+      path: '/integrations/oauth/callback'
+      fullPath: '/integrations/oauth/callback'
+      preLoaderRoute: typeof AppIntegrationsOauthCallbackRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/settings/danger/': {
       id: '/_app/settings/danger/'
       path: '/danger'
@@ -411,40 +498,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsProviderIndexRouteImport
       parentRoute: typeof AppSettingsRouteRoute
     }
+    '/_app/settings/usage/': {
+      id: '/_app/settings/usage/'
+      path: '/usage'
+      fullPath: '/settings/usage/'
+      preLoaderRoute: typeof AppSettingsUsageIndexRouteImport
+      parentRoute: typeof AppSettingsRouteRoute
+    }
   }
 }
 
+interface AppChatRouteRouteChildren {
+  AppChatThreadIdRoute: typeof AppChatThreadIdRoute
+  AppChatIndexRoute: typeof AppChatIndexRoute
+}
+
+const AppChatRouteRouteChildren: AppChatRouteRouteChildren = {
+  AppChatThreadIdRoute: AppChatThreadIdRoute,
+  AppChatIndexRoute: AppChatIndexRoute,
+}
+
+const AppChatRouteRouteWithChildren = AppChatRouteRoute._addFileChildren(
+  AppChatRouteRouteChildren,
+)
+
 interface AppSettingsRouteRouteChildren {
+  AppSettingsIntegrationsRoute: typeof AppSettingsIntegrationsRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSettingsDangerIndexRoute: typeof AppSettingsDangerIndexRoute
   AppSettingsMembersIndexRoute: typeof AppSettingsMembersIndexRoute
   AppSettingsProviderIndexRoute: typeof AppSettingsProviderIndexRoute
+  AppSettingsUsageIndexRoute: typeof AppSettingsUsageIndexRoute
 }
 
 const AppSettingsRouteRouteChildren: AppSettingsRouteRouteChildren = {
+  AppSettingsIntegrationsRoute: AppSettingsIntegrationsRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSettingsDangerIndexRoute: AppSettingsDangerIndexRoute,
   AppSettingsMembersIndexRoute: AppSettingsMembersIndexRoute,
   AppSettingsProviderIndexRoute: AppSettingsProviderIndexRoute,
+  AppSettingsUsageIndexRoute: AppSettingsUsageIndexRoute,
 }
 
 const AppSettingsRouteRouteWithChildren =
   AppSettingsRouteRoute._addFileChildren(AppSettingsRouteRouteChildren)
 
 interface AppRouteRouteChildren {
+  AppChatRouteRoute: typeof AppChatRouteRouteWithChildren
   AppSettingsRouteRoute: typeof AppSettingsRouteRouteWithChildren
   AppIndexRoute: typeof AppIndexRoute
-  AppChatThreadIdRoute: typeof AppChatThreadIdRoute
-  AppChatIndexRoute: typeof AppChatIndexRoute
   AppDocumentIndexRoute: typeof AppDocumentIndexRoute
+  AppIntegrationsIndexRoute: typeof AppIntegrationsIndexRoute
+  AppIntegrationsOauthCallbackRoute: typeof AppIntegrationsOauthCallbackRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
+  AppChatRouteRoute: AppChatRouteRouteWithChildren,
   AppSettingsRouteRoute: AppSettingsRouteRouteWithChildren,
   AppIndexRoute: AppIndexRoute,
-  AppChatThreadIdRoute: AppChatThreadIdRoute,
-  AppChatIndexRoute: AppChatIndexRoute,
   AppDocumentIndexRoute: AppDocumentIndexRoute,
+  AppIntegrationsIndexRoute: AppIntegrationsIndexRoute,
+  AppIntegrationsOauthCallbackRoute: AppIntegrationsOauthCallbackRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

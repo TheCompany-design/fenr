@@ -1,3 +1,4 @@
+import * as React from "react"
 import type { SuggestionItem, TriggerSource } from "../primitives/suggestion"
 import { usePromptStore } from "../state/prompt-store"
 
@@ -112,6 +113,20 @@ export type ReferenceableItem = {
   hint?: string
   insertText: string
   icon?: React.ReactNode
+  /** Composio toolkit slug: marks the item as an app integration. */
+  toolkitSlug?: string
+  /** Live connection status rendered as a pill in the `@` menu. */
+  connectionBadge?: "connected" | "not connected"
+  /**
+   * The brand mark's resolved URL, drawn inside the mention pill in the
+   * draft. The host resolves it against its own logo service; the composer
+   * never names one.
+   */
+  logoUrl?: string
+  /** Monochrome marks invert in dark mode. */
+  logoMonochrome?: boolean
+  /** Brand accent that tints the mention pill when the host supplies one. */
+  accentHex?: string | null
 }
 
 let extraReferences: ReferenceableItem[] = []
@@ -131,7 +146,29 @@ export function referenceItems(): SuggestionItem[] {
       hint: formatBytes(attachment.size),
     }),
   )
-  return [...fromAttachments, ...extraReferences]
+  const fromIntegrations: SuggestionItem[] = extraReferences
+    .filter((item) => item.toolkitSlug)
+    .map((item) => ({
+      id: `integration:${item.toolkitSlug}`,
+      insertText: item.insertText,
+      label: item.label,
+      hint: item.hint,
+      icon: item.icon,
+      logoUrl: item.logoUrl,
+      logoMonochrome: item.logoMonochrome,
+      accentHex: item.accentHex,
+      trailing: item.connectionBadge
+        ? React.createElement(
+            "span",
+            {
+              className:
+                "inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] leading-4 text-muted-foreground",
+            },
+            item.connectionBadge,
+          )
+        : undefined,
+    }))
+  return [...fromAttachments, ...fromIntegrations]
 }
 
 export function referenceSource(): TriggerSource {

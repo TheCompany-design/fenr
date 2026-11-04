@@ -20,6 +20,7 @@ export function setupTestDOM() {
       window: win,
       document: win.document,
       navigator: win.navigator,
+      history: win.history,
       customElements: win.customElements,
       Element: win.Element,
       HTMLElement: win.HTMLElement,
@@ -76,6 +77,9 @@ export function setupTestDOM() {
     }
     if (!globalThis.MouseEvent && win.MouseEvent) {
       globalThis.MouseEvent = win.MouseEvent as typeof MouseEvent
+    }
+    if (!globalThis.history && win.history) {
+      globalThis.history = win.history as typeof history
     }
   }
 

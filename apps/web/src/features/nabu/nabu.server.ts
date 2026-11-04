@@ -9,7 +9,9 @@ import type { ApprovalDecision } from "@/lib/schemas/agent-stream"
 import type {
   NabuCapabilities,
   NabuSystemStatus,
+  ThreadUsageResponse,
   TurnItemsResponse,
+  UsageSummaryResponse,
 } from "@/lib/schemas/nabu"
 
 export class OrganizationRequiredError extends Error {
@@ -163,5 +165,26 @@ export async function resumeTurn(
 ): Promise<void> {
   await runNabuRequest(() =>
     executeRequest(nabuEndpoints.resumeTurn, { ...options, input }),
+  )
+}
+
+export async function getThreadUsage(
+  input: { threadId: string },
+  options?: Omit<ExecuteRequestOptions<{ threadId: string }>, "input">,
+): Promise<ThreadUsageResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.threadUsage, { ...options, input }),
+  )
+}
+
+export async function getUsageSummary(
+  input?: { days?: number },
+  options?: Omit<ExecuteRequestOptions<{ days?: number } | undefined>, "input">,
+): Promise<UsageSummaryResponse> {
+  return runNabuRequest(() =>
+    executeRequest(nabuEndpoints.usageSummary, {
+      ...options,
+      input: input ?? undefined,
+    }),
   )
 }

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "bun:test"
 import { db, eq, schema } from "@workspace/database"
-import { getThreadChoice, getThreadMessages } from "./chat.server"
+import {
+  deleteChatThread,
+  getChatThreads,
+  getThreadChoice,
+  getThreadMessages,
+  getThreadPendingApproval,
+  lastAgentMessageByTurn,
+} from "./chat.server"
 
 async function seedOrganization(id: string) {
   await db.insert(schema.organization).values({
@@ -62,6 +69,22 @@ describe("Chat Server Operations (Thread Messages)", () => {
     expect(messages).toBeNull()
   })
 
+  it("attaches a turn's model-call ledger to only its last assistant bubble", () => {
+    const last = lastAgentMessageByTurn([
+      { id: "user-1", turnId: "turn-1", kind: "user_message" },
+      { id: "agent-1", turnId: "turn-1", kind: "agent_message" },
+      { id: "tool-1", turnId: "turn-1", kind: "tool_call" },
+      { id: "agent-2", turnId: "turn-1", kind: "agent_message" },
+      { id: "agent-3", turnId: "turn-2", kind: "agent_message" },
+    ])
+    expect(last).toEqual(
+      new Map([
+        ["turn-1", "agent-2"],
+        ["turn-2", "agent-3"],
+      ]),
+    )
+  })
+
   it("keeps non-message transcript items out of the chat timeline", async () => {
     // A regression guard, not a mock: the mapping is the thing that regressed,
     // and asserting on shapes would not have caught it.
@@ -76,6 +99,106 @@ describe("Chat Server Operations (Thread Messages)", () => {
 
     const result = await getThreadMessages(threadId, tenantB)
     expect(result).toBeNull()
+  })
+
+  it("returns pending approval for a suspended turn scoped strictly to tenant", async () => {
+    const tenantId = crypto.randomUUID()
+    const foreignTenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const itemId = crypto.randomUUID()
+    const now = new Date()
+
+    await seedOrganization(tenantId)
+    await seedOrganization(foreignTenantId)
+
+    await db.transaction(async (scoped) => {
+      await scoped.insert(schema.agentThreads).values({
+        id: threadId,
+        tenantId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await scoped.insert(schema.agentTurns).values({
+        id: turnId,
+        threadId,
+        tenantId,
+        turnIndex: 0,
+        status: "suspended",
+        attempt: 1,
+        createdAt: now,
+      })
+      await scoped.insert(schema.agentItems).values({
+        id: itemId,
+        threadId,
+        turnId,
+        tenantId,
+        kind: "approval_request",
+        payload: {
+          kind: "approval_request",
+          call_id: "call_1",
+          tool: "composio-github_create_issue",
+          arguments: { title: "Bug report" },
+        },
+        createdAt: now,
+        completedAt: now,
+      })
+      await scoped.insert(schema.agentApprovals).values({
+        itemId,
+        tenantId,
+        callId: "call_1",
+        tool: "composio-github_create_issue",
+        arguments: { title: "Bug report" },
+        decision: null,
+        requestedAt: now,
+      })
+    })
+
+    try {
+      const pending = await getThreadPendingApproval(threadId, tenantId)
+      expect(pending).toEqual({
+        turnId,
+        itemId,
+        attempt: 1,
+      })
+
+      // Foreign tenant cannot see the pending approval
+      expect(
+        await getThreadPendingApproval(threadId, foreignTenantId),
+      ).toBeNull()
+
+      // Once decided, pending approval returns null
+      await db
+        .update(schema.agentApprovals)
+        .set({
+          decision: "approved",
+          decidedBy: crypto.randomUUID(),
+          decidedAt: new Date(),
+        })
+        .where(eq(schema.agentApprovals.itemId, itemId))
+      expect(await getThreadPendingApproval(threadId, tenantId)).toBeNull()
+    } finally {
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentApprovals)
+          .where(eq(schema.agentApprovals.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, foreignTenantId))
+      })
+    }
   })
 })
 
@@ -234,6 +357,199 @@ describe("transcript order", () => {
           .delete(schema.organization)
           .where(eq(schema.organization.id, tenantId))
       })
+    }
+  })
+})
+
+describe("getChatThreads and deleteChatThread", () => {
+  it("lists threads ordered by updatedAt desc and scoped strictly to tenant", async () => {
+    const tenantA = crypto.randomUUID()
+    const tenantB = crypto.randomUUID()
+    const threadA1 = crypto.randomUUID()
+    const threadA2 = crypto.randomUUID()
+    const threadB = crypto.randomUUID()
+
+    await seedOrganization(tenantA)
+    await seedOrganization(tenantB)
+
+    const t1 = new Date(Date.now() - 60_000)
+    const t2 = new Date(Date.now())
+
+    try {
+      await db.insert(schema.agentThreads).values([
+        {
+          id: threadA1,
+          tenantId: tenantA,
+          title: "First conversation",
+          model: "openai/gpt-5.2",
+          effort: "low",
+          createdAt: t1,
+          updatedAt: t1,
+        },
+        {
+          id: threadA2,
+          tenantId: tenantA,
+          title: "Second conversation",
+          model: "anthropic/claude-3-7-sonnet",
+          effort: "high",
+          createdAt: t2,
+          updatedAt: t2,
+        },
+        {
+          id: threadB,
+          tenantId: tenantB,
+          title: "Other tenant conversation",
+          model: "google/gemini-2.5-flash",
+          createdAt: t2,
+          updatedAt: t2,
+        },
+      ])
+
+      const threadsA = await getChatThreads(tenantA)
+      expect(threadsA).toHaveLength(2)
+      // Most recently updated first
+      expect(threadsA[0]?.id).toBe(threadA2)
+      expect(threadsA[0]?.title).toBe("Second conversation")
+      expect(threadsA[0]?.model).toBe("anthropic/claude-3-7-sonnet")
+      expect(threadsA[1]?.id).toBe(threadA1)
+      expect(threadsA[1]?.title).toBe("First conversation")
+
+      // Limit works
+      const limited = await getChatThreads(tenantA, 1)
+      expect(limited).toHaveLength(1)
+      expect(limited[0]?.id).toBe(threadA2)
+
+      // Tenant B sees only its own
+      const threadsB = await getChatThreads(tenantB)
+      expect(threadsB).toHaveLength(1)
+      expect(threadsB[0]?.id).toBe(threadB)
+    } finally {
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantA))
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantB))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantB))
+    }
+  })
+
+  it("derives and backfills a fallback title from the first user message when agent_threads.title is null", async () => {
+    const tenantId = crypto.randomUUID()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const now = new Date()
+
+    await seedOrganization(tenantId)
+
+    try {
+      await db.transaction(async (scoped) => {
+        await scoped.insert(schema.agentThreads).values({
+          id: threadId,
+          tenantId,
+          title: null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await scoped.insert(schema.agentTurns).values({
+          id: turnId,
+          threadId,
+          tenantId,
+          turnIndex: 0,
+          status: "completed",
+          createdAt: now,
+          completedAt: now,
+        })
+        await scoped.insert(schema.agentItems).values({
+          threadId,
+          turnId,
+          tenantId,
+          kind: "user_message",
+          payload: {
+            kind: "user_message",
+            content: "Audit our Q3 cloud infrastructure spend",
+          },
+          createdAt: now,
+          completedAt: now,
+        })
+      })
+
+      const threads = await getChatThreads(tenantId)
+      expect(threads).toHaveLength(1)
+      expect(threads[0]?.id).toBe(threadId)
+      expect(threads[0]?.title).toBe("Audit our Q3 cloud infrastructure spend")
+
+      const [persisted] = await db
+        .select({ title: schema.agentThreads.title })
+        .from(schema.agentThreads)
+        .where(eq(schema.agentThreads.id, threadId))
+      expect(persisted?.title).toBe("Audit our Q3 cloud infrastructure spend")
+    } finally {
+      await db.transaction(async (scoped) => {
+        await scoped
+          .delete(schema.agentItems)
+          .where(eq(schema.agentItems.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentTurns)
+          .where(eq(schema.agentTurns.tenantId, tenantId))
+        await scoped
+          .delete(schema.agentThreads)
+          .where(eq(schema.agentThreads.tenantId, tenantId))
+        await scoped
+          .delete(schema.organization)
+          .where(eq(schema.organization.id, tenantId))
+      })
+    }
+  })
+
+  it("deletes a thread within tenant bounds and prevents cross-tenant deletion", async () => {
+    const tenantA = crypto.randomUUID()
+    const tenantB = crypto.randomUUID()
+    const threadA = crypto.randomUUID()
+
+    await seedOrganization(tenantA)
+    await seedOrganization(tenantB)
+
+    try {
+      await db.insert(schema.agentThreads).values({
+        id: threadA,
+        tenantId: tenantA,
+        title: "Thread to delete",
+      })
+
+      // Tenant B attempting to delete Tenant A's thread fails safely
+      const deletedByB = await deleteChatThread(threadA, tenantB)
+      expect(deletedByB).toBe(false)
+
+      // Verify thread is still intact
+      const threadsBefore = await getChatThreads(tenantA)
+      expect(threadsBefore).toHaveLength(1)
+
+      // Tenant A deleting their own thread succeeds
+      const deletedByA = await deleteChatThread(threadA, tenantA)
+      expect(deletedByA).toBe(true)
+
+      // Verify thread is gone
+      const threadsAfter = await getChatThreads(tenantA)
+      expect(threadsAfter).toHaveLength(0)
+
+      // Deleting again returns false
+      expect(await deleteChatThread(threadA, tenantA)).toBe(false)
+    } finally {
+      await db
+        .delete(schema.agentThreads)
+        .where(eq(schema.agentThreads.tenantId, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantA))
+      await db
+        .delete(schema.organization)
+        .where(eq(schema.organization.id, tenantB))
     }
   })
 })

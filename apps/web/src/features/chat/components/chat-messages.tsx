@@ -1,7 +1,9 @@
 import { AiChat02Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { ScrollArea } from "@workspace/ui/components/scroll-area"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { MessageScroller } from "@workspace/ui/components/message-scroller"
+import { useAtomValue } from "jotai"
+import { useCallback, useRef, useState } from "react"
+import { isStreamingAtom } from "../state/chat-atoms"
 import { groupIntoTurns } from "../state/chat-turns"
 import type { ChatMessage } from "../types"
 import { ChatTurnBlock } from "./chat-turn-block"
@@ -9,64 +11,48 @@ import { ChatTurnBlock } from "./chat-turn-block"
 export interface ChatMessagesProps {
   readonly messages: readonly ChatMessage[]
   readonly showEmptyState?: boolean
+  readonly onContinue?: (prompt: string) => void
+  readonly onInspectTurn?: (turnId: string) => void
+  readonly navigation?: "rail"
+  readonly busy?: boolean
+  readonly followOutput?: boolean
 }
 
 export function ChatMessages({
   messages,
   showEmptyState = true,
+  onContinue,
+  onInspectTurn,
+  navigation = "rail",
+  busy,
+  followOutput = true,
 }: ChatMessagesProps) {
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const isAtBottomRef = useRef(true)
+  const isStreaming = useAtomValue(isStreamingAtom)
+  const isBusy = busy ?? isStreaming
+  const viewportRef = useRef<HTMLElement>(null)
   const [showScrollBottom, setShowScrollBottom] = useState(false)
-  const prevMessageCountRef = useRef(messages.length)
 
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget
-    const threshold = 80
-    const distanceFromBottom =
-      target.scrollHeight - target.scrollTop - target.clientHeight
-    const atBottom = distanceFromBottom <= threshold
-    isAtBottomRef.current = atBottom
-    setShowScrollBottom(!atBottom && messages.length > 0)
-  }
+  const handleFollowChange = useCallback(
+    (following: boolean) => {
+      setShowScrollBottom(!following && messages.length > 0)
+    },
+    [messages.length],
+  )
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     const el = viewportRef.current
     if (el) {
-      if (behavior === "instant" || behavior === "auto") {
-        el.scrollTop = el.scrollHeight
-      } else {
+      if (typeof el.scrollTo === "function") {
         el.scrollTo({
           top: el.scrollHeight,
-          behavior: "smooth",
+          behavior,
         })
+      } else {
+        el.scrollTop = el.scrollHeight
       }
-      isAtBottomRef.current = true
       setShowScrollBottom(false)
     }
   }, [])
-
-  const lastMessage = messages[messages.length - 1]
-  const lastContentLength =
-    (lastMessage?.content.length ?? 0) + (lastMessage?.thinking?.length ?? 0)
-
-  useEffect(() => {
-    if (!lastMessage) return
-
-    const countIncreased = messages.length > prevMessageCountRef.current
-    prevMessageCountRef.current = messages.length
-
-    if (countIncreased && lastMessage.role === "user") {
-      isAtBottomRef.current = true
-      scrollToBottom("smooth")
-    } else if (
-      isAtBottomRef.current &&
-      viewportRef.current &&
-      lastContentLength > 0
-    ) {
-      viewportRef.current.scrollTop = viewportRef.current.scrollHeight
-    }
-  }, [messages.length, lastContentLength, lastMessage, scrollToBottom])
 
   if (messages.length === 0) {
     if (!showEmptyState) {
@@ -92,26 +78,34 @@ export function ChatMessages({
 
   return (
     <div className="relative flex min-h-0 flex-1 w-full flex-col overflow-hidden">
-      <ScrollArea
+      <MessageScroller
         viewportRef={viewportRef}
-        onScroll={handleScroll}
+        followOutput={followOutput}
+        followThreshold={56}
+        busy={isBusy}
+        navigation={navigation}
+        onFollowChange={handleFollowChange}
         className="min-h-0 flex-1 w-full"
+        viewportClassName="h-full w-full"
+        contentClassName="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52"
       >
-        <div className="mx-auto flex w-full max-w-4xl flex-col gap-2 p-4 pb-44 sm:pb-52">
-          {}
-          {groupIntoTurns(messages).map((turn, index) => (
-            <ChatTurnBlock key={turn.messages[0]?.id ?? index} turn={turn} />
-          ))}
-        </div>
-      </ScrollArea>
+        {groupIntoTurns(messages).map((turn, index) => (
+          <ChatTurnBlock
+            key={turn.messages[0]?.id ?? index}
+            turn={turn}
+            onContinue={onContinue}
+            onInspectTurn={onInspectTurn}
+          />
+        ))}
+      </MessageScroller>
 
-      {}
+      {/* Floating scroll to bottom button */}
       {showScrollBottom && (
         <button
           type="button"
           aria-label="Scroll to latest messages"
           onClick={() => scrollToBottom("smooth")}
-          className="absolute bottom-36 sm:bottom-40 right-6 z-20 flex items-center gap-1.5 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur-xs transition-all hover:bg-muted active:scale-95"
+          className="absolute bottom-36 sm:bottom-40 right-6 sm:right-8 z-20 flex items-center gap-1.5 rounded-full border border-border bg-background/95 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur-xs transition-all hover:bg-muted active:scale-95"
         >
           <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
           <span>Scroll to bottom</span>

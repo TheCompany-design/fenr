@@ -132,6 +132,28 @@ Silently dropping someone's attached file is the one unforgivable failure.
 Silently dropping a tool toggle is not. If you add a capability, decide which
 channel it belongs to.
 
+**Mentions are painted by a mirror, not drawn in the textarea.** A textarea
+cannot style a substring, so app mentions are rendered by
+`PromptMentionLayer` — a div beside the textarea that copies its typography
+and box exactly (`DRAFT_TEXT_CLASSES` + `draftBoxClasses`) and paints each
+`@App` as a pill while the textarea's own glyphs stand down
+(`text-transparent`). This is the same trade `measureCaret` already makes: a
+div is trusted to lay out where the textarea would, and the textarea stays on
+top so the caret and the selection are still the browser's, drawn over the
+pills. Three things keep the layer honest:
+
+- it mounts **only when an app mention is in the draft** — ordinary typing,
+  IME composition included, never routes through a mirror;
+- the pill's `@` glyph keeps its advance width under an invisible span while
+  the brand mark covers it, so no character after the mention moves;
+- the pill insets are CSS vars set on the editor canvas (`--pill-inset-*`,
+  see `ComposerDensityProbe`), which is what lets the textarea and the layer
+  pad identically in both densities.
+
+Brand data (mark URL, accent) rides on the mention from the host through
+`ReferenceableItem` → `SuggestionItem` → `Mention`. The composer receives the
+mark URL resolved; it never names a logo service.
+
 **Provider and model are one selection.** `{ providerId, modelId }` is stored
 together and never independently, because "this model" always implies its
 provider. They are presented as a tab strip rather than two controls for the

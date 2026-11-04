@@ -4,10 +4,22 @@ import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../index"
 import {
   agentApprovals,
+  agentIntegrationToolExecutions,
   agentItems,
+  agentModelCalls,
   agentThreads,
   agentToolIntents,
   agentTurns,
+  integrationCatalogToolkits,
+  integrationCatalogTools,
+  integrationCatalogTriggers,
+  integrationConnectedAccounts,
+  integrationOauthSessions,
+  integrationRequests,
+  integrationTriggerSubscriptions,
+  integrationWebhookEvents,
+  tenantIntegrationConfigs,
+  tenantToolApprovalPolicies,
 } from "./agent"
 
 type AnyColumn = PgColumn & { name: string }
@@ -44,9 +56,33 @@ async function actualColumns(table: string): Promise<string[]> {
 const MIRRORED_TABLES: { table: string; schema: MirrorTable }[] = [
   { table: "agent_threads", schema: agentThreads },
   { table: "agent_turns", schema: agentTurns },
+  { table: "agent_model_calls", schema: agentModelCalls },
   { table: "agent_items", schema: agentItems },
   { table: "agent_approvals", schema: agentApprovals },
   { table: "agent_tool_intents", schema: agentToolIntents },
+  { table: "integration_catalog_toolkits", schema: integrationCatalogToolkits },
+  { table: "integration_catalog_tools", schema: integrationCatalogTools },
+  { table: "integration_catalog_triggers", schema: integrationCatalogTriggers },
+  { table: "tenant_integration_configs", schema: tenantIntegrationConfigs },
+  {
+    table: "integration_connected_accounts",
+    schema: integrationConnectedAccounts,
+  },
+  { table: "integration_oauth_sessions", schema: integrationOauthSessions },
+  {
+    table: "tenant_tool_approval_policies",
+    schema: tenantToolApprovalPolicies,
+  },
+  {
+    table: "agent_integration_tool_executions",
+    schema: agentIntegrationToolExecutions,
+  },
+  {
+    table: "integration_trigger_subscriptions",
+    schema: integrationTriggerSubscriptions,
+  },
+  { table: "integration_webhook_events", schema: integrationWebhookEvents },
+  { table: "integration_requests", schema: integrationRequests },
 ]
 
 describe("agent table mirror matches the runtime schema", () => {
@@ -69,6 +105,10 @@ describe("agent table mirror matches the runtime schema", () => {
     // These columns are what every reader must explicitly filter on. The
     // database no longer supplies isolation implicitly through RLS.
     expect(declaredColumns(agentTurns)).toContain("tenant_id")
+    expect(declaredColumns(agentTurns)).toContain("user_id")
+    expect(declaredColumns(agentThreads)).toContain("created_by_user_id")
+    expect(declaredColumns(agentModelCalls)).toContain("user_id")
+    expect(declaredColumns(agentModelCalls)).toContain("tenant_id")
     expect(declaredColumns(agentItems)).toContain("tenant_id")
     expect(declaredColumns(agentApprovals)).toContain("tenant_id")
   })

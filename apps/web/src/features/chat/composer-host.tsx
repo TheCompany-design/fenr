@@ -10,14 +10,21 @@ import {
   revokeAttachments,
   setCredentialStore,
   setProvidersSource,
+  setReferenceableItems,
   usePromptStore,
 } from "@/components/composer"
+import {
+  integrationsCatalogQueryOptions,
+  toolkitConnectionState,
+} from "@/features/integrations/api/integrations-queries"
+import { IntegrationBrandLogo } from "@/features/integrations/components/integration-brand-logo"
 import { getNabuCapabilitiesFn } from "@/features/nabu/nabu.functions"
 import { tenantProvidersQueryOptions } from "@/features/nabu/queries"
 import {
   getTenantProvidersFn,
   savedProviderModelsFn,
 } from "@/features/nabu/tenant-provider.functions"
+import { logoUrl as brandLogoUrl } from "@/lib/brand/logos"
 import { moduleLogger } from "@/lib/logger"
 import type { UsageReport } from "@/lib/schemas/agent-stream"
 import type { TenantProviderSummary } from "@/lib/schemas/nabu"
@@ -26,6 +33,8 @@ import {
   orderProviders,
   toRuntimeTools,
 } from "./composer-catalog"
+import { contextMeterSeedTokens } from "./context-meter-seed"
+import type { LiveTurnTelemetry } from "./state/stream-reducer"
 import type { ChatMessage } from "./types"
 
 const log = moduleLogger("chat:composer-host")
@@ -73,12 +82,15 @@ export interface ComposerBridgeOptions {
 
   readonly turnUsage: UsageReport | null
 
+  readonly liveTelemetry: LiveTurnTelemetry | null
+
   readonly turnStatus: string
   readonly isStreaming: boolean
   readonly send: (
     prompt: string,
     threadId?: string | null,
     options?: {
+      readonly pinnedToolkits?: string[]
       readonly providerConfigId?: string | null
       readonly modelId?: string | null
 
@@ -105,6 +117,7 @@ export function useComposerBridge(
     threadChoice,
     savedProviders,
     turnUsage,
+    liveTelemetry,
     turnStatus,
     isStreaming,
     send: sendTurn,
@@ -112,18 +125,58 @@ export function useComposerBridge(
     onTurnStarted,
   } = options
 
+  const integrationsCatalog = useQuery(integrationsCatalogQueryOptions())
+  useEffect(() => {
+    const catalogData =
+      integrationsCatalog.data && !("unavailable" in integrationsCatalog.data)
+        ? integrationsCatalog.data
+        : null
+    const toolkits = catalogData?.toolkits ?? []
+    setReferenceableItems(
+      toolkits.slice(0, 12).map((toolkit) => ({
+        id: `integration:${toolkit.slug}`,
+        label: toolkit.display_name,
+        hint: toolkit.composer_action_hint,
+        insertText: `@${toolkit.display_name}`,
+        toolkitSlug: toolkit.slug,
+        connectionBadge:
+          toolkitConnectionState(toolkit) === "available"
+            ? ("not connected" as const)
+            : ("connected" as const),
+        icon: (
+          <IntegrationBrandLogo
+            slug={toolkit.logo_slug}
+            monochrome={toolkit.logo_monochrome}
+            size={22}
+          />
+        ),
+        // The draft draws the mention pill itself from this data; the mark
+        // comes resolved from the one logo service the repo names.
+        logoUrl: brandLogoUrl(toolkit.logo_slug),
+        logoMonochrome: toolkit.logo_monochrome,
+        accentHex: toolkit.brand_accent_hex,
+      })),
+    )
+  }, [integrationsCatalog.data])
+
   const seedRef = useRef<{
     promptTokens: number
     boundaryId: string | null
   } | null>(null)
 
   useEffect(() => {
-    if (!turnUsage) return
+    const promptTokens = liveTelemetry
+      ? liveTelemetry.lastStepPromptTokens +
+        liveTelemetry.lastStepCompletionTokens
+      : turnUsage
+        ? contextMeterSeedTokens(turnUsage)
+        : null
+    if (promptTokens === null) return
     seedRef.current = {
-      promptTokens: turnUsage.prompt_tokens,
+      promptTokens,
       boundaryId: lastUserId(messages),
     }
-  }, [turnUsage, messages])
+  }, [liveTelemetry, turnUsage, messages])
 
   useEffect(() => {
     if (isStreaming) {
@@ -168,6 +221,7 @@ export function useComposerBridge(
           const prompt = await flattenPrompt(payload.text, payload.attachments)
           revokeAttachments(payload.attachments)
           await sendTurn(prompt, threadIdRef.current, {
+            pinnedToolkits: payload.pinnedToolkits,
             providerConfigId: payload.providerId,
             modelId: payload.modelId,
             effort: payload.effort,

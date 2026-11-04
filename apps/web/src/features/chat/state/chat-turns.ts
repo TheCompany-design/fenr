@@ -46,3 +46,13 @@ export function turnText(messages: readonly ChatMessage[]): string {
     .filter((content) => content.length > 0)
     .join("\n\n")
 }
+
+export function turnCitations(
+  messages: readonly ChatMessage[],
+): readonly import("@workspace/ui/components/citations").CitationItem[] {
+  const messageCitations = messages.flatMap((m) => m.citations ?? [])
+  if (messageCitations.length > 0) {
+    return messageCitations
+  }
+  return []
+}

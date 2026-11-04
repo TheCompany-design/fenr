@@ -1,24 +1,54 @@
 import type { EditorProps } from "@tiptap/pm/view"
 import type { AnyExtension, JSONContent } from "@tiptap/react"
-import type { HTMLAttributes } from "react"
+import type { HTMLAttributes, ReactNode } from "react"
 
 export type DocumentType = "proposal" | "invoice" | "quote" | "document"
 
 export interface CanvasConfig {
-  width?: number
-  minHeight?: number
+  /** Page width as pixels or any CSS unit string (e.g. "100%", "210mm") */
+  width?: number | string
+  /** Page minimum height as pixels or any CSS unit string */
+  minHeight?: number | string
   padding?: {
     x: number
     y: number
   }
 }
 
+/**
+ * Declarative feature switches for an editor instance. Every capability is
+ * opt-out: an absent (or undefined) flag means enabled. Pass `false` to
+ * remove a feature's extensions, chrome, and slash-menu entries entirely.
+ */
 export interface EditorCapabilities {
+  /** LaTeX math via KaTeX (inline `$...$` and `$$...$$` blocks) */
   mathematics?: boolean
+  /** Grid tables with resizable columns and a floating table toolbar */
   tables?: boolean
+  /** Raster images with upload, drop, and paste flows */
   images?: boolean
+  /** Third-party rich embeds (YouTube) */
   embeds?: boolean
+  /** Left-gutter drag handle with block actions */
   dragHandle?: boolean
+  /** Interactive checkbox task lists */
+  taskLists?: boolean
+  /** Multicolor text highlights */
+  highlights?: boolean
+  /** Foreground text colors */
+  textColors?: boolean
+  /** Syntax-highlighted code blocks with a language picker */
+  codeBlocks?: boolean
+  /** Ghost prompts on the active empty block ("Type '/' for commands") */
+  placeholder?: boolean
+  /** The `/` slash command palette */
+  slashMenu?: boolean
+  /** Tinted emoji callout blocks */
+  callouts?: boolean
+  /** Collapsible toggle blocks (details/summary) */
+  toggles?: boolean
+  /** Word/character counting for status surfaces */
+  characterCount?: boolean
 }
 
 export interface EditorConfig {
@@ -32,6 +62,11 @@ export interface DocumentDefinition {
   canvas?: CanvasConfig
   editor?: EditorConfig
   capabilities?: EditorCapabilities
+  /**
+   * Resolves picked, dropped, or pasted image files to persisted URLs.
+   * Without it, images fall back to session-local object URLs.
+   */
+  uploadImage?: (file: File) => Promise<string>
 }
 
 export function defineDocument(
@@ -56,13 +91,22 @@ export const defaultDocumentDefinition = defineDocument({
     images: true,
     embeds: true,
     dragHandle: true,
+    taskLists: true,
+    highlights: true,
+    textColors: true,
+    codeBlocks: true,
+    placeholder: true,
+    slashMenu: true,
+    callouts: true,
+    toggles: true,
+    characterCount: true,
   },
 })
 
 export interface DocumentCanvasProps extends HTMLAttributes<HTMLElement> {
   ref?: React.Ref<HTMLElement | null>
-  width?: number
-  minHeight?: number
+  width?: number | string
+  minHeight?: number | string
   padding?: {
     x: number
     y: number
@@ -75,4 +119,6 @@ export interface DocumentEditorProps {
   editable?: boolean
   onChange?: (content: JSONContent) => void
   className?: string
+  /** Chrome rendered inside the canvas, above the editable surface (e.g. a title) */
+  header?: ReactNode
 }

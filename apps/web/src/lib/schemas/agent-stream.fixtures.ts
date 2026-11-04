@@ -164,6 +164,7 @@ export const MODEL_CALL_RECORDED_FIXTURE = {
     saved_config_id: null,
     provider: "scripted",
     model: "scripted-model",
+    attempt: 1,
     step: 1,
     usage: {
       input_tokens: 1000,

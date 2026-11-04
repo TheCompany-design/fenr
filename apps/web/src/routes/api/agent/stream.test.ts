@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test"
 import { auth } from "@/lib/auth"
 import { isValidUuidV7 } from "@/lib/id"
 import { logger } from "@/lib/logger"
-import { handleAgentStreamRequest, NABU_START_TURN_PATH } from "./stream"
+import {
+  handleAgentStreamRequest,
+  NABU_RESUME_TURN_PATH,
+  NABU_START_TURN_PATH,
+} from "./stream"
 
 describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
   const originalGetSession = auth.api.getSession
@@ -204,6 +208,45 @@ describe("handleAgentStreamRequest (BFF Agent Stream Proxy)", () => {
     const eventStr = JSON.stringify(event)
     expect(eventStr).not.toContain("mock-jwt-token")
     expect(eventStr).not.toContain("Authorization")
+  })
+
+  it("proxies turn resume requests to /api/v1/threads/{turn_id}/resume", async () => {
+    auth.api.getSession = mock(async () => ({
+      user: { id: "user-123", email: "user@example.com" },
+      session: { id: "sess-123", activeOrganizationId: "org-123" },
+    })) as unknown as typeof auth.api.getSession
+
+    auth.api.signJWT = mock(async () => ({
+      token: "mock-jwt-token",
+    })) as unknown as typeof auth.api.signJWT
+
+    const turnId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e2"
+    const threadId = "0191eb5d-7a6c-7e6d-9290-349c2a61c3e1"
+
+    globalThis.fetch = mock(
+      async (url: string | URL | Request, init?: RequestInit) => {
+        expect(url.toString()).toContain(NABU_RESUME_TURN_PATH(turnId))
+        expect(init?.method).toBe("POST")
+        expect(init?.body).toBeUndefined()
+        return new Response(new ReadableStream(), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        })
+      },
+    ) as unknown as typeof fetch
+
+    const request = new Request("http://localhost:3000/api/agent/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resume_turn_id: turnId,
+        thread_id: threadId,
+      }),
+    })
+
+    const response = await handleAgentStreamRequest(request)
+    expect(response.status).toBe(200)
+    expect(response.headers.get("Content-Type")).toBe("text/event-stream")
   })
 
   it("sanitizes invalid x-request-id containing spaces and echoes generated UUIDv7", async () => {

@@ -17,6 +17,15 @@ export type SuggestionItem = {
   icon?: React.ReactNode
 
   trailing?: React.ReactNode
+
+  /**
+   * Brand data that rides along to the committed mention so the draft can
+   * draw it as a pill. The host resolves `logoUrl` itself; the composer
+   * never names a logo service.
+   */
+  logoUrl?: string
+  logoMonochrome?: boolean
+  accentHex?: string | null
 }
 
 export type SuggestionState = {

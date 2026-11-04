@@ -19,12 +19,91 @@ const TOOL_KINDS: readonly ToolKind[] = [
 
 export type Mention = {
   id: string
-  kind: "file" | "folder" | "url" | "agent"
+  kind: "file" | "folder" | "url" | "agent" | "app"
   label: string
 
   insertText: string
   start: number
   end: number
+
+  /** Set when `kind` is `app`: the Composio toolkit the mention pins. */
+  toolkitSlug?: string
+
+  /**
+   * Presentation-only brand data the draft's mention pills are drawn with;
+   * reconcile never reads these. `logoUrl` arrives resolved from the host —
+   * the composer never names a logo service itself — and `accentHex` tints
+   * the pill when the host supplies one.
+   */
+  logoUrl?: string
+  logoMonochrome?: boolean
+  accentHex?: string | null
+}
+
+/**
+ * Re-anchors mention spans across an edit of the draft.
+ *
+ * Spans are stored as offsets, so an edit anywhere before a mention leaves
+ * every later span pointing at the wrong slice — and the store's validation
+ * (`text.slice(start, end) === insertText`) would then silently discard a
+ * mention the user never touched. The edit is instead recovered as the
+ * region between the common prefix and suffix of the two drafts: mentions
+ * the region merely shifts survive at their new offset, and only a mention
+ * whose own text the region overlaps dies — the same contract the slice
+ * check enforced, minus the collateral damage. A final slice check catches
+ * anything the prefix/suffix model cannot represent.
+ */
+export function reanchorMentions(
+  previous: string,
+  next: string,
+  mentions: readonly Mention[],
+): Mention[] {
+  if (mentions.length === 0) return []
+
+  let prefix = 0
+  const common = Math.min(previous.length, next.length)
+  while (prefix < common && previous[prefix] === next[prefix]) prefix += 1
+
+  let suffix = 0
+  const suffixLimit = common - prefix
+  while (
+    suffix < suffixLimit &&
+    previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]
+  ) {
+    suffix += 1
+  }
+
+  const editFrom = prefix
+  const editTo = previous.length - suffix
+  const delta = next.length - previous.length
+  const insertion = editFrom === editTo
+
+  const reanchored: Mention[] = []
+  for (const mention of mentions) {
+    // An insertion exactly at a boundary belongs to the neighbour, not to
+    // the mention; anything landing inside the span edits the mention's own
+    // text. A replacement (or deletion) dies when it reaches into the span.
+    const touches = insertion
+      ? editFrom > mention.start && editFrom < mention.end
+      : editFrom < mention.end && mention.start < editTo
+
+    let start = mention.start
+    let end = mention.end
+    if (touches) continue
+    if (insertion ? editFrom <= mention.start : mention.start >= editTo) {
+      start += delta
+      end += delta
+    }
+    if (
+      start < 0 ||
+      end > next.length ||
+      next.slice(start, end) !== mention.insertText
+    ) {
+      continue
+    }
+    reanchored.push({ ...mention, start, end })
+  }
+  return reanchored
 }
 
 export type Selection = {

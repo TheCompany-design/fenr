@@ -2,7 +2,9 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useRef } from "react"
 import { BubbleMenu } from "../bubble-menu"
 import { DragHandle, useDragHandleSync } from "../drag-handle"
+import { LinkPopover } from "../link/link-popover"
 import { EditorSyncBridge } from "../state/sync-bridge"
+import { TableToolbar } from "../tables/table-toolbar"
 import { DocumentCanvas } from "./document-canvas"
 import { EditorSurface } from "./editor-surface"
 import { type DocumentEditorProps, defaultDocumentDefinition } from "./types"
@@ -14,6 +16,7 @@ export function DocumentEditor({
   editable = true,
   onChange,
   className,
+  header,
 }: DocumentEditorProps) {
   const editor = useDocumentEditor({
     content,
@@ -37,6 +40,8 @@ export function DocumentEditor({
     <div className={cn("relative w-full", className)}>
       <EditorSyncBridge editor={editor} />
       <BubbleMenu editor={editor} />
+      <LinkPopover editor={editor} />
+      <TableToolbar editor={editor} />
       <DocumentCanvas
         ref={canvasRef}
         width={definition.canvas?.width}
@@ -44,6 +49,7 @@ export function DocumentEditor({
         padding={definition.canvas?.padding}
       >
         {showDragHandle ? <DragHandle editor={editor} /> : null}
+        {header}
         <EditorSurface editor={editor} />
       </DocumentCanvas>
     </div>

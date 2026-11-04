@@ -1,13 +1,17 @@
 import { type Editor, useCurrentEditor } from "@tiptap/react"
 import { useEffect } from "react"
 import {
+  DEFAULT_DOCUMENT_STATS,
   DEFAULT_FORMATTING_STATE,
   DEFAULT_SELECTION_STATE,
+  areDocumentStatsEqual,
+  type DocumentStats,
   type FormattingState,
   formattingAtom,
   type SelectionState,
   selectionAtom,
 } from "../atoms"
+import { documentStatsAtom } from "../atoms/stats"
 import { useEditorStore } from "../editor-store"
 
 export function deriveFormattingSnapshot(
@@ -33,6 +37,9 @@ export function deriveFormattingSnapshot(
     (editor.isActive({ textAlign: "left" }) ?? false) ||
     (!isAlignCenter && !isAlignRight && !isAlignJustify)
 
+  const highlightAttributes = editor.getAttributes("highlight")
+  const textStyleAttributes = editor.getAttributes("textStyle")
+
   return {
     isBold: editor.isActive("bold") ?? false,
     isItalic: editor.isActive("italic") ?? false,
@@ -49,6 +56,14 @@ export function deriveFormattingSnapshot(
     isBlockquote: editor.isActive("blockquote") ?? false,
     isMath:
       (editor.isActive("inlineMath") || editor.isActive("blockMath")) ?? false,
+    highlightColor:
+      typeof highlightAttributes.color === "string"
+        ? highlightAttributes.color
+        : null,
+    textColor:
+      typeof textStyleAttributes.color === "string"
+        ? textStyleAttributes.color
+        : null,
   }
 }
 
@@ -83,11 +98,39 @@ export function areStatesEqual(
     a.isCode === b.isCode &&
     a.isCodeBlock === b.isCodeBlock &&
     a.isBlockquote === b.isBlockquote &&
-    a.isMath === b.isMath
+    a.isMath === b.isMath &&
+    a.highlightColor === b.highlightColor &&
+    a.textColor === b.textColor
   )
 }
 
 export const areFormattingStatesEqual = areStatesEqual
+
+export function deriveDocumentStats(editor: Editor | null): DocumentStats {
+  if (!editor || editor.isDestroyed) {
+    return DEFAULT_DOCUMENT_STATS
+  }
+  const storage = (
+    editor.storage as unknown as Record<
+      string,
+      { words?: () => number; characters?: () => number } | undefined
+    >
+  ).characterCount
+  if (typeof storage?.words !== "function" || typeof storage?.characters !== "function") {
+    return DEFAULT_DOCUMENT_STATS
+  }
+  return {
+    words: storage.words(),
+    characters: storage.characters(),
+  }
+}
+
+export function areDocumentStatsStatesEqual(
+  a: DocumentStats,
+  b: DocumentStats,
+): boolean {
+  return areDocumentStatsEqual(a, b)
+}
 
 export function areSelectionStatesEqual(
   a: SelectionState,
@@ -118,6 +161,14 @@ export const EditorSyncBridge = ({
       }
     }
 
+    const syncStats = () => {
+      const nextStats = deriveDocumentStats(editor)
+      const currentStats = store.get(documentStatsAtom)
+      if (!areDocumentStatsEqual(currentStats, nextStats)) {
+        store.set(documentStatsAtom, nextStats)
+      }
+    }
+
     const syncSelection = () => {
       const nextSelection = deriveSelectionSnapshot(editor)
       const currentSelection = store.get(selectionAtom)
@@ -128,6 +179,7 @@ export const EditorSyncBridge = ({
 
     syncFormatting()
     syncSelection()
+    syncStats()
 
     const handleSelectionUpdate = () => {
       syncSelection()
@@ -141,6 +193,9 @@ export const EditorSyncBridge = ({
     }) => {
       if (transaction.selectionSet) {
         syncSelection()
+      }
+      if (transaction.docChanged) {
+        syncStats()
       }
       syncFormatting()
     }

@@ -6,6 +6,7 @@ import {
   Heading03Icon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
+  PaintBoardIcon,
   QuoteUpIcon,
   SourceCodeIcon,
   Summation01Icon,
@@ -20,6 +21,7 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons"
 import { HugeiconsIcon } from "@hugeicons/react"
+import { TextSelection } from "@tiptap/pm/state"
 import { type Editor, useCurrentEditor } from "@tiptap/react"
 import { BubbleMenu as TipTapBubbleMenu } from "@tiptap/react/menus"
 import { AnimatedDropdown } from "@workspace/ui/components/animated-dropdown"
@@ -36,7 +38,10 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useAtomValue } from "jotai"
 import { motion, useReducedMotion } from "motion/react"
 import { useId, useState } from "react"
+import { ColorSwatchGrid } from "./bubble-menu/color-picker"
+import { shouldShowFormattingBubble } from "./bubble-menu/should-show"
 import {
+  highlightColorAtom,
   isAlignCenterAtom,
   isAlignJustifyAtom,
   isAlignLeftAtom,
@@ -50,6 +55,7 @@ import {
   isMathAtom,
   isOrderedListAtom,
   isStrikethroughAtom,
+  textColorAtom,
   textTypeAtom,
 } from "./state/atoms"
 
@@ -272,7 +278,10 @@ export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
   const isCodeBlock = useAtomValue(isCodeBlockAtom)
   const isBlockquote = useAtomValue(isBlockquoteAtom)
   const isMath = useAtomValue(isMathAtom)
+  const highlightColor = useAtomValue(highlightColorAtom)
+  const textColor = useAtomValue(textColorAtom)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [colorOpen, setColorOpen] = useState(false)
 
   if (!editor) return null
 
@@ -412,6 +421,17 @@ export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
   return (
     <TipTapBubbleMenu
       editor={editor}
+      shouldShow={({ editor: instance, view, state, from, to }) =>
+        shouldShowFormattingBubble({
+          isEditable: instance.isEditable,
+          isLinkActive: instance.isActive("link"),
+          hasFocus: view.hasFocus(),
+          isEmptySelection: state.selection.empty,
+          isEmptyTextBlock:
+            !state.doc.textBetween(from, to).length &&
+            state.selection instanceof TextSelection,
+        })
+      }
       className="flex items-center gap-1 rounded-2xl border border-border/80 bg-popover/95 p-1 text-popover-foreground shadow-2xl backdrop-blur-md"
     >
       <TooltipProvider delay={300}>
@@ -477,6 +497,65 @@ export const BubbleMenu = ({ editor: propEditor }: BubbleMenuProps = {}) => {
         <Separator orientation="vertical" className="h-5 bg-border/60" />
 
         <BubbleToolbarGroup ariaLabel="Insert & style" items={miscItems} />
+
+        <Separator orientation="vertical" className="h-5 bg-border/60" />
+
+        <Tooltip open={colorOpen ? false : undefined}>
+          <AnimatedDropdown
+            open={colorOpen}
+            onOpenChange={setColorOpen}
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="w-64 bg-popover/95"
+            trigger={
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      "flex items-center justify-between gap-2 transition-colors",
+                      colorOpen && "bg-accent text-accent-foreground",
+                      (highlightColor !== null || textColor !== null) &&
+                        "bg-accent/60 text-accent-foreground",
+                    )}
+                    aria-label="Color"
+                    aria-pressed={highlightColor !== null || textColor !== null}
+                  >
+                    <HugeiconsIcon icon={PaintBoardIcon} className="size-3.5" />
+                    <HugeiconsIcon
+                      icon={ArrowDown01Icon}
+                      className={cn(
+                        "size-3 transition-transform duration-200",
+                        colorOpen && "rotate-180",
+                      )}
+                    />
+                  </Button>
+                }
+              />
+            }
+          >
+            {() => (
+              <ColorSwatchGrid
+                activeHighlight={highlightColor}
+                activeTextColor={textColor}
+                onSelect={(section, value) => {
+                  if (section === "background") {
+                    const chain = editor.chain().focus()
+                    if (value) chain.setHighlight({ color: value }).run()
+                    else chain.unsetHighlight().run()
+                  } else {
+                    const chain = editor.chain().focus()
+                    if (value) chain.setColor(value).run()
+                    else chain.unsetColor().run()
+                  }
+                }}
+              />
+            )}
+          </AnimatedDropdown>
+          <TooltipContent side="top">Color</TooltipContent>
+        </Tooltip>
       </TooltipProvider>
     </TipTapBubbleMenu>
   )

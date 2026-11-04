@@ -1,6 +1,9 @@
 export const NABU_START_TURN_PATH = "/api/v1/threads/turns"
+export const NABU_RESUME_TURN_PATH = (turnId: string) =>
+  `/api/v1/threads/${encodeURIComponent(turnId)}/resume`
 
 import { createFileRoute } from "@tanstack/react-router"
+import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { serverEnv } from "@/lib/env"
 import {
@@ -9,6 +12,11 @@ import {
 } from "@/lib/http/request-id"
 import { acquireOutboundJwt } from "@/lib/http/token.server"
 import { logger } from "@/lib/logger"
+
+const resumeTurnPayloadSchema = z.object({
+  resume_turn_id: z.string().uuid(),
+  thread_id: z.string().uuid().optional(),
+})
 
 function jsonErrorResponse(
   error: string,
@@ -86,15 +94,36 @@ export async function handleAgentStreamRequest(
       return response
     }
 
-    if (
-      !payload ||
-      typeof payload !== "object" ||
+    if (!payload || typeof payload !== "object") {
+      response = jsonErrorResponse("Invalid prompt payload", 400, requestId)
+      return response
+    }
+
+    const isResumeRequest = "resume_turn_id" in payload
+    let upstreamPath = NABU_START_TURN_PATH
+    let upstreamBody: string | undefined
+
+    if (isResumeRequest) {
+      const parsedResume = resumeTurnPayloadSchema.safeParse(payload)
+      if (!parsedResume.success) {
+        response = jsonErrorResponse(
+          "Invalid resume_turn_id payload",
+          400,
+          requestId,
+        )
+        return response
+      }
+      upstreamPath = NABU_RESUME_TURN_PATH(parsedResume.data.resume_turn_id)
+      upstreamBody = undefined
+    } else if (
       !("prompt" in payload) ||
       typeof (payload as { prompt: unknown }).prompt !== "string" ||
       !(payload as { prompt: string }).prompt.trim()
     ) {
       response = jsonErrorResponse("Invalid prompt payload", 400, requestId)
       return response
+    } else {
+      upstreamBody = JSON.stringify(payload)
     }
 
     const token = await acquireOutboundJwt(
@@ -102,16 +131,16 @@ export async function handleAgentStreamRequest(
       { headersSource: request.headers },
     )
 
-    const nabuUrl = `${serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")}${NABU_START_TURN_PATH}`
+    const nabuUrl = `${serverEnv.NABU_SERVER_URL.replace(/\/+$/, "")}${upstreamPath}`
     const nabuResponse = await fetch(nabuUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
+        ...(upstreamBody ? { "Content-Type": "application/json" } : {}),
         Accept: "text/event-stream",
         "X-Request-Id": requestId,
       },
-      body: JSON.stringify(payload),
+      ...(upstreamBody ? { body: upstreamBody } : {}),
       // @ts-expect-error duplex required for streaming request body in Bun/Node
       duplex: "half",
       signal: request.signal,
